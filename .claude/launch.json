@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "splashhub-centre",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "C:\\Users\\FranciscoHou\\Documents\\Tools\\Claude\\SplashHub Centre\\app\\server.py",
+        "8795"
+      ],
+      "port": 8795
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+# local preview state -- never in the image
+app/runs.db
+app/runs.db-*
+app/admin_password.txt
+app/__pycache__/
+**/__pycache__/
+*.pyc
+.git/
+.claude/
+docs/
+artifact.tar.gz
+Previous Versions/
+app/images/

@@ -1,0 +1,314 @@
+"""SplashHub Centre -- the Spluki home for SplashHub's run log.
+
+    python app/server.py [port]        local preview (SQLite + sample data)
+
+Routes
+  GET  /health                          Spluki health check (no login)
+  GET  /                                the Logs page
+  POST /login  {password}               sets the session cookie
+  POST /logout
+  GET  /api/meta                        tools, agents, models, backend, sample flag
+  GET  /api/summary?<filters>&tz=       totals, per-day, per-tool
+  GET  /api/runs?<filters>&page=        one page of rows, newest first
+  GET  /api/runs.csv?<filters>          the filtered rows as CSV
+  <filters> = since, until (epoch ms), tool, agent, model, q
+
+Access. SplashHub shows its Logs page to admins only, so this does too: one
+ADMIN_PASSWORD (a sealed Spluki secret; locally an env var or
+app/admin_password.txt, gitignored). Locally with no password set the page is
+open, for previewing. On Spluki (PostgreSQL backend) a missing password locks
+the data instead of opening it.
+
+The table is filled by feed.py: SplashHub posts each run (and, on request, its
+Zendesk history) to the platform's SPLUKI_WEBHOOK intake, and a background loop
+here takes it. SplashHub keeps writing to Zendesk as well.
+"""
+import base64, csv, hashlib, hmac, http.server, io, json, os, re, secrets, sys, time
+from http import cookies
+from urllib.parse import parse_qs, urlparse
+
+APP = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, APP)
+import store
+import feed
+import imagestore
+import sosscan
+import zendesk
+
+STATIC = os.path.join(APP, "static")
+PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", "8795"))
+HOST = os.environ.get("HOST", "127.0.0.1")      # the container sets 0.0.0.0
+PW_FILE = os.path.join(APP, "admin_password.txt")
+COOKIE = "shcadmin"
+# Local preview fills an empty database with sample runs. Never on Spluki.
+SAMPLE = store.backend() == "sqlite" and os.environ.get("SAMPLE_DATA", "1") != "0"
+
+
+# ---- session ------------------------------------------------------------------
+_KEY = secrets.token_bytes(32)      # per process: a redeploy logs everyone out
+
+
+def admin_password():
+    pw = os.environ.get("ADMIN_PASSWORD")
+    if not pw and os.path.exists(PW_FILE):
+        pw = open(PW_FILE, encoding="utf-8").read().strip()
+    return pw or None
+
+
+def login_required():
+    return bool(admin_password()) or store.backend() == "postgres"
+
+
+def make_token(hours=12):
+    exp = str(int(time.time()) + hours * 3600).encode()
+    return base64.urlsafe_b64encode(exp + b"." + hmac.new(_KEY, exp, hashlib.sha256).digest()).decode()
+
+
+def check_token(tok):
+    try:
+        raw = base64.urlsafe_b64decode((tok or "").encode())
+        exp, sig = raw.split(b".", 1)
+        return hmac.compare_digest(hmac.new(_KEY, exp, hashlib.sha256).digest(), sig) and int(exp) > time.time()
+    except Exception:
+        return False
+
+
+# ---- request helpers ------------------------------------------------------------
+
+def filters(qs):
+    def one(k):
+        v = (qs.get(k) or [""])[0].strip()
+        return v or None
+    f = {}
+    for k in ("since", "until"):
+        v = one(k)
+        if v is not None:
+            try:
+                f[k] = int(v)
+            except ValueError:
+                pass
+    tool = one("tool")
+    if tool in store.TOOL_KEYS:
+        f["tool"] = tool
+    for k in ("agent", "model"):
+        v = one(k)
+        if v:
+            f[k] = v[:120]
+    q = one("q")
+    if q:
+        f["q"] = q[:120]
+    return f
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    server_version = "SplashHubCentre"
+
+    def log_message(self, fmt, *args):      # quiet; errors still print below
+        pass
+
+    def _send(self, code, body, ctype, extra=()):
+        if isinstance(body, str):
+            body = body.encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "same-origin")
+        for k, v in extra:
+            self.send_header(k, v)
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    def json(self, obj, code=200, extra=()):
+        self._send(code, json.dumps(obj, ensure_ascii=False), "application/json; charset=utf-8", extra)
+
+    def authed(self):
+        if not login_required():
+            return True
+        c = cookies.SimpleCookie(self.headers.get("Cookie") or "")
+        return COOKIE in c and check_token(c[COOKIE].value)
+
+    def static(self, name, ctype):
+        path = os.path.join(STATIC, name)
+        with open(path, "rb") as fh:
+            self._send(200, fh.read(), ctype)
+
+    # ---- GET ----
+    def do_GET(self):
+        u = urlparse(self.path)
+        qs = parse_qs(u.query)
+        try:
+            if u.path == "/health":
+                return self._send(200, "ok", "text/plain; charset=utf-8")
+            if u.path in ("/", "/index.html"):
+                return self.static("index.html", "text/html; charset=utf-8")
+            if u.path in ("/scans", "/scans.html"):
+                return self.static("scans.html", "text/html; charset=utf-8")
+            if u.path in ("/app.css", "/app.js", "/scans.js", "/splashtop-icon.png"):
+                ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
+                         "png": "image/png"}[u.path.rsplit(".", 1)[1]]
+                return self.static(u.path.lstrip("/"), ctype)
+            if not u.path.startswith("/api/"):
+                return self._send(404, "Not found", "text/plain; charset=utf-8")
+
+            if u.path == "/api/session":
+                return self.json({"required": login_required(), "authed": self.authed(),
+                                  "configured": bool(admin_password())})
+            if not self.authed():
+                return self.json({"error": "login required"}, 401)
+
+            if u.path == "/api/meta":
+                fac = store.facets()
+                return self.json({"tools": [{"key": k, "label": l} for k, l in store.TOOLS],
+                                  "agents": fac["agents"], "models": fac["models"],
+                                  "first": fac["first"], "last": fac["last"],
+                                  "backend": store.backend(), "sample": SAMPLE, "feed": feed.status()})
+            if u.path == "/api/summary":
+                try:
+                    tz = int((qs.get("tz") or ["0"])[0])
+                except ValueError:
+                    tz = 0
+                return self.json(store.summary(filters(qs), max(-840, min(840, tz))))
+            if u.path == "/api/runs":
+                try:
+                    page = int((qs.get("page") or ["0"])[0])
+                except ValueError:
+                    page = 0
+                return self.json(store.runs(filters(qs), page, 100))
+            # ---- SOS package scans ----
+            if u.path == "/api/scans":
+                one = lambda k: ((qs.get(k) or [""])[0]).strip()
+                try:
+                    page = int(one("page") or 0)
+                except ValueError:
+                    page = 0
+                return self.json(store.scans(one("q")[:80] or None, one("verdict") or None, page, 50))
+            m = re.match(r"^/api/scans/(\d+)/image/(\d+)$", u.path)
+            if m:
+                # A stored copy of one of the ticket's images (imagestore.py).
+                row = store.scan_get(int(m.group(1)))
+                try:
+                    gallery = json.loads((row or {}).get("gallery_json") or "[]")
+                except ValueError:
+                    gallery = []
+                g = next((x for x in gallery if str(x.get("id")) == m.group(2) and x.get("key")), None)
+                if not g or g.get("content_type") not in sosscan.SUPPORTED_IMAGE_TYPES:
+                    return self._send(404, "Not found", "text/plain; charset=utf-8")
+                data = imagestore.store().get(g["key"])
+                if data is None:
+                    return self._send(404, "Not found", "text/plain; charset=utf-8")
+                return self._send(200, data, g["content_type"], [("Cache-Control", "private, max-age=86400"),
+                                                                  ("Content-Disposition", "inline")])
+            if u.path.startswith("/api/scans/") and u.path.rsplit("/", 1)[1].isdigit():
+                row = store.scan_get(int(u.path.rsplit("/", 1)[1]))
+                if not row:
+                    return self.json({"error": "not found"}, 404)
+                for k in ("images_json", "fields_json", "result_json", "gallery_json"):
+                    try:
+                        row[k[:-5]] = json.loads(row.pop(k) or "null")
+                    except ValueError:
+                        row[k[:-5]] = None
+                # The ticket's first message, organised; the raw text stays for "Show original text".
+                row["request"] = sosscan.parse_request(row.get("description") or "")
+                row["zendesk_url"] = zendesk.base_url()
+                return self.json(row)
+            if u.path == "/api/import-past":
+                return self.json(sosscan.import_status())
+            if u.path == "/api/scan-setup":
+                missing = sosscan.missing_config()
+                if not (os.environ.get("ZENDESK_WEBHOOK_SECRET") or "").strip():
+                    missing.append("ZENDESK_WEBHOOK_SECRET")
+                return self.json({"missing": missing, "zendesk_url": zendesk.base_url(),
+                                  "model": sosscan.ai_config()[2], "can_scan": not sosscan.missing_config(),
+                                  "ai_review": "on" if sosscan.ai_review_on() else "off"})
+            if u.path == "/api/runs.csv":
+                rows = store.all_runs(filters(qs))
+                buf = io.StringIO()
+                w = csv.writer(buf)
+                w.writerow(["when_utc", "agent", "type", "tool", "model", "topic", "tickets",
+                            "input_tokens", "output_tokens", "est_cost_usd"])
+                for r in rows:
+                    w.writerow([time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(r["ts_ms"] / 1000)),
+                                r["agent"] or "", r["kind"], dict(store.TOOLS).get(r["tool"], r["tool"]),
+                                r["model"] or "", r["topic"] or "", r["tickets"], r["input_tokens"],
+                                r["output_tokens"], "%.6f" % (r["cost"] or 0)])
+                return self._send(200, buf.getvalue(), "text/csv; charset=utf-8",
+                                  [("Content-Disposition", "attachment; filename=splashhub-logs.csv")])
+            return self.json({"error": "not found"}, 404)
+        except Exception as e:                   # never echo internals to the page
+            sys.stderr.write("GET %s failed: %r\n" % (u.path, e))
+            return self.json({"error": "server error"}, 500)
+
+    do_HEAD = do_GET
+
+    # ---- POST ----
+    def do_POST(self):
+        u = urlparse(self.path)
+        n = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(min(n, 64 * 1024)) if n else b""
+        if u.path == "/login":
+            try:
+                given = (json.loads(raw or b"{}").get("password") or "")
+            except ValueError:
+                given = ""
+            pw = admin_password()
+            if pw and hmac.compare_digest(given.encode("utf-8"), pw.encode("utf-8")):
+                return self.json({"ok": True}, 200, [("Set-Cookie", "%s=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200%s"
+                                                      % (COOKIE, make_token(), "; Secure" if store.backend() == "postgres" else ""))])
+            time.sleep(0.6)                      # blunt brute force a little
+            return self.json({"ok": False, "error": "Wrong password." if pw else
+                              "No ADMIN_PASSWORD is set for this app yet."}, 401)
+        if u.path == "/logout":
+            return self.json({"ok": True}, 200, [("Set-Cookie", "%s=; Path=/; Max-Age=0" % COOKIE)])
+        if u.path == "/api/import-past":
+            # "Import past SOS requests": runs in the background on the server.
+            if not self.authed():
+                return self.json({"error": "login required"}, 401)
+            started = sosscan.start_import()
+            return self.json(dict(sosscan.import_status(), started=started))
+        if u.path == "/api/ai-review":
+            # The AI review switch. Applies only to requests that arrive from now
+            # on; anything already listed keeps the decision it arrived with.
+            if not self.authed():
+                return self.json({"error": "login required"}, 401)
+            try:
+                on = bool(json.loads(raw or b"{}").get("on"))
+            except ValueError:
+                return self.json({"error": "bad request"}, 400)
+            store.set_setting("ai_review", "on" if on else "off", "Centre admin")
+            sys.stderr.write("[scan] AI review switched %s\n" % ("on" if on else "off"))
+            return self.json({"ok": True, "ai_review": "on" if on else "off"})
+        if u.path == "/api/scans":
+            # "Scan a ticket now" on the SOS Scans page; force re-runs a ticket
+            # whose images were already reviewed.
+            if not self.authed():
+                return self.json({"error": "login required"}, 401)
+            try:
+                data = json.loads(raw or b"{}")
+                tid = int(str(data.get("ticket_id") or "").strip().lstrip("#"))
+            except (ValueError, TypeError):
+                return self.json({"error": "Give a ticket number."}, 400)
+            if tid <= 0:
+                return self.json({"error": "Give a ticket number."}, 400)
+            sid = sosscan.request(tid, "manual", "Centre admin", force=bool(data.get("force")))
+            return self.json({"ok": True, "id": sid})
+        return self.json({"error": "not found"}, 404)
+
+
+def main():
+    store.ensure_schema()
+    if SAMPLE and store.count() == 0:
+        import sample
+        n = store.insert_many(sample.generate())
+        print("seeded %d sample runs into %s" % (n, store.SQLITE_FILE))
+    feed.start()
+    sosscan.requeue_unfinished()      # scans a previous container left half-done
+    srv = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
+    print("SplashHub Centre on http://%s:%d  (backend: %s%s)" % (HOST, PORT, store.backend(), ", sample data" if SAMPLE else ""))
+    srv.serve_forever()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,61 @@
+app:
+  # NOTE: app.name becomes the URL's first label and can never be changed once
+  # the app is created on Spluki. The page itself is branded "SplashHub Centre";
+  # that comes from the page, not from this name.
+  name: splashhub
+  summary: The SplashHub run log -- every AI and tool run from the SplashHub Zendesk app, with cost and usage by tool and agent.
+  description: |
+    SplashHub Centre: the Spluki home for SplashHub's run log. One row per run (who ran
+    which tool, when, on which model, with tokens and estimated cost), filterable by
+    period, tool, agent and model, with per-day and per-tool charts and CSV export.
+    Admin-only behind ADMIN_PASSWORD, like the Logs page inside SplashHub. Also reviews
+    Custom SOS package requests (brand impersonation check on the thumbnails, Claude
+    vision) when a Zendesk trigger sends them; results are kept here only.
+  type: web-service
+  runtime: docker
+  port: 8795
+  health_check_path: /health
+  stage: in_development
+  version: "0.3.3"
+
+deployment:
+  environment: dev
+  visibility: internal
+  instance_size: small
+
+secrets:
+  ADMIN_PASSWORD:
+    name: ADMIN_PASSWORD
+    required: true
+  # Shared with SplashHub (its secure "Run log secret" setting): every post to the
+  # webhook must carry it in X-SplashHub-Key, or the run is discarded.
+  RUNLOG_SECRET:
+    name: RUNLOG_SECRET
+    required: true
+  # SOS package scans (sosscan.py / zendesk.py). Read-only Zendesk access; not
+  # required, so a release never waits on them -- the SOS Scans page lists what's missing.
+  ZENDESK_EMAIL:
+    name: ZENDESK_EMAIL
+    required: false
+  ZENDESK_API_TOKEN:
+    name: ZENDESK_API_TOKEN
+    required: false
+  # The signing secret Zendesk shows on the webhook it calls; verifies each trigger call.
+  ZENDESK_WEBHOOK_SECRET:
+    name: ZENDESK_WEBHOOK_SECRET
+    required: false
+
+permissions:
+  - service: SPLUKI_POSTGRES
+    reason: The run log itself -- one row per SplashHub run; the container filesystem is wiped on redeploy
+  - service: SPLUKI_STORAGE
+    reason: Copies of the images on Custom SOS package tickets, so the SOS Scans page always shows them -- without a Zendesk session and after they are removed from Zendesk
+  - service: SPLUKI_WEBHOOK
+    reason: Zendesk SplashHub Logs -- SplashHub (inside Zendesk) cannot reach a Spluki app directly; it posts each run to the platform's public intake and this app picks them up
+  # Re-enable both once a Spluki admin approves them (perm_79cebce395e1, perm_84e51ae0b991):
+  # a release that declares an unapproved grant is refused. Until then, SOS scan
+  # requests from Zendesk are kept as "waiting" and run on the first release that has them.
+  # - service: OUTBOUND_HTTP
+  #   reason: Read-only Zendesk API for the automatic Custom SOS package scan (ticket, comments, thumbnail downloads from zdusercontent.com). Nothing is written back to Zendesk.
+  # - service: CUSTOM_AI
+  #   reason: Team Anthropic key for the SOS package scan (Claude vision, same policy and model as SplashHub's sidebar scan)

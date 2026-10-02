@@ -1,0 +1,7 @@
+app/runs.db
+app/runs.db-*
+app/admin_password.txt
+__pycache__/
+*.pyc
+artifact.tar.gz
+app/images/
