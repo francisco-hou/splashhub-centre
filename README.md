@@ -53,8 +53,7 @@ Body SplashHub posts: `{"v": 1, "source": "webhook" | "zendesk-import", "runs": 
 
 ## SOS Scans
 
-Custom SOS package requests ("New SOS package created by ..." tickets from
-`be-admin@my-mail.splashtop.com`), one row each, opening into the request
+Custom SOS package requests ("New SOS package created by ..." tickets), one row each, opening into the request
 (package, subscription, creator, what end users see, ACP / download links), a
 gallery of every image on the ticket, and -- when it ran -- the AI review.
 
@@ -72,7 +71,9 @@ gallery of every image on the ticket, and -- when it ran -- the AI review.
   (`sosscan.py`; keep in step with SplashHub's `scan.js`). Needs the
   `CUSTOM_AI` grant.
 - **Import past SOS requests** (button): searches Zendesk for every past
-  request and lists it at its own date, with image copies. Never AI-reviewed.
+  request -- by subject only, since agents often change the requester from
+  `be-admin@my-mail.splashtop.com` to the customer -- and lists it at its own
+  date, with image copies. Never AI-reviewed.
   Tickets already listed are skipped, so it can be pressed again.
 
 ## Layout

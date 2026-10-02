@@ -561,12 +561,17 @@ def request_existing(scan_id, ticket_id):
 
 # ---- past requests: imported from Zendesk by SplashHub Centre itself -------------------
 # The "Import past SOS requests" button on the SOS Scans page. Finds every
-# ticket the package system sent ("New SOS package created by ..." from its
-# account), keeps copies of the images, and lists each as a past request at its
-# own creation date. Never reviewed by AI. Tickets already listed are skipped,
-# so the button can be pressed again to pick up anything new.
+# ticket whose subject starts "New SOS package created by ...", keeps copies of
+# the images, and lists each as a past request at its own creation date. Never
+# reviewed by AI. Tickets already listed are skipped, so the button can be
+# pressed again to pick up anything new.
+#
+# Matched by SUBJECT ONLY. The package system files these from
+# be-admin@my-mail.splashtop.com, but agents often change the requester to the
+# real customer afterwards, so a requester filter would miss older tickets.
+# (The Zendesk trigger can keep its requester condition: it is checked at
+# creation, before anyone has changed it.)
 
-SOS_REQUESTER = "be-admin@my-mail.splashtop.com"
 SOS_SUBJECT = "New SOS package created by"
 
 IMPORT = {"running": False, "found": 0, "done": 0, "added": 0, "skipped": 0, "error": None,
@@ -588,7 +593,9 @@ def _import_one(t):
     except (TypeError, ValueError):
         created = _now()
     desc = (t.get("description") or "")[:20000]
-    who = creator({"subject": t.get("subject") or "", "description": desc, "requester_email": SOS_REQUESTER,
+    # Creator from the [Creator] line only: the requester is either the system
+    # account (not a person) or whoever an agent changed it to later.
+    who = creator({"subject": t.get("subject") or "", "description": desc, "requester_email": "",
                    "organization": ""}, cs)
     sid = store.scan_create(tid, "import", "Past request import")
     store.scan_update(sid, requested_ms=created, finished_ms=created, status="held", ai_review="off",
@@ -603,7 +610,7 @@ def _run_import():
         if zendesk.configured():
             raise ScanError("SplashHub Centre has no Zendesk login yet (missing " + ", ".join(zendesk.configured()) + ")")
         found = []
-        for t in zendesk.search_tickets('type:ticket requester:%s subject:"%s"' % (SOS_REQUESTER, SOS_SUBJECT)):
+        for t in zendesk.search_tickets('type:ticket subject:"%s"' % SOS_SUBJECT):
             if str(t.get("subject") or "").startswith(SOS_SUBJECT):   # search matches words; keep true subjects
                 found.append(t)
                 IMPORT["found"] = len(found)
