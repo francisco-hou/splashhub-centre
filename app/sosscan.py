@@ -388,7 +388,7 @@ def run_scan(scan_id, ticket_id, force=False):
        may (copies of every image kept); otherwise what the trigger sent stays.
     2. The AI review -- only if the switch was on when the request came in.
     """
-    row = store.scan_get(scan_id) or {}
+    row = store.scan_get(scan_id, fresh=True) or {}
     store.scan_update(scan_id, status="running")
     try:
         # Decided when the request arrived (request() stamps it), never now.
@@ -476,7 +476,7 @@ def _worker():
         scan_id, ticket_id, force = _Q.get()
         sys.stderr.write("[scan] #%s started (scan %s)\n" % (ticket_id, scan_id))
         run_scan(scan_id, ticket_id, force)
-        row = store.scan_get(scan_id) or {}
+        row = store.scan_get(scan_id, fresh=True) or {}
         sys.stderr.write("[scan] #%s %s%s\n" % (ticket_id, row.get("status"), (" " + row["verdict"]) if row.get("verdict") else ""))
 
 

@@ -299,8 +299,12 @@ def _where(f, skip_tool=False):
     return (" WHERE " + " AND ".join(where)) if where else "", args
 
 
-def _read(sql, args):
-    c = connect(False)
+def _read(sql, args, fresh=False):
+    """fresh=True reads from the WRITER. On Spluki the reader endpoint is a
+    replica that can be a moment behind, so a read that decides something about
+    a row written a moment ago (the scanner, the import, the AI switch) must not
+    use it. Pages showing lists can: a second's lag there is harmless."""
+    c = connect(fresh)
     try:
         cur = c.cursor()
         cur.execute(_q(sql), args)
@@ -414,9 +418,9 @@ def scan_update(scan_id, **fields):
         c.close()
 
 
-def scan_get(scan_id):
+def scan_get(scan_id, fresh=False):
     ensure_schema()
-    rows = _read("SELECT " + ", ".join(SCAN_COLS) + " FROM sos_scans WHERE id = %s", [int(scan_id)])
+    rows = _read("SELECT " + ", ".join(SCAN_COLS) + " FROM sos_scans WHERE id = %s", [int(scan_id)], fresh)
     return dict(zip(SCAN_COLS, rows[0])) if rows else None
 
 
@@ -424,7 +428,7 @@ def scan_done_for(ticket_id, attach_key):
     """A finished scan of exactly these images on this ticket, if one exists."""
     ensure_schema()
     rows = _read("SELECT id FROM sos_scans WHERE ticket_id = %s AND attach_key = %s AND status = 'done' "
-                 "ORDER BY id DESC LIMIT 1", [int(ticket_id), attach_key])
+                 "ORDER BY id DESC LIMIT 1", [int(ticket_id), attach_key], fresh=True)
     return rows[0][0] if rows else None
 
 
@@ -462,7 +466,7 @@ def _settings_table(cur):
 
 def get_setting(key, default=None):
     ensure_schema()
-    c = connect(False)
+    c = connect(True)          # the writer: a switch just flipped must read as flipped
     try:
         cur = c.cursor()
         _settings_table(cur)
@@ -498,4 +502,4 @@ def scan_ticket_ids(ticket_ids):
         return set()
     ensure_schema()
     marks = ",".join(["%s"] * len(ids))
-    return {r[0] for r in _read("SELECT DISTINCT ticket_id FROM sos_scans WHERE ticket_id IN (" + marks + ")", ids)}
+    return {r[0] for r in _read("SELECT DISTINCT ticket_id FROM sos_scans WHERE ticket_id IN (" + marks + ")", ids, fresh=True)}
