@@ -121,7 +121,7 @@ a:hover { color: #004a87; text-decoration: underline; }
 .chart-card { display: flex; flex-direction: column; min-width: 0; }
 .chart { padding: 4px 12px 12px; transition: opacity .15s; }
 .chart svg { display: block; width: 100%; overflow: visible; }
-.loading .chart, .loading .tool-bars, .loading .table-wrap { opacity: .5; }
+/* No dimming while lists refresh: they update in place (it was distracting). */
 .axis { font-size: 10.5px; fill: #78838f; font-variant-numeric: tabular-nums; }
 .grid { stroke: #eaf1f9; stroke-width: 1; }
 .base { stroke: #cbd9e8; stroke-width: 1; }

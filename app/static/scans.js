@@ -115,21 +115,26 @@
   pollImport();   // pick up an import already running (another tab, a reload)
 
   // ---- list ----------------------------------------------------------------------
-  var seq = 0, poll = null;
+  // The list updates in place: no dimming, and nothing is redrawn when nothing
+  // changed -- an automatic check while a request is processing should be
+  // invisible unless it has news.
+  var seq = 0, poll = null, lastSig = '';
   function load() {
     var my = ++seq;
     var p = 'page=' + S.page + (S.verdict ? '&verdict=' + encodeURIComponent(S.verdict) : '') + (S.q ? '&q=' + encodeURIComponent(S.q) : '');
-    document.body.classList.add('loading');
     api('/api/scans?' + p).then(function (res) {
       if (my !== seq) return;
-      drawChips(res.counts);
-      drawRows(res);
+      var sig = JSON.stringify([p, res.total, res.counts, res.rows.map(function (r) { return [r.id, r.status, r.verdict, r.subject, r.creator_email, r.cost]; })]);
+      if (sig !== lastSig) {
+        lastSig = sig;
+        drawChips(res.counts);
+        drawRows(res);
+      }
       var d = new Date();
       $('stamp').textContent = 'Updated ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
       clearTimeout(poll);
       if (res.rows.some(function (r) { return r.status === 'queued' || r.status === 'running'; })) poll = setTimeout(load, 4000);
-    }).catch(function (e) { if (e.message !== 'login') $('stamp').textContent = 'Could not load: ' + e.message; })
-      .then(function () { if (my === seq) document.body.classList.remove('loading'); });
+    }).catch(function (e) { if (e.message !== 'login') $('stamp').textContent = 'Could not load: ' + e.message; });
   }
 
   function drawChips(counts) {
@@ -355,8 +360,16 @@
     if (ev.target.closest('a')) return;
     var tr = ev.target.closest('.sc-row'); if (!tr) return;
     var id = +tr.getAttribute('data-id');
+    // Open / close in place -- no trip back to the server for the list.
+    var old = $('rows').querySelector('.sc-detail-row');
+    if (old) old.remove();
+    [].forEach.call($('rows').querySelectorAll('.sc-row.open'), function (r) { r.classList.remove('open'); });
     S.open = S.open === id ? null : id;
-    load();
+    if (S.open) {
+      tr.classList.add('open');
+      tr.insertAdjacentHTML('afterend', '<tr class="sc-detail-row"><td colspan="7"><div class="sc-detail" id="detail">Loading…</div></td></tr>');
+      loadDetail(S.open);
+    }
   });
   $('rows').addEventListener('keydown', function (ev) {
     if (ev.key === 'Enter' && ev.target.classList.contains('sc-row')) ev.target.click();
