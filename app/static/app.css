@@ -491,3 +491,4 @@ button.air-file:hover { color: #0071ce; }
 .seg-lg { flex: none; align-self: flex-start; margin-top: 2px; }
 .seg-lg button { font-size: 13px; padding: 6px 14px; }
 .set-ok { color: #00873b; font-weight: 500; }
+.pn-tr-done { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #78838f; }

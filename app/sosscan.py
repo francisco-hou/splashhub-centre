@@ -355,6 +355,7 @@ TRANSLATE_PROMPT = ("You translate short texts from a remote-support software pa
                     "support team. Keep the meaning and tone; keep product names, numbers and URLs as they are. "
                     "Return one item per input key. If a text is already English, return it unchanged.")
 NON_ASCII = re.compile(r"[^\x00-\x7f]")
+UNTRANSLATED = {"creator", "date of creation", "technician count", "type", "subscription"}   # facts, not wording
 
 
 def translate_engine():
@@ -395,7 +396,11 @@ def translate(scan_id):
     if miss:
         raise ScanError("Translation needs the AI set up (missing %s)." % ", ".join(miss))
     req = parse_request(row.get("description") or "")
-    texts = {f["label"].lower(): f["value"] for f in req["fields"] if f.get("value") and NON_ASCII.search(f["value"])}
+    # Every piece of wording the package shows (any language -- German or
+    # Spanish need no special characters), but not the facts: emails, dates,
+    # counts, plan names. English comes back unchanged and isn't shown twice.
+    texts = {f["label"].lower(): f["value"] for f in req["fields"]
+             if (f.get("value") or "").strip() and f["label"].lower() not in UNTRANSLATED and "@" not in f["value"]}
     if row.get("subject") and NON_ASCII.search(row["subject"]):
         texts["subject"] = row["subject"]
     if not texts:

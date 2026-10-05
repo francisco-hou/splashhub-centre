@@ -319,9 +319,15 @@
   function hasForeign(s, req) {
     return FOREIGN.test(s.subject || '') || (req.fields || []).some(function (x) { return x.value && FOREIGN.test(x.value); });
   }
+  // Always there on an SOS request: languages like German or Spanish look
+  // like English to a quick check, so the agent decides.
   function translateBtn(s, req) {
-    if (!hasForeign(s, req)) return '';
     if (!s.translation) return '<button type="button" class="btn btn-sm pn-tr-btn" data-translate="1">' + ICON_TR + 'Translate to English</button>';
+    var differs = Object.keys(s.translation).some(function (k) {
+      var orig = k === 'subject' ? s.subject : ((req.fields || []).filter(function (f) { return f.label.toLowerCase() === k; })[0] || {}).value;
+      return s.translation[k] && s.translation[k] !== orig;
+    });
+    if (!differs) return '<span class="pn-tr-done">' + ICON_TR + 'Already in English</span>';
     return '<button type="button" class="btn btn-sm pn-tr-btn" data-entoggle="1">' + ICON_TR + (SHOW_EN ? 'Hide English' : 'Show English') + '</button>';
   }
   function kvEn(s, k, v, key) {
