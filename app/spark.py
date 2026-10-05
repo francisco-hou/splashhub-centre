@@ -47,16 +47,28 @@ def _call(path, body=None):
         raise SparkError("could not reach Spark (%s)" % type(e).__name__)
 
 
-def model():
-    """The model to use: AI_SPARK_MODEL if set, else the first the token may use."""
-    if os.environ.get("AI_SPARK_MODEL"):
-        return os.environ["AI_SPARK_MODEL"].strip()
+def models():
+    """The models this token may use, as Spark lists them (cached an hour)."""
     if not _MODELS["list"] or time.time() - _MODELS["at"] > 3600:
         d = _call("/models")
         _MODELS.update(at=time.time(), list=[m.get("id") for m in d.get("data") or [] if m.get("id")])
-    if not _MODELS["list"]:
+    return list(_MODELS["list"])
+
+
+def model():
+    """The model to use: AI_SPARK_MODEL if set; else the one picked in Settings
+    (spark_model), if Spark still offers it; else the first it lists."""
+    if os.environ.get("AI_SPARK_MODEL"):
+        return os.environ["AI_SPARK_MODEL"].strip()
+    have = models()
+    if not have:
         raise SparkError("Spark lists no model for this token")
-    return _MODELS["list"][0]
+    try:
+        import store
+        picked = store.get_setting("spark_model", "") or ""
+    except Exception:
+        picked = ""
+    return picked if picked in have else have[0]
 
 
 def clean(text):
@@ -68,13 +80,65 @@ def clean(text):
     return re.sub(r"<think>.*", "", text, flags=re.S).strip()
 
 
+def thinking_on():
+    """Settings: let the model think before answering (slower). Off by default."""
+    try:
+        import store
+        return store.get_setting("spark_thinking", "off") == "on"
+    except Exception:
+        return False
+
+
+def speed_test(m=None):
+    """Seconds for a tiny question on a model (Settings' Test speed button)."""
+    m = m or model()
+    if m not in models():
+        raise SparkError("Spark doesn't offer that model")
+    body = {"model": m, "max_tokens": 200, "temperature": 0,
+            "messages": [{"role": "user", "content": "In one short sentence: what is remote support software?"}]}
+    if _NO_THINK["ok"] and not thinking_on():
+        body["chat_template_kwargs"] = {"enable_thinking": False}
+    t0 = time.time()
+    d = _call("/chat/completions", body)
+    secs = round(time.time() - t0, 1)
+    try:
+        answer = clean(d["choices"][0]["message"].get("content"))
+    except (KeyError, IndexError, TypeError, AttributeError):
+        answer = ""
+    return {"model": m, "seconds": secs, "answer": answer[:200]}
+
+
+# Thinking models (Qwen3) write a long hidden chain of reasoning before every
+# answer -- most of the wait, and none of it is used. vLLM, behind Spark,
+# turns it off with chat_template_kwargs. A model or server that refuses the
+# switch gets one retry without it, and is not sent it again.
+_NO_THINK = {"ok": True}
+
+
 def chat_raw(messages, tools=None, max_tokens=2000):
     """One Chat Completions call; the reply message as Spark sends it
-    (content and, when tools are given, any tool_calls)."""
-    body = {"model": model(), "max_tokens": max_tokens, "temperature": 0.2, "messages": messages}
+    (content and, when tools are given, any tool_calls). Timed in the log."""
+    m = model()
+    body = {"model": m, "max_tokens": max_tokens, "temperature": 0.2, "messages": messages}
     if tools:
         body["tools"] = tools
-    d = _call("/chat/completions", body)
+    t0 = time.time()
+    if _NO_THINK["ok"] and not thinking_on():
+        try:
+            d = _call("/chat/completions", dict(body, chat_template_kwargs={"enable_thinking": False}))
+        except SparkError as e:
+            if "HTTP 400" not in str(e) and "HTTP 422" not in str(e):
+                raise
+            _NO_THINK["ok"] = False
+            import sys
+            sys.stderr.write("[spark] the thinking switch was refused; asking without it from now on\n")
+            d = _call("/chat/completions", body)
+    else:
+        d = _call("/chat/completions", body)
+    import sys
+    u = d.get("usage") or {}
+    sys.stderr.write("[spark] %s %.1fs%s%s\n" % (m, time.time() - t0, " +tools" if tools else "",
+                                                ", %s tokens out" % u["completion_tokens"] if u.get("completion_tokens") else ""))
     try:
         return d["choices"][0]["message"] or {}
     except (KeyError, IndexError, TypeError):

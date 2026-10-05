@@ -101,6 +101,33 @@
       </div>
     </section>
 
+    <!-- Spark: Splashtop's own AI (Translate with Spark, the dashboard's spike notes, Ask AI). -->
+    <section class="card set-card" aria-labelledby="spH">
+      <h2 class="set-h" id="spH">Spark</h2>
+      <div class="set-d" id="spState" style="margin-top:-2px"></div>
+      <div class="set-row">
+        <div class="set-txt">
+          <div class="set-t">Model</div>
+          <div class="set-d">Which of Spark&rsquo;s models answers: Ask AI, Spark translations, and the dashboard&rsquo;s spike notes and lookalike names. Smaller models answer faster; bigger ones may answer better. Use <b>Test speed</b> to compare.</div>
+          <div class="frow set-form">
+            <button type="button" class="btn" id="spTest">Test speed</button>
+            <span class="sc-msg" id="spTestMsg" aria-live="polite"></span>
+          </div>
+        </div>
+        <select id="spModel" class="sc-input sp-select" aria-label="Spark model"></select>
+      </div>
+      <div class="set-row">
+        <div class="set-txt">
+          <div class="set-t">Let the model think first</div>
+          <div class="set-d">Some models (like Qwen3) write a long hidden chain of reasoning before every answer. Off is much faster and fine for lookups, translations and tags; turn it on only if answers seem careless.</div>
+        </div>
+        <label class="aisw" id="thinkSwitch">
+          <span class="aisw-sw"><input type="checkbox" id="thinkToggle" aria-label="Let the model think first"><span class="aisw-track"></span></span>
+          <span class="aisw-state" id="thinkState">…</span>
+        </label>
+      </div>
+    </section>
+
     <!-- The Price Book's feed: SplashHub's own settings code (pbsettings.js, unchanged). -->
     <section class="card set-card" aria-labelledby="pbH" id="setSect-pricebook">
       <h2 class="set-h" id="pbH">Price Book</h2>
@@ -126,6 +153,6 @@
   <script src="prices.js?v=0.9.1"></script>
   <script src="pricebook.js?v=0.9.2"></script>
   <script src="pbsettings.js?v=0.9.1"></script>
-  <script src="settings.js?v=0.8.3"></script>
+  <script src="settings.js?v=0.9.3"></script>
 </body>
 </html>

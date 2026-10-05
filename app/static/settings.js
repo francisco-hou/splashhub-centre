@@ -62,6 +62,7 @@
       drawSwitch('aiSwitch', 'aiToggle', 'aiState', s.ai_review === 'on');
       drawSwitch('noteSwitch', 'noteToggle', 'noteState', s.auto_note === 'on');
       drawEngine(s.translate_engine);
+      drawSpark(s);
       $('sparkState').innerHTML = s.spark ? '<span class="set-ok">&#10003; Spark is connected.</span>'
         : 'Spark isn&rsquo;t connected to SplashHub Centre yet; until it is, translations with Spark will say so.';
     }).catch(function () {});
@@ -101,6 +102,40 @@
     drawEngine(b.getAttribute('data-engine'));
     post('/api/settings', { translate_engine: b.getAttribute('data-engine') })
       .then(function (r) { drawEngine(r.translate_engine); }).catch(settings);
+  });
+
+  // ---- Spark: model, thinking, speed test -------------------------------------------
+  function drawSpark(s) {
+    var sel = $('spModel');
+    if (!s.spark || s.spark_error) {
+      $('spState').textContent = s.spark_error ? 'Spark answered with a problem: ' + s.spark_error : 'Spark isn’t connected to SplashHub Centre yet.';
+      sel.disabled = true; $('spTest').disabled = true; $('thinkToggle').disabled = true;
+      return;
+    }
+    $('spState').innerHTML = '<span class="set-ok">&#10003; Connected.</span> Spark offers ' + s.spark_models.length + ' model' + (s.spark_models.length === 1 ? '' : 's') + ' to SplashHub Centre.';
+    sel.innerHTML = s.spark_models.map(function (m) {
+      return '<option value="' + esc(m) + '"' + (m === s.spark_model ? ' selected' : '') + '>' + esc(m) + '</option>';
+    }).join('');
+    drawSwitch('thinkSwitch', 'thinkToggle', 'thinkState', s.spark_thinking === 'on');
+  }
+  $('spModel').addEventListener('change', function () {
+    var m = this.value;
+    $('spTestMsg').textContent = '';
+    post('/api/settings', { spark_model: m }).catch(function (e) { $('spTestMsg').textContent = e.message; settings(); });
+  });
+  $('thinkToggle').addEventListener('change', function () {
+    var on = this.checked;
+    post('/api/settings', { spark_thinking: on })
+      .then(function (r) { drawSwitch('thinkSwitch', 'thinkToggle', 'thinkState', r.spark_thinking === 'on'); })
+      .catch(function () { drawSwitch('thinkSwitch', 'thinkToggle', 'thinkState', !on); });
+  });
+  $('spTest').addEventListener('click', function () {
+    var b = this, m = $('spModel').value;
+    b.disabled = true; $('spTestMsg').textContent = 'Asking ' + m + '…';
+    post('/api/spark/test', { model: m })
+      .then(function (r) { $('spTestMsg').innerHTML = '<b>' + esc(r.model) + '</b>: ' + r.seconds + ' s' + (r.answer ? ' — “' + esc(r.answer) + '”' : ''); })
+      .catch(function (e) { if (e.message !== 'login') $('spTestMsg').textContent = e.message; })
+      .then(function () { b.disabled = false; });
   });
 
   // ---- scan a ticket now ---------------------------------------------------------------

@@ -515,3 +515,4 @@ button.air-file:hover { color: #0071ce; }
 .ask-form textarea { flex: 1; resize: none; font: inherit; font-size: 13.5px; line-height: 1.5; border: 1px solid #cbd9e8; border-radius: 8px; padding: 8px 12px; min-height: 40px; }
 .ask-form textarea:focus { outline: none; border-color: #0071ce; }
 .ask-foot { padding: 0 16px 12px; font-size: 11.5px; color: #98a3ae; }
+.sp-select { flex: none; width: 260px; height: 36px; align-self: flex-start; margin-top: 2px; }

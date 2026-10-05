@@ -306,9 +306,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(ssocheck.check_all_status())
             if u.path == "/api/settings":
                 import spark
-                return self.json({"ai_review": "on" if sosscan.ai_review_on() else "off",
-                                  "auto_note": "on" if sosscan.auto_note() else "off",
-                                  "translate_engine": sosscan.translate_engine(), "spark": spark.available()})
+                sp = {"spark": spark.available()}
+                if sp["spark"]:
+                    try:
+                        sp.update(spark_models=spark.models(), spark_model=spark.model(),
+                                  spark_thinking="on" if spark.thinking_on() else "off")
+                    except spark.SparkError as e:
+                        sp["spark_error"] = str(e)
+                return self.json(dict(sp, ai_review="on" if sosscan.ai_review_on() else "off",
+                                      auto_note="on" if sosscan.auto_note() else "off",
+                                      translate_engine=sosscan.translate_engine()))
             if u.path == "/api/scan-setup":
                 missing = sosscan.missing_config()
                 if not (os.environ.get("ZENDESK_WEBHOOK_SECRET") or "").strip():
@@ -374,6 +381,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 data = json.loads(raw or b"{}")
             except ValueError:
                 return self.json({"error": "bad request"}, 400)
+            if "spark_model" in data or "spark_thinking" in data:
+                import spark
+                try:
+                    if "spark_model" in data:
+                        if data["spark_model"] not in spark.models():
+                            return self.json({"error": "Spark doesn't offer that model"}, 400)
+                        store.set_setting("spark_model", data["spark_model"], "Centre admin")
+                    if "spark_thinking" in data:
+                        store.set_setting("spark_thinking", "on" if data["spark_thinking"] else "off", "Centre admin")
+                except spark.SparkError as e:
+                    return self.json({"error": str(e)}, 400)
+                return self.json({"ok": True, "spark_model": spark.model(), "spark_thinking": "on" if spark.thinking_on() else "off"})
             if data.get("translate_engine") in ("claude", "spark"):
                 store.set_setting("translate_engine", data["translate_engine"], "Centre admin")
             if "auto_note" in data:
@@ -405,6 +424,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json({"ok": True})
             except (ValueError, pricebook.PriceError) as e:
                 return self.json({"error": str(e) if isinstance(e, pricebook.PriceError) else "bad request"}, 400)
+        if u.path == "/api/spark/test":
+            # Settings' "Test speed": one tiny question, timed.
+            if not self.authed():
+                return self.json({"error": "login required"}, 401)
+            import spark
+            try:
+                return self.json(spark.speed_test((json.loads(raw or b"{}").get("model") or None)))
+            except ValueError:
+                return self.json({"error": "bad request"}, 400)
+            except spark.SparkError as e:
+                return self.json({"error": str(e)}, 400)
         if u.path == "/api/ask":
             # Ask AI: a question about SplashHub Centre's own data, answered by
             # Spark with read-only lookups (askai.py).
@@ -521,7 +551,7 @@ def _spark_hello():
             sys.stderr.write("[spark] not connected (no AI_SPARK_BASE_URL / AI_SPARK_API_KEY)\n")
             return
         try:
-            sys.stderr.write("[spark] connected; model %s (of %d)\n" % (spark.model(), len(spark._MODELS["list"]) or 1))
+            sys.stderr.write("[spark] connected; using %s; offers: %s\n" % (spark.model(), ", ".join(spark.models())))
         except spark.SparkError as e:
             sys.stderr.write("[spark] configured but not answering: %s\n" % e)
     threading.Thread(target=run, daemon=True).start()
