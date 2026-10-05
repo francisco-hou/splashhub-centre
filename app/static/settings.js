@@ -145,21 +145,6 @@
       .then(function () { b.disabled = false; });
   });
 
-  // ---- scan a ticket now ---------------------------------------------------------------
-  $('scanForm').addEventListener('submit', function (ev) {
-    ev.preventDefault();
-    var tid = $('tid').value.trim().replace(/^#/, '');
-    if (!/^\d+$/.test(tid)) { $('scanMsg').textContent = 'Enter a ticket number.'; return; }
-    $('scanBtn').disabled = true; $('scanMsg').textContent = '';
-    post('/api/scans', { ticket_id: tid, force: $('force').checked })
-      .then(function (r) {
-        $('scanMsg').innerHTML = 'Queued #' + esc(tid) + '. <a href="/scans#' + r.id + '">Open it on SOS Scans</a>';
-        $('tid').value = '';
-      })
-      .catch(function (e) { if (e.message !== 'login') $('scanMsg').textContent = e.message; })
-      .then(function () { $('scanBtn').disabled = false; });
-  });
-
   // ---- import past requests (runs on the server; this starts and watches it) -----------
   var impPoll = null;
   function drawImport(st) {

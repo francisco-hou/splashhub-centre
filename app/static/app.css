@@ -572,3 +572,27 @@ body.ai-open .page { margin-right: min(460px, 100vw); }
 @media (max-width: 900px) { body.ai-open .page { margin-right: auto; } }
 .aichat { display: flex; flex-direction: column; min-height: 0; }
 .ask-card.aichat { min-height: 520px; }
+
+/* ---- Smoother page changes ----
+   Between pages: a short cross-fade (browsers with cross-document View
+   Transitions -- Chrome and Edge; others just change page as before), with the
+   left menu held still. Within a page: the content, the Dashboard / View
+   Scans switch, the request pop-up and the AI panel ease in. Nothing moves
+   for anyone who asks their system for reduced motion. */
+@view-transition { navigation: auto; }
+.snav { view-transition-name: snav; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; animation-timing-function: ease; }
+@keyframes shcIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes shcPop { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes shcFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes shcSlide { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+main.page:not([hidden]) { animation: shcIn .28s cubic-bezier(.2, .7, .2, 1); }
+#dashView:not([hidden]), #listView:not([hidden]) { animation: shcIn .22s cubic-bezier(.2, .7, .2, 1); }
+.pn-overlay:not([hidden]) { animation: shcFade .16s ease-out; }
+.pn-overlay:not([hidden]) .pn { animation: shcPop .22s cubic-bezier(.2, .7, .2, 1); }
+.ai-drawer:not([hidden]) { animation: shcSlide .24s cubic-bezier(.2, .7, .2, 1); }
+.ask-msg { animation: shcIn .2s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+  main.page, #dashView, #listView, .pn-overlay, .pn, .ai-drawer, .ask-msg { animation: none !important; }
+}

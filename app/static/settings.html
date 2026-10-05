@@ -46,7 +46,7 @@
         <div class="set-nav-group">SOS Scans</div>
         <a class="set-nav-item" href="#review" data-sect="review"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>Reviews &amp; notes</a>
         <a class="set-nav-item" href="#translate" data-sect="translate"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/></svg>Translation</a>
-        <a class="set-nav-item" href="#import" data-sect="import"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Scan &amp; import</a>
+        <a class="set-nav-item" href="#import" data-sect="import"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Import</a>
         <div class="set-nav-group">AI</div>
         <a class="set-nav-item" href="#spark" data-sect="spark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>Spark</a>
         <div class="set-nav-group">PriceBook</div>
@@ -95,21 +95,8 @@
 
         </section>
         <section class="card set-card set-sect" id="setSect-import" aria-labelledby="h-import">
-          <h2 class="set-h" id="h-import">Scan &amp; import</h2>
-          <div class="set-sub">Bring SOS requests from Zendesk into SOS Scans by hand.</div>
-      <div class="set-row">
-        <div class="set-txt">
-          <div class="set-t">Scan a ticket</div>
-          <div class="set-d">Read one ticket from Zendesk and list it on SOS Scans now; it gets an AI review if <b>AI review</b> is on.</div>
-          <form class="frow set-form" id="scanForm">
-            <input class="sc-input" id="tid" inputmode="numeric" placeholder="Ticket number, e.g. 48213" autocomplete="off" aria-label="Ticket number">
-            <label class="sc-check"><input type="checkbox" id="force"> Re-scan even if already reviewed</label>
-            <button type="submit" class="btn btn-primary" id="scanBtn">Scan now</button>
-          </form>
-          <div class="sc-msg" id="scanMsg" aria-live="polite"></div>
-        </div>
-      </div>
-
+          <h2 class="set-h" id="h-import">Import</h2>
+          <div class="set-sub">Bring past SOS requests from Zendesk into SOS Scans. New ones arrive by themselves through the Zendesk webhook.</div>
       <div class="set-row">
         <div class="set-txt">
           <div class="set-t">Past requests</div>
