@@ -157,7 +157,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path in ("/sso", "/sso.html"):
                 return self.static("sso.html", "text/html; charset=utf-8")
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/splashtop-icon.png"):
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -187,7 +187,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     page = int((qs.get("page") or ["0"])[0])
                 except ValueError:
                     page = 0
-                return self.json(store.runs(filters(qs), page, 100))
+                return self.json(store.runs(filters(qs), page, 25))
             # ---- SOS package scans ----
             if u.path == "/api/scans/dashboard":
                 try:

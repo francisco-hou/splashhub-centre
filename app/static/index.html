@@ -11,23 +11,25 @@
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <img src="splashtop-icon.png" alt="" width="24" height="24">
-      <span class="brand-name">SplashHub <span class="brand-sub">Centre</span></span>
+  <nav class="snav" id="snav" aria-label="Pages">
+    <div class="snav-brand">
+      <span class="snav-logo"><img src="splashtop-icon.png" alt="" width="26" height="26"></span>
+      <span class="snav-name">SplashHub <span class="brand-sub">Centre</span></span>
+      <button type="button" class="snav-toggle" id="navToggle" title="Collapse the menu" aria-label="Collapse the menu"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9.5" y1="4" x2="9.5" y2="20"/><polyline points="16 9.5 13.5 12 16 14.5"/></svg></button>
     </div>
-    <nav class="topnav" aria-label="Pages">
-      <a class="topnav-item active" href="/" aria-current="page">Logs</a>
-      <a class="topnav-item" href="/scans">SOS Scans</a>
-      <a class="topnav-item" href="/sso">SSO Requests</a>
-      <a class="topnav-item" href="/prices">PriceBook</a>
-      <a class="topnav-item" href="/ask">AI</a>
-      <a class="topnav-item" href="/settings">Settings</a>
-    </nav>
-    <div class="topbar-right">
-      <button type="button" class="link-btn" id="signOut" hidden>Sign out</button>
+    <div class="snav-scroll">
+      <a class="snav-item" href="/scans" title="SOS Scans"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg><span class="snav-label">SOS Scans</span></a>
+      <a class="snav-item" href="/sso" title="SSO Requests"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2"/><path d="M16 7l3 3"/><path d="M19 4l2 2"/></svg><span class="snav-label">SSO Requests</span></a>
+      <a class="snav-item" href="/prices" title="PriceBook"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/></svg><span class="snav-label">PriceBook</span></a>
+      <a class="snav-item" href="/ask" title="Ask AI"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg><span class="snav-label">Ask AI</span><span class="snav-ai">Spark</span></a>
+      <a class="snav-item active" href="/" aria-current="page" title="Logs"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg><span class="snav-label">Logs</span></a>
+      <a class="snav-item" href="/settings" title="Settings"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="snav-label">Settings</span></a>
     </div>
-  </header>
+    <div class="snav-foot">
+      <button type="button" class="snav-item" id="signOut" hidden title="Sign out"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span class="snav-label">Sign out</span></button>
+    </div>
+  </nav>
+  <script src="nav.js?v=1.0.0"></script>
 
   <main class="page" id="page" hidden>
     <div class="hdr">
@@ -105,7 +107,7 @@
         <h2 class="card-title">Run log</h2>
         <span class="count" id="count"></span>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap table-cap">
         <table class="runs">
           <thead><tr>
             <th>When</th><th>Agent</th><th>Type</th><th>Model</th><th>Topic</th>

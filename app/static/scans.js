@@ -87,7 +87,7 @@
 
   // ---- the dashboard ------------------------------------------------------------------------
   var DCOL = { verified: '#7cc79a', needs_review: '#f2a65a', high_risk: '#e05a4f', not_reviewed: '#cfd8e2' };
-  var dseqD = 0;
+  var dseqD = 0, dSparkT = null, dSparkTries = 0;
   function loadDash(fresh) {
     var my = ++dseqD;
     spinOn();
@@ -95,6 +95,11 @@
       spinOff();
       if (my !== dseqD) return;
       drawKpis(d.kpis); drawChart(d.days); drawSpike(d.spikes); drawAttention(d.attention); drawWho(d.who); drawMix(d.mix, d.spend, d.lookalikes);
+      // Spark answers in the background: ask again shortly for its part
+      var waiting = [d.spikes.spark, d.lookalikes].some(function (x) { return x && (x.pending || x.updating); });
+      clearTimeout(dSparkT);
+      if (waiting && dSparkTries++ < 12) dSparkT = setTimeout(function () { if (VIEW === 'dash') loadDash(); }, 5000);
+      if (!waiting) dSparkTries = 0;
       var t = new Date();
       $('stamp').textContent = 'Updated ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
     }).catch(function (e) { spinOff(); if (e.message !== 'login') $('stamp').textContent = 'Could not load: ' + e.message; });
@@ -165,6 +170,7 @@
     h += '<div class="dspark"><div class="dspark-h">Spark · what stands out</div>';
     if (!any) h += '<div class="dmuted">When there is a spike, Spark says what the requests have in common.</div>';
     else if (!s || s.off) h += '<div class="dmuted">Spark isn’t connected yet. Once it is, it explains spikes here.</div>';
+    else if (s.pending) h += '<div class="dmuted dthink">Spark is looking at these requests…</div>';
     else if (s.error) h += '<div class="dmuted">Spark couldn’t answer: ' + esc(s.error) + '</div>';
     else h += '<ul>' + s.points.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>';
     $('dSpike').classList.toggle('dcard-alert', any);
@@ -204,6 +210,7 @@
              : '<div class="dmuted">No requests in the last 7 days.</div>');
     h += '<div class="dct dct-sub">Lookalike names <span>Spark</span></div>';
     if (!look || look.off) h += '<div class="dmuted">Spark isn’t connected yet. Once it is, it lists package names that imitate a known brand.</div>';
+    else if (look.pending) h += '<div class="dmuted dthink">Spark is reading this week’s package names…</div>';
     else if (look.error) h += '<div class="dmuted">Spark couldn’t answer: ' + esc(look.error) + '</div>';
     else if (!look.items.length) h += '<div class="dmuted">None this week.</div>';
     else h += look.items.map(function (x) { return '<div class="drow drow-s"><span>“' + esc(x.name) + '”</span><span class="dmuted">' + esc(x.brand) + '</span></div>'; }).join('');

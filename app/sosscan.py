@@ -900,7 +900,7 @@ def refresh_statuses(rows, force=False, wait=False):
     # Solved is still read -- a customer reply reopens it.
     stale = [r for r in rows if r.get("ticket_status") != "closed" and
              (force or not r.get("ticket_status_ms") or _now() - r["ticket_status_ms"] > STATUS_MAX_AGE)]
-    if not stale or zendesk.configured() or not _status_busy.acquire(blocking=wait, timeout=15 if wait else -1):
+    if not stale or zendesk.configured() or not _status_busy.acquire(blocking=wait, timeout=5 if wait else -1):
         return False
 
     def run():
@@ -914,10 +914,11 @@ def refresh_statuses(rows, force=False, wait=False):
             sys.stderr.write("[status] refresh failed: %s\n" % type(e).__name__)
         finally:
             _status_busy.release()
-    if wait:
-        run()
-        return True
-    threading.Thread(target=run, name="ticket-status", daemon=True).start()
+    t = threading.Thread(target=run, name="ticket-status", daemon=True)
+    t.start()
+    if wait:                      # the refresh button: wait a little, never long
+        t.join(10)
+        return not t.is_alive()
     return False
 
 

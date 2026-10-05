@@ -14,36 +14,53 @@ a:hover { color: #004a87; text-decoration: underline; }
 [hidden] { display: none !important; }
 .num, .runs td.n { font-variant-numeric: tabular-nums; }
 
-/* ---- top bar ---- */
-.topbar {
-  position: sticky; top: 0; z-index: 10;
-  display: flex; align-items: center; gap: 28px;
-  height: 52px; padding: 0 24px; background: #fff; border-bottom: 1px solid #dce7f2;
+/* ---- left menu (the same as SplashHub's dashboard in Zendesk) ---- */
+body { padding-left: 232px; }
+.snav {
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 30; width: 232px;
+  display: flex; flex-direction: column; background: #fff; border-right: 1px solid #e4e6ea;
 }
-.brand { display: flex; align-items: center; gap: 9px; }
-.brand img { display: block; border-radius: 6px; }
-.brand-name { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.nav-anim .snav, .nav-anim body { transition: width .28s cubic-bezier(.32,.72,.32,1), padding-left .28s cubic-bezier(.32,.72,.32,1); }
+.snav-brand { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; padding: 16px 18px; margin-bottom: 8px; }
+.snav-logo { width: 26px; height: 26px; flex: none; display: flex; }
+.snav-logo img { display: block; border-radius: 6px; }
+.snav-name { flex: 1 1 auto; min-width: 0; font-size: 14px; white-space: nowrap; overflow: hidden; }
 .brand-sub { font-weight: 500; color: #55606b; }
-.topnav { display: flex; gap: 4px; align-self: stretch; }
-.topnav-item {
-  display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 500; color: #55606b;
-  border-bottom: 2px solid transparent; margin-bottom: -1px;
+.snav-toggle {
+  flex: none; width: 26px; height: 26px; padding: 0; margin-right: -8px; display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 6px; background: transparent; color: #98a3ae; cursor: pointer;
 }
-.topnav-item:hover { color: #1d242c; text-decoration: none; }
-.topnav-item.active { color: #0071ce; border-bottom-color: #0071ce; font-weight: 600; }
-.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
-.topbar-right .btn-icon { padding: 6px 8px; }
-.brand-name, .topnav-item, .stamp { white-space: nowrap; }
-/* Narrow windows: the page links scroll sideways instead of pushing the
-   time and the refresh button off the edge; the time hides on a phone. */
-@media (max-width: 900px) {
-  .topbar { gap: 14px; padding: 0 12px; }
-  .topnav { min-width: 0; flex: 1 1 auto; overflow-x: auto; scrollbar-width: none; }
-  .topnav::-webkit-scrollbar { display: none; }
-  .topnav-item { padding: 0 9px; }
-  .topbar-right { margin-left: 0; flex: none; }
+.snav-toggle:hover { background: #f5f8fb; color: #0071ce; }
+.snav-toggle svg { transition: transform .26s cubic-bezier(.32,.72,.32,1); }
+.snav-scroll { flex: 1 1 auto; overflow-y: auto; scrollbar-width: none; }
+.snav-scroll::-webkit-scrollbar { display: none; }
+.snav-foot { border-top: 1px solid #eef0f3; padding: 6px 0; }
+.snav-foot:not(:has(.snav-item:not([hidden]))) { display: none; }
+.snav-item {
+  display: flex; align-items: center; gap: 11px; width: 100%; box-sizing: border-box;
+  font: inherit; font-size: 13.5px; font-weight: 400; color: #3d4650; background: transparent;
+  border: none; border-left: 3px solid transparent; border-radius: 0;
+  padding: 10px 16px 10px 15px; cursor: pointer; text-align: left; white-space: nowrap; overflow: hidden;
+  transition: background .2s, color .2s, border-left-color .2s;
 }
-@media (max-width: 560px) { .topbar .stamp, .brand-sub { display: none; } }
+.snav-item[hidden] { display: none; }
+.snav-item:hover { background: #f5f8fb; color: #14171c; text-decoration: none; }
+.snav-item.active { background: #eaf4fd; color: #0071ce; font-weight: 500; border-left-color: #0071ce; }
+.snav-item svg { flex: none; }
+.snav-ai {
+  margin-left: auto; flex: none; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #0071ce; background: #ddeefb; border-radius: 4px; padding: 2px 5px;
+}
+.snav-item.active .snav-ai { background: #fff; }
+/* Collapsed: an icon-only rail (the button by the logo, or any narrow window). */
+.nav-mini body { padding-left: 56px; }
+.nav-mini .snav { width: 56px; }
+.nav-mini .snav-brand { flex-direction: column; gap: 10px; padding: 14px 0 6px; }
+.nav-mini .snav-name, .nav-mini .snav-label, .nav-mini .snav-ai { display: none; }
+.nav-mini .snav-toggle { margin-right: 0; }
+.nav-mini .snav-toggle svg { transform: rotate(180deg); }
+.nav-mini .snav-item { justify-content: center; gap: 0; padding: 11px 0; }
+.stamp { white-space: nowrap; }
 .link-btn { border: 0; background: none; padding: 0; font-size: 12.5px; font-weight: 500; color: #0071ce; cursor: pointer; }
 .link-btn:hover { text-decoration: underline; }
 
@@ -162,6 +179,9 @@ a:hover { color: #004a87; text-decoration: underline; }
 
 /* ---- table ---- */
 .table-wrap { overflow-x: auto; transition: opacity .15s; }
+/* Logs: one page (25 runs) in a box of its own, the column names staying on top */
+.table-cap { overflow: auto; max-height: 520px; scrollbar-width: thin; }
+.table-cap .runs thead th { position: sticky; top: 0; z-index: 1; background: #fff; box-shadow: inset 0 -1px 0 #eaf1f9; }
 table.runs { width: 100%; border-collapse: collapse; font-size: 12px; }
 .runs th, .runs td { padding: 8px 14px; border-top: 1px solid #eaf1f9; text-align: left; white-space: nowrap; }
 .runs th { font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #78838f; border-top: none; }
@@ -203,7 +223,6 @@ table.runs { width: 100%; border-collapse: collapse; font-size: 12px; }
 }
 @media (max-width: 560px) {
   .page { padding: 16px 12px 32px; }
-  .topbar { gap: 14px; padding: 0 12px; }
   .stats { grid-template-columns: minmax(0, 1fr); }
 }
 
@@ -518,7 +537,7 @@ button.air-file:hover { color: #0071ce; }
 .sp-select { flex: none; width: 260px; height: 36px; align-self: flex-start; margin-top: 2px; }
 
 /* ---- the AI chat as a side panel (PriceBook) ---- */
-.ai-drawer { position: fixed; top: 52px; right: 0; bottom: 0; z-index: 35; width: min(460px, 100vw); background: #fff;
+.ai-drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 35; width: min(460px, 100vw); background: #fff;
   border-left: 1px solid #dce7f2; box-shadow: -10px 0 30px rgba(15, 20, 26, .10); display: flex; flex-direction: column; }
 .ai-drawer-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #eaf1f9; }
 .ai-drawer-t { margin-right: auto; font-size: 13px; font-weight: 600; }
