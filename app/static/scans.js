@@ -40,15 +40,14 @@
   function pill(st) { return '<span class="vpill v-' + esc(st) + '">' + esc(LABEL[st] || st) + '</span>'; }
   function api(path, opts) {
     return fetch(path, Object.assign({ credentials: 'same-origin' }, opts || {})).then(function (r) {
-      if (r.status === 401) { location.href = '/?next=/scans'; throw new Error('login'); }
+      if (r.status === 401) { location.href = '/logs?next=/scans'; throw new Error('login'); }
       return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; });
     });
   }
 
   // ---- boot: same session as the Logs page (sign in there) -------------------
   fetch('/api/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
-    if (s.required && !s.authed) { location.href = '/?next=' + encodeURIComponent('/scans' + location.hash); return; }
-    $('signOut').hidden = !s.required;
+    $('signOut').hidden = !(s.required && s.authed);
     $('page').hidden = false;
     var m = /^#(\d+)$/.exec(location.hash);       // /scans#123 opens that request (on View Scans)
     if (m) S.open = +m[1];
@@ -59,7 +58,7 @@
     setView(m || location.hash === '#list' ? 'list' : pref, true);
   });
   $('signOut').addEventListener('click', function () {
-    fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = '/'; });
+    fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.reload(); });
   });
 
   // The Zendesk address for the ticket links. (The AI review switch, Scan a

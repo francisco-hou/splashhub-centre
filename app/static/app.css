@@ -549,7 +549,24 @@ button.air-file:hover { color: #0071ce; }
 .ask-msg.ai { align-self: flex-start; background: #f5f8fb; border: 1px solid #e3edf7; border-bottom-left-radius: 4px; }
 .ask-msg.ai p { margin: 0 0 6px; } .ask-msg.ai p:last-of-type { margin-bottom: 0; }
 .ask-msg.ai ul { margin: 4px 0 6px; padding-left: 18px; }
-.ask-msg.pending { display: flex; align-items: center; gap: 8px; color: #55606b; }
+.ask-msg.pending { color: #55606b; width: min(340px, 82%); box-sizing: border-box; }
+/* The wait: what is happening now (icon + words that fade in), a ticking clock, finished lookups ticked off */
+.ask-prog { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.ask-now { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ask-ic { width: 24px; height: 24px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%;
+  color: #0071ce; background: #e6f1fc; animation: askPulse 1.6s ease-in-out infinite; }
+.ask-txt { min-width: 0; }
+.ask-in { animation: askIn .35s ease-out; }
+.ask-clock { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: #78838f; font-variant-numeric: tabular-nums; flex: none; }
+.ask-clock b { font-weight: 600; min-width: 38px; text-align: right; }
+.ask-done { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.ask-done:not(:empty) { margin-top: 6px; }
+.ask-tick { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: #2e8b57; animation: askIn .35s ease-out; }
+.ask-took { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: #55606b; font-variant-numeric: tabular-nums; }
+.ask-sep { color: #b8c2cc; }
+@keyframes askPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(0, 113, 206, .28); } 50% { box-shadow: 0 0 0 6px rgba(0, 113, 206, 0); } }
+@keyframes askIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ask-ic, .ask-in, .ask-tick { animation: none; } }
 .ask-msg.err { background: #fdecea; border-color: #f6c8c2; color: #b42318; }
 .ask-steps { margin-top: 8px; padding-top: 6px; border-top: 1px dashed #dce7f2; font-size: 11.5px; color: #78838f; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .ask-step { background: #fff; border: 1px solid #dce7f2; border-radius: 999px; padding: 1px 8px; color: #55606b; }
@@ -596,3 +613,14 @@ main.page:not([hidden]) { animation: shcIn .28s cubic-bezier(.2, .7, .2, 1); }
   @view-transition { navigation: none; }
   main.page, #dashView, #listView, .pn-overlay, .pn, .ai-drawer, .ask-msg { animation: none !important; }
 }
+
+/* ---- Admin in the left menu: Logs and Settings, above Sign out ---- */
+.snav-admin { padding: 4px 0; }
+.snav-admin .snav-caret { margin-left: auto; color: #8a96a3; transition: transform .2s ease; }
+#adminBtn.open .snav-caret { transform: rotate(180deg); }
+#adminBtn.here { color: #0071ce; }
+.snav-sub .snav-item { padding-left: 38px; font-size: 13px; }
+.snav-sub:not([hidden]) { animation: shcIn .2s ease both; }
+.nav-mini .snav-admin .snav-caret { display: none; }
+.nav-mini .snav-sub .snav-item { padding-left: 0; }
+@media (prefers-reduced-motion: reduce) { .snav-sub:not([hidden]) { animation: none; } }

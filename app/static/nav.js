@@ -19,3 +19,25 @@
     apply();
   });
 })();
+
+/* Admin (above Sign out): opens Logs and Settings, the two pages that need the
+   admin password. Open on those pages; elsewhere as last left, per browser. */
+(function () {
+  var btn = document.getElementById('adminBtn'), menu = document.getElementById('adminMenu'), KEY = 'shcAdminOpen';
+  if (!btn || !menu) return;
+  var here = !!menu.querySelector('.snav-item.active');
+  function show(open) {
+    menu.hidden = !open;
+    btn.setAttribute('aria-expanded', open);
+    btn.classList.toggle('open', open);
+    btn.classList.toggle('here', here && !open);
+  }
+  var kept = false;
+  try { kept = localStorage.getItem(KEY) === '1'; } catch (e) {}
+  show(here || kept);
+  btn.addEventListener('click', function () {
+    var open = menu.hidden;
+    show(open);
+    try { localStorage.setItem(KEY, open ? '1' : '0'); } catch (e) {}
+  });
+})();

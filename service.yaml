@@ -8,18 +8,20 @@ app:
     SplashHub Centre: the Spluki home for SplashHub's run log. One row per run (who ran
     which tool, when, on which model, with tokens and estimated cost), filterable by
     period, tool, agent and model, with per-day and per-tool charts and CSV export.
-    Admin-only behind ADMIN_PASSWORD, like the Logs page inside SplashHub. Also reviews
+    Logs and Settings are admin-only behind ADMIN_PASSWORD; the other pages are open to the team. Also reviews
     Custom SOS package requests (brand impersonation check on the thumbnails, Claude
     vision) when a Zendesk trigger sends them; results are kept here, and a review is
     added to the ticket as an internal note only when an agent presses that button.
     SSO Requests: lists SSO method validation requests and, on an agent's press, looks up
     the customer's DNS TXT record to see whether it has been added.
+    Cases: 2026's Zendesk tickets (subject, first message, tags, status) kept so the AI page can
+    find similar cases and trends; read-only, never anything per support agent.
   type: web-service
   runtime: docker
   port: 8795
   health_check_path: /health
   stage: in_development
-  version: "0.9.1"
+  version: "0.10.0"
 
 deployment:
   environment: dev

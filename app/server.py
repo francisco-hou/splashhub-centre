@@ -4,7 +4,8 @@
 
 Routes
   GET  /health                          Spluki health check (no login)
-  GET  /                                the Logs page
+  GET  /                                -> /scans
+  GET  /logs                            the Logs page (admin)
   POST /login  {password}               sets the session cookie
   POST /logout
   GET  /api/meta                        tools, agents, models, backend, sample flag
@@ -13,11 +14,12 @@ Routes
   GET  /api/runs.csv?<filters>          the filtered rows as CSV
   <filters> = since, until (epoch ms), tool, agent, model, q
 
-Access. SplashHub shows its Logs page to admins only, so this does too: one
-ADMIN_PASSWORD (a sealed Spluki secret; locally an env var or
-app/admin_password.txt, gitignored). Locally with no password set the page is
-open, for previewing. On Spluki (PostgreSQL backend) a missing password locks
-the data instead of opening it.
+Access. Every page is open to the team except the two under Admin in the left
+menu -- Logs and Settings -- which need the one ADMIN_PASSWORD (a sealed Spluki
+secret; locally an env var or app/admin_password.txt, gitignored), as SplashHub
+shows its Logs page to admins only. Locally with no password set those are open
+too, for previewing. On Spluki (PostgreSQL backend) a missing password keeps
+them locked instead of opening them.
 
 The table is filled by feed.py: SplashHub posts each run (and, on request, its
 Zendesk history) to the platform's SPLUKI_WEBHOOK intake, and a background loop
@@ -42,6 +44,11 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", "87
 HOST = os.environ.get("HOST", "127.0.0.1")      # the container sets 0.0.0.0
 PW_FILE = os.path.join(APP, "admin_password.txt")
 COOKIE = "shcadmin"
+# What needs the admin session: the Logs page's data and the Settings page's.
+# Everything else (SOS Scans, SSO Requests, PriceBook, AI) is open to the team.
+ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases"}
+ADMIN_POST = {"/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
+              "/api/cases/download", "/api/cases/stop", "/api/cases/update"}
 # Local preview fills an empty database with sample runs. Never on Spluki.
 SAMPLE = store.backend() == "sqlite" and os.environ.get("SAMPLE_DATA", "1") != "0"
 
@@ -145,6 +152,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path == "/health":
                 return self._send(200, "ok", "text/plain; charset=utf-8")
             if u.path in ("/", "/index.html"):
+                return self._send(302, "", "text/plain; charset=utf-8", [("Location", "/scans")])
+            if u.path in ("/logs", "/logs.html"):
                 return self.static("index.html", "text/html; charset=utf-8")
             if u.path in ("/scans", "/scans.html"):
                 return self.static("scans.html", "text/html; charset=utf-8")
@@ -167,7 +176,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path == "/api/session":
                 return self.json({"required": login_required(), "authed": self.authed(),
                                   "configured": bool(admin_password())})
-            if not self.authed():
+            if u.path in ADMIN_GET and not self.authed():
                 return self.json({"error": "login required"}, 401)
 
             if u.path == "/api/meta":
@@ -259,6 +268,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(row)
             if u.path == "/api/import-past":
                 return self.json(sosscan.import_status())
+            if u.path == "/api/cases":
+                # Settings > Cases: what is downloaded, and the job's progress.
+                import cases
+                st = cases.status()
+                if (qs.get("zendesk") or [""])[0] == "1":
+                    try:
+                        st["zendesk_count"] = cases.zendesk_count()
+                    except zendesk.ZendeskError as e:
+                        st["zendesk_error"] = str(e)
+                return self.json(st)
             # ---- Price Book (pricebook.py) ----
             if u.path == "/api/pricebook/fetch":
                 import pricebook
@@ -363,20 +382,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
                               "No ADMIN_PASSWORD is set for this app yet."}, 401)
         if u.path == "/logout":
             return self.json({"ok": True}, 200, [("Set-Cookie", "%s=; Path=/; Max-Age=0" % COOKIE)])
+        if u.path in ADMIN_POST and not self.authed():
+            return self.json({"error": "login required"}, 401)
         if u.path == "/api/import-past/stop":
-            if not self.authed():
-                return self.json({"error": "login required"}, 401)
             return self.json({"ok": sosscan.stop_job("import")})
         if u.path == "/api/import-past":
             # "Import past SOS requests": runs in the background on the server.
-            if not self.authed():
-                return self.json({"error": "login required"}, 401)
             started = sosscan.start_import()
             return self.json(dict(sosscan.import_status(), started=started))
+        if u.path in ("/api/cases/download", "/api/cases/update", "/api/cases/stop"):
+            # Settings > Cases: download 2026's tickets, update them, or stop (reads Zendesk only).
+            import cases
+            what = u.path.rsplit("/", 1)[1]
+            if what == "stop":
+                return self.json({"ok": cases.stop()})
+            return self.json(dict(cases.status(), started=cases.start(what)))
         if u.path == "/api/settings":
             # Settings page: "Auto add internal note" (on/off).
-            if not self.authed():
-                return self.json({"error": "login required"}, 401)
             try:
                 data = json.loads(raw or b"{}")
             except ValueError:
@@ -403,8 +425,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if u.path == "/api/ai-review":
             # The AI review switch. Applies only to requests that arrive from now
             # on; anything already listed keeps the decision it arrived with.
-            if not self.authed():
-                return self.json({"error": "login required"}, 401)
             try:
                 on = bool(json.loads(raw or b"{}").get("on"))
             except ValueError:
@@ -415,8 +435,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if u.path.startswith("/api/sso"):
             return self.sso_post(u, raw)
         if u.path == "/api/pricebook/store":
-            if not self.authed():
-                return self.json({"error": "login required"}, 401)
             import pricebook
             try:
                 d = json.loads(raw or b"{}")
@@ -426,8 +444,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json({"error": str(e) if isinstance(e, pricebook.PriceError) else "bad request"}, 400)
         if u.path == "/api/spark/test":
             # Settings' "Test speed": one tiny question, timed.
-            if not self.authed():
-                return self.json({"error": "login required"}, 401)
             import spark
             try:
                 return self.json(spark.speed_test((json.loads(raw or b"{}").get("model") or None)))
@@ -438,8 +454,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if u.path == "/api/ask":
             # Ask AI: a question about SplashHub Centre's own data, answered by
             # Spark with read-only lookups (askai.py).
-            if not self.authed():
-                return self.json({"error": "login required"}, 401)
             import askai, spark
             try:
                 body = json.loads(raw or b"{}")
@@ -449,20 +463,47 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json({"error": "bad request"}, 400)
             if not msgs or not isinstance(msgs[-1], dict) or not str(msgs[-1].get("content") or "").strip():
                 return self.json({"error": "Ask a question."}, 400)
+            def log_run():
+                store.insert_many([{"when": int(time.time() * 1000), "agent": "SplashHub Centre", "kind": "ask (Centre AI)" if not focus else "ask (PriceBook AI)",
+                                    "model": "spark:" + spark.model(), "topic": str(msgs[-1].get("content"))[:120], "tickets": 0,
+                                    "input_tokens": 0, "output_tokens": 0, "cost": 0, "source": "centre"}])
+            t0 = time.time()
+            if body.get("stream"):
+                # One JSON line per event as it happens (what Spark is doing,
+                # each lookup), then the answer, so the page shows progress.
+                self.send_response(200)
+                self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache, no-transform")
+                self.send_header("X-Accel-Buffering", "no")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.close_connection = True
+
+                def emit(obj):
+                    try:
+                        self.wfile.write((json.dumps(obj, ensure_ascii=False, default=str) + "\n").encode("utf-8"))
+                        self.wfile.flush()
+                    except OSError:
+                        pass                      # the page went away; finish quietly
+                try:
+                    out = askai.ask(msgs, focus, on_event=lambda e: emit(dict(e, ms=int((time.time() - t0) * 1000))))
+                except spark.SparkError as e:
+                    return emit({"error": str(e)})
+                except Exception as e:
+                    sys.stderr.write("[ask] failed: %s\n" % type(e).__name__)
+                    return emit({"error": "the answer could not be put together (%s)" % type(e).__name__})
+                emit(dict(out, done=True, ms=int((time.time() - t0) * 1000)))
+                return log_run()
             try:
                 out = askai.ask(msgs, focus)
             except spark.SparkError as e:
                 return self.json({"error": str(e)}, 400)
-            store.insert_many([{"when": int(time.time() * 1000), "agent": "SplashHub Centre", "kind": "ask (Centre AI)" if not focus else "ask (PriceBook AI)",
-                                "model": "spark:" + spark.model(), "topic": str(msgs[-1].get("content"))[:120], "tickets": 0,
-                                "input_tokens": 0, "output_tokens": 0, "cost": 0, "source": "centre"}])
-            return self.json(out)
+            log_run()
+            return self.json(dict(out, ms=int((time.time() - t0) * 1000)))
         m = re.match(r"^/api/scans/(\d+)/note$", u.path)
         if m:
             # "Add as internal note": the one thing SplashHub Centre writes to
             # Zendesk, and only on this button press.
-            if not self.authed():
-                return self.json({"error": "login required"}, 401)
             try:
                 return self.json({"ok": True, "note": sosscan.add_note(int(m.group(1)))})
             except ValueError:
@@ -473,8 +514,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if m:
             # The pop-up's Translate button: English for the package's own
             # words, saved on the request. Takes a few seconds.
-            if not self.authed():
-                return self.json({"error": "login required"}, 401)
             try:
                 return self.json({"ok": True, "translation": sosscan.translate(int(m.group(1)))})
             except sosscan.ScanError as e:
@@ -483,15 +522,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if m:
             # The side panel's "AI review" button: this one request, now,
             # whether or not the switch is on.
-            if not self.authed():
-                return self.json({"error": "login required"}, 401)
             err = sosscan.review_now(int(m.group(1)))
             return self.json({"error": err}, 400) if err else self.json({"ok": True})
         if u.path == "/api/scans":
             # "Scan a ticket now" on the SOS Scans page; force re-runs a ticket
             # whose images were already reviewed.
-            if not self.authed():
-                return self.json({"error": "login required"}, 401)
             try:
                 data = json.loads(raw or b"{}")
                 tid = int(str(data.get("ticket_id") or "").strip().lstrip("#"))
@@ -505,9 +540,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def _sso_post(self, u, raw):
-    """The SSO Requests page's actions. All need the admin session."""
-    if not self.authed():
-        return self.json({"error": "login required"}, 401)
+    """The SSO Requests page's actions (open to the team)."""
     try:
         data = json.loads(raw or b"{}")
     except ValueError:
@@ -570,6 +603,8 @@ def main():
     sosscan.start_retries()           # and waiting ones, every 10 minutes
     sosscan.resume_import()           # an import a restart interrupted carries on
     ssocheck.resume_import()
+    import cases
+    cases.boot()                      # a download a restart interrupted carries on; hourly updates
     _spark_hello()
     srv = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print("SplashHub Centre on http://%s:%d  (backend: %s%s)" % (HOST, PORT, store.backend(), ", sample data" if SAMPLE else ""))

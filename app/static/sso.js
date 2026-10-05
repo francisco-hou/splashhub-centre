@@ -33,7 +33,7 @@
   function pill(st) { return '<span class="vpill s-' + esc(st) + '">' + esc(LABEL[st] || st) + '</span>'; }
   function api(path, opts) {
     return fetch(path, Object.assign({ credentials: 'same-origin' }, opts || {})).then(function (r) {
-      if (r.status === 401) { location.href = '/?next=' + encodeURIComponent('/sso' + location.hash); throw new Error('login'); }
+      if (r.status === 401) { location.href = '/logs?next=' + encodeURIComponent('/sso' + location.hash); throw new Error('login'); }
       return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; });
     });
   }
@@ -43,15 +43,14 @@
 
   // ---- boot: same session as the Logs page ----------------------------------------
   fetch('/api/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
-    if (s.required && !s.authed) { location.href = '/?next=' + encodeURIComponent('/sso' + location.hash); return; }
-    $('signOut').hidden = !s.required;
+    $('signOut').hidden = !(s.required && s.authed);
     $('page').hidden = false;
     var m = /^#(\d+)$/.exec(location.hash);
     if (m) S.open = +m[1];
     load(); pollJob('import'); pollJob('all');
   });
   $('signOut').addEventListener('click', function () {
-    fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = '/'; });
+    fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.reload(); });
   });
 
   // ---- background jobs: the import and "Check all waiting" --------------------------

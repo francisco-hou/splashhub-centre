@@ -11,7 +11,7 @@
   `event_id` (unique, for idempotent webhook pickup and the Zendesk import).
 - **Tool buckets follow SplashHub's `runCategory()`** in
   `SplashHub/Workspace/assets/dashboard.js`. Change both together.
-- **Admin-only**, like SplashHub's Logs page: `ADMIN_PASSWORD` (sealed secret).
+- **Admin pages** (Logs, Settings; under Admin in the left menu) need `ADMIN_PASSWORD` (sealed secret); every other page is open to the team.
   On PostgreSQL a missing password locks the data rather than opening it.
 - **Schema changes are additive** (`CREATE … IF NOT EXISTS`, new nullable
   columns): on Spluki every release runs against whatever the last one left.

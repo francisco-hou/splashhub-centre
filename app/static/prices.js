@@ -12,7 +12,7 @@
 
   function api(path, opts) {
     return fetch(path, Object.assign({ credentials: 'same-origin' }, opts || {})).then(function (r) {
-      if (r.status === 401) { location.href = '/?next=' + encodeURIComponent(location.pathname); throw new Error('login'); }
+      if (r.status === 401) { location.href = '/logs?next=' + encodeURIComponent(location.pathname); throw new Error('login'); }
       return r.json().then(function (j) {
         // ZAF rejects with an object carrying status / responseText; do the same.
         if (!r.ok) throw { status: r.status, statusText: j.error || ('HTTP ' + r.status), responseText: JSON.stringify(j) };

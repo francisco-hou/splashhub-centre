@@ -1,15 +1,22 @@
 """Ask AI: questions about what SplashHub Centre holds, answered by Spark.
 
 Spark is given a short list of READ-ONLY lookups (TOOLS) over SplashHub
-Centre's own data -- SOS requests, SSO requests and the run log -- and asks
-for what it needs (OpenAI-style tool calls). The answer comes from those
-results only, with ticket numbers to click. Nothing here writes anything,
-and nothing reaches Zendesk.
+Centre's own data -- SOS requests, SSO requests, the 2026 cases (cases.py),
+plans and prices, and the run log -- and asks for what it needs (OpenAI-style
+tool calls). The answer comes from those results only, with ticket numbers to
+click. Nothing here writes anything.
+
+The wall: nothing about a specific SUPPORT AGENT -- who handled what, how
+someone performs, one agent's tickets or usage. A question with a Splashtop
+address in it is refused before Spark sees it (AGENT_WALL); no lookup returns
+anything per agent (the run log only by tool and model; cases keep no assignee
+and no signatures); the system prompt tells Spark to refuse the rest; and a
+Splashtop address that still reaches an answer is blanked (_blank).
 
 Each step is returned with the answer, so the page can show what was looked
 at -- the way to trust (or doubt) a small model's answer.
 """
-import json, time
+import json, re, time
 
 import spark
 import store
@@ -121,13 +128,10 @@ def sso_lookup(text=None, status=None, limit=10):
 def runs_summary(days=7):
     since, days = _since(days)
     agg = store.summary({"since": since})
-    by_agent = store._read("SELECT agent, count(*), coalesce(sum(cost),0) FROM runs WHERE ts_ms >= %s AND agent IS NOT NULL "
-                           "GROUP BY agent ORDER BY count(*) DESC LIMIT 10", [since])
     by_model = store._read("SELECT model, count(*), coalesce(sum(cost),0) FROM runs WHERE ts_ms >= %s AND model IS NOT NULL "
                            "GROUP BY model ORDER BY count(*) DESC LIMIT 8", [since])
     return {"days": days, "runs": agg["runs"], "cost_usd": round(agg["cost"], 2), "agents": agg["agents"],
             "by_tool": [{"tool": t["label"], "runs": t["runs"], "cost_usd": round(t["cost"], 2)} for t in agg["by_tool"] if t["runs"]],
-            "by_agent": [{"agent": a, "runs": n, "cost_usd": round(float(c), 2)} for a, n, c in by_agent],
             "by_model": [{"model": m, "runs": n, "cost_usd": round(float(c), 2)} for m, n, c in by_model]}
 
 
@@ -188,7 +192,7 @@ TOOLS = {
                "SOS+10, SOS+300, AEM monthly/yearly, Antivirus. Leave a filter empty to get all.",
                {"product": {"type": "string"}, "market": {"type": "string"}}),
     "runs_summary": (runs_summary, "The SplashHub run log (every AI and tool run by agents in the Zendesk app) over the "
-                     "last N days: totals, cost, and breakdowns by tool, agent and model.",
+                     "last N days: totals, cost, and breakdowns by tool and model (never by agent).",
                      {"days": {"type": "integer"}}),
 }
 
@@ -223,6 +227,53 @@ TOOLS["quote"] = (quote, "Price a combination of plans: line items with the righ
                    "market": {"type": "string"}})
 
 
+def _cases():
+    import cases
+    return cases
+
+
+def case_overview(from_date=None, to_date=None):
+    return _cases().overview(from_date, to_date)
+
+
+def case_search(query=None, from_date=None, to_date=None, status=None, tag=None, limit=10):
+    return _cases().search(query, from_date, to_date, status, tag, limit)
+
+
+def case_similar(ticket_id, limit=8):
+    return _cases().similar(ticket_id, limit)
+
+
+def case_read(ticket_id):
+    return _cases().read(ticket_id) or {"error": "ticket #%s isn't among the downloaded 2026 cases" % ticket_id}
+
+
+_DATES = {"from_date": {"type": "string", "description": "YYYY-MM-DD, optional"},
+          "to_date": {"type": "string", "description": "YYYY-MM-DD inclusive, optional"}}
+TOOLS["case_overview"] = (case_overview, "The general picture of Zendesk support cases since 2026-01-01 (or a date range): "
+                          "how many, per month, by status and channel, the most used tags and the words most used in "
+                          "subjects. Use for 'what are the common problems' or trend questions.", dict(_DATES))
+TOOLS["case_search"] = (case_search, "Find support cases (Zendesk tickets since 2026) that talk about something. Give the "
+                        "important words (product, feature, error, symptom; synonyms help: 'black screen blank display'); "
+                        "returns how many cases match in all and per month, and the best matches with a snippet. Optional "
+                        "date range, ticket status (new/open/pending/hold/solved/closed) and Zendesk tag.",
+                        dict(_DATES, query={"type": "string"}, status={"type": "string"}, tag={"type": "string"},
+                             limit={"type": "integer"}))
+TOOLS["case_similar"] = (case_similar, "Cases similar to one ticket, by ticket number: searches for that ticket's own "
+                         "subject, words and tags.", {"ticket_id": {"type": "integer"}, "limit": {"type": "integer"}})
+TOOLS["case_read"] = (case_read, "One 2026 case by ticket number: subject, its first message (cleaned of personal "
+                      "details), tags, status, type, channel, dates.", {"ticket_id": {"type": "integer"}})
+
+# The wall, in code: a Splashtop (agent) address in the question or the answer.
+_AGENT_EMAIL = re.compile(r"[\w.+'-]+@([\w-]+\.)*splashtop\.com\b", re.I)
+AGENT_WALL = ("I can't answer questions about specific support agents. "
+              "Ask about cases, topics, products, plans or trends instead.")
+
+
+def _blank(text):
+    return _AGENT_EMAIL.sub("[agent hidden]", text or "")
+
+
 def _tool_specs():
     return [{"type": "function", "function": {"name": n, "description": d, "parameters": {"type": "object", "properties": p}}}
             for n, (_, d, p) in TOOLS.items()]
@@ -230,9 +281,19 @@ def _tool_specs():
 
 SYSTEM = ("You are the assistant inside SplashHub Centre, Splashtop support's internal tool. Answer questions about "
           "what SplashHub Centre holds: Custom SOS package requests and their AI brand reviews, SSO method validation "
-          "requests and their DNS checks, Splashtop list prices (the Price Book), and the SplashHub run log. Use the tools to look things up; answer ONLY from "
+          "requests and their DNS checks, Zendesk support cases since 2026, Splashtop list prices (the Price Book), and the SplashHub run log. Use the tools to look things up; answer ONLY from "
           "their results and never invent numbers or tickets. If the tools can't answer, say so plainly. Be brief: a "
           "sentence or two, then a short list if useful. Write ticket numbers as #12345. Today is %s (UTC).\n\n"
+          "CASES: Zendesk support cases since 2026-01-01 are searchable (case_overview, case_search, case_similar, "
+          "case_read). For 'any cases similar to #123' use case_similar; for 'cases about X' use case_search with the "
+          "key words and a few synonyms; for 'what are the common problems' use case_overview. Give the count, the "
+          "trend if useful, then the best matches as '- #ticket (date, status): subject - what it is about'. A case "
+          "lookup finds words, not meaning: say so if the matches look off.\n\n"
+          "SUPPORT AGENTS -- A HARD RULE: never answer anything about a specific support agent (a Splashtop "
+          "support team member), named, described or by e-mail: which tickets someone handled or solved, how fast "
+          "or well someone works, who used SplashHub most, one agent's costs or activity, comparisons between "
+          "agents. Reply only: '%s' -- even if a tool result happens to contain a name. Never name an agent in "
+          "an answer. Team-wide totals without names are fine. Customers and SOS creators are not agents.\n\n"
           "PLAN QUESTIONS (\"what's the best plan for 3 techs, 200 users and 10 devices\", attended vs unattended...): "
           "call plan_guide, decide what fits from its 'for' lines and the FAQ, then call quote for EACH option. Answer as:\n"
           "**Assumptions** - how you read the need (technicians = concurrent technician licences for supporting OTHER "
@@ -246,13 +307,20 @@ SYSTEM = ("You are the assistant inside SplashHub Centre, Splashtop support's in
           "which assumption you made rather than asking.")
 
 
-def ask(messages, focus=None):
+def ask(messages, focus=None, on_event=None):
     """messages: the conversation so far, [{role: user|assistant, content}].
     focus: "prices" when asked from the PriceBook page.
+    on_event: told what is happening as it happens, for the page's progress line:
+      {"phase": "think", "round": n} before each Spark call,
+      {"phase": "step", "tool": name, "args": {...}} before each lookup.
     Returns {answer, steps: [{tool, args, note}]}."""
+    tell = on_event or (lambda e: None)
+    last = str((messages[-1] if messages else {}).get("content") or "")
+    if _AGENT_EMAIL.search(last):
+        return {"answer": AGENT_WALL, "steps": [], "refused": True}
     if not spark.available():
         raise spark.SparkError("Spark isn't connected yet")
-    sysmsg = SYSTEM % time.strftime("%Y-%m-%d")
+    sysmsg = SYSTEM % (time.strftime("%Y-%m-%d"), AGENT_WALL)
     if focus == "prices":
         sysmsg += ("\n\nThe user is on the PriceBook page: questions are most likely about Splashtop plans and "
                    "prices -- use plan_guide and quote.")
@@ -261,11 +329,12 @@ def ask(messages, focus=None):
         if m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str):
             convo.append({"role": m["role"], "content": m["content"][:4000]})
     steps = []
-    for _ in range(MAX_STEPS):
+    for n in range(MAX_STEPS):
+        tell({"phase": "think", "round": n})
         msg = spark.chat_raw(convo, tools=_tool_specs())
         calls = msg.get("tool_calls") or []
         if not calls:
-            return {"answer": spark.clean(msg.get("content") or ""), "steps": steps}
+            return {"answer": _blank(spark.clean(msg.get("content") or "")), "steps": steps}
         convo.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
         for c in calls:
             fn = (c.get("function") or {})
@@ -274,6 +343,7 @@ def ask(messages, focus=None):
                 args = json.loads(fn.get("arguments") or "{}") if isinstance(fn.get("arguments"), str) else (fn.get("arguments") or {})
             except ValueError:
                 args = {}
+            tell({"phase": "step", "tool": name, "args": args})
             if name in TOOLS:
                 try:
                     result = TOOLS[name][0](**{k: v for k, v in args.items() if k in TOOLS[name][2]})
@@ -284,5 +354,6 @@ def ask(messages, focus=None):
             steps.append({"tool": name, "args": args})
             convo.append({"role": "tool", "tool_call_id": c.get("id") or name, "content": json.dumps(result, default=str)[:12000]})
     # out of steps: ask for an answer with what it has
+    tell({"phase": "think", "round": MAX_STEPS})
     msg = spark.chat_raw(convo + [{"role": "user", "content": "Answer now with what you found."}])
-    return {"answer": spark.clean(msg.get("content") or ""), "steps": steps}
+    return {"answer": _blank(spark.clean(msg.get("content") or "")), "steps": steps}

@@ -14,7 +14,7 @@
   }
   function api(path, opts) {
     return fetch(path, Object.assign({ credentials: 'same-origin' }, opts || {})).then(function (r) {
-      if (r.status === 401) { location.href = '/?next=/settings'; throw new Error('login'); }
+      if (r.status === 401) { location.href = '/logs?next=/settings'; throw new Error('login'); }
       return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; });
     });
   }
@@ -23,10 +23,10 @@
   }
 
   fetch('/api/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
-    if (s.required && !s.authed) { location.href = '/?next=/settings'; return; }
+    if (s.required && !s.authed) { location.href = '/logs?next=/settings'; return; }
     $('signOut').hidden = !s.required;
     $('page').hidden = false;
-    setup(); settings(); pollImport();
+    setup(); settings(); pollImport(); pollCases();
     // The Price Book's feed settings: SplashHub's own pbsettings.js.
     if (window.PricebookSettingsPage) PricebookSettingsPage.boot(window.CentrePriceClient);
     showSect();
@@ -42,7 +42,7 @@
   window.addEventListener('hashchange', showSect);
 
   $('signOut').addEventListener('click', function () {
-    fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = '/'; });
+    fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = '/scans'; });
   });
 
   // What is still missing on Spluki, if anything.
@@ -174,6 +174,57 @@
       if (e.message !== 'login') $('impMsg').textContent = e.message;
     });
   });
+  // ---- Cases: 2026's tickets for the AI (cases.py; reads Zendesk only) ----------------
+  var casePoll = null;
+  function day(s) { return s ? new Date(s.length > 10 ? s : s + 'T00:00:00Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''; }
+  function drawCases(st) {
+    var n = (st.count || 0).toLocaleString();
+    $('caseState').innerHTML = st.count
+      ? '<b>' + n + '</b> cases kept, ' + esc(day(st.first)) + ' &ndash; ' + esc(day(st.last)) + '.' +
+        (st.downloaded ? (st.updated ? ' Last updated ' + esc(new Date(st.updated).toLocaleString()) + '.' : '') : ' Download not finished yet (next: the week of ' + esc(day(st.next_week)) + ').')
+      : 'Nothing downloaded yet.';
+    $('caseDl').hidden = !!st.downloaded;
+    $('caseDl').textContent = st.count && !st.downloaded ? 'Carry on downloading' : 'Download 2026 tickets';
+    $('caseUp').hidden = !st.downloaded;
+    $('caseDl').disabled = $('caseUp').disabled = !!st.running;
+    $('caseStop').hidden = !st.running;
+    $('caseStop').disabled = !!st.stop;
+    var msg = $('caseMsg');
+    if (st.running) {
+      msg.textContent = (st.kind === 'download' ? (st.week ? 'Downloading the week of ' + day(st.week) + '… ' : 'Starting… ') : 'Updating… ') +
+        (st.saved ? st.saved.toLocaleString() + ' saved so far.' : '');
+      clearTimeout(casePoll); casePoll = setTimeout(pollCases, 2500);
+    } else if (st.error) {
+      msg.textContent = 'Stopped: ' + st.error;
+    } else if (st.stopped) {
+      msg.textContent = 'Stopped. Press the button again to carry on from the same week.';
+    } else if (st.finished_ms) {
+      msg.textContent = 'Done: ' + (st.saved || 0).toLocaleString() + ' saved.';
+    } else {
+      msg.textContent = '';
+    }
+  }
+  function pollCases() { api('/api/cases').then(drawCases).catch(function () {}); }
+  $('caseDl').addEventListener('click', function () {
+    var b = this;
+    b.disabled = true; $('caseMsg').textContent = 'Asking Zendesk how many there are…';
+    api('/api/cases?zendesk=1').then(function (st) {
+      b.disabled = false;
+      var many = st.zendesk_count != null ? 'Zendesk has about ' + st.zendesk_count.toLocaleString() + ' tickets from 2026.\n\n' : '';
+      if (!confirm('Download 2026 tickets?\n\n' + many + 'SplashHub Centre reads them from Zendesk a week at a time and keeps each one\'s subject, first message (without e-mail addresses, phone numbers and signatures), tags, status and dates. Nothing is written to Zendesk. It can take a while; you can leave this page.')) {
+        $('caseMsg').textContent = ''; return;
+      }
+      post('/api/cases/download').then(drawCases).catch(function (e) { if (e.message !== 'login') $('caseMsg').textContent = e.message; });
+    }).catch(function (e) { b.disabled = false; if (e.message !== 'login') $('caseMsg').textContent = e.message; });
+  });
+  $('caseUp').addEventListener('click', function () {
+    post('/api/cases/update').then(drawCases).catch(function (e) { if (e.message !== 'login') $('caseMsg').textContent = e.message; });
+  });
+  $('caseStop').addEventListener('click', function () {
+    this.disabled = true; $('caseMsg').textContent = 'Stopping after the current week…';
+    post('/api/cases/stop').then(function () { setTimeout(pollCases, 800); });
+  });
+
   $('impStop').addEventListener('click', function () {
     this.disabled = true; $('impMsg').textContent = 'Stopping after the current ticket…';
     api('/api/import-past/stop', { method: 'POST' }).then(function () { setTimeout(pollImport, 800); });

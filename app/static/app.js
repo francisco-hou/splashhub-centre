@@ -100,12 +100,12 @@
         if (!j.ok) { $('loginErr').textContent = j.error || 'Sign-in failed.'; $('loginErr').hidden = false; return; }
         // back to the page that sent us here to sign in (only our own paths)
         var next = new URLSearchParams(location.search).get('next');
-        if (/^\/(scans|sso|ask|settings|prices)(#\d+|#list)?$/.test(next || '')) { location.href = next; return; }   // only ever back to these pages
+        if (/^\/(settings)(#[a-z]+)?$/.test(next || '')) { location.href = next; return; }   // only ever back to these pages
         $('pw').value = ''; $('login').hidden = true; $('signOut').hidden = false; start();
       });
   });
   $('signOut').addEventListener('click', function () {
-    fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.reload(); });
+    fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = '/scans'; });
   });
 
   // ---- boot -----------------------------------------------------------------
@@ -116,7 +116,7 @@
         return;
       }
       var nx = new URLSearchParams(location.search).get('next');
-      if (/^\/(scans|sso|ask|settings|prices)(#\d+|#list)?$/.test(nx || '')) { location.href = nx; return; }
+      if (/^\/(settings)(#[a-z]+)?$/.test(nx || '')) { location.href = nx; return; }
       $('signOut').hidden = !s.required;
       start();
     }).catch(function () { showLogin('Could not reach the server.'); });
