@@ -485,19 +485,16 @@ def note_html(row, style="summary"):
     h += ["<hr>", "<p><strong>Review</strong></p>", "<p>%s</p>" % _e((res.get("overall_summary") or "").strip())]
     if style == "details":
         if fs:
-            items = []
-            for f in fs:
-                t = "%s: %s" % (fname(f), VERDICT_WORDS.get(f.get("verdict"), f.get("verdict")))
-                if f.get("confidence") is not None:
-                    t += " (%d%%)" % round(f["confidence"] * 100)
-                t += ". " + (f.get("summary") or "").strip()
-                extra = []
-                if f.get("splashtop_reference") not in (None, "none"):
-                    extra.append(REF_WORDS.get(f["splashtop_reference"], f["splashtop_reference"]))
-                if f.get("detected_brand_references"):
-                    extra.append("Brands: " + ", ".join(f["detected_brand_references"]))
-                items.append("<li>%s%s</li>" % (_e(t), (" <em>%s</em>" % _e(" \u00b7 ".join(extra))) if extra else ""))
-            h.append("<p><strong>Images</strong></p><ul>%s</ul>" % "".join(items))
+            # One line for all the images, like Package details: the worst
+            # verdict, the average confidence, and the summaries together.
+            sev = {"normal": 0, "needs_review": 1, "suspicious": 2}
+            worst = max((f.get("verdict") for f in fs), key=lambda v: sev.get(v, 0))
+            confs = [f["confidence"] for f in fs if f.get("confidence") is not None]
+            summ = " ".join(s_.strip().rstrip(".") + "." for s_ in (f.get("summary") or "" for f in fs) if s_.strip())
+            h.append("<p><strong>Image details:</strong> %s%s%s</p>" % (
+                _e(VERDICT_WORDS.get(worst, worst)),
+                (" (%d%%)" % round(sum(confs) / len(confs) * 100)) if confs else "",
+                (". " + _e(summ)) if summ else ""))
         if tr:
             h.append("<p><strong>Package details:</strong> %s%s</p>" % (
                 _e(VERDICT_WORDS.get(tr.get("verdict"), tr.get("verdict") or "?")),
