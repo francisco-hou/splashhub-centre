@@ -131,6 +131,43 @@ def runs_summary(days=7):
             "by_model": [{"model": m, "runs": n, "cost_usd": round(float(c), 2)} for m, n, c in by_model]}
 
 
+# The Price Book (pricebook.py): the list prices the Price Book page last read
+# from splashtop.com. Plan keys and market columns are pricebook.js's own.
+PLANS = {"solo": "Remote Access Solo (per year)", "pro": "Remote Access Pro (per user per year)",
+         "performance": "Remote Access Performance (per user per year)",
+         "sos10": "SOS+10 (per concurrent user per year)", "sos300": "SOS+300 (per concurrent user per year)",
+         "aemMonthly": "AEM, billed monthly (per endpoint per month, 101-250 band)",
+         "aemYearly": "AEM, billed yearly (per endpoint per year, 101-250 band)",
+         "bitdefender": "Antivirus by Bitdefender (per endpoint per month, 5-100 band)"}
+PROMO_MARKETS = {"solo": ("Zone4", "CHF", "SEK", "NOK", "DKK", "BRL")}
+MARKETS = {"Zone1": "USA", "Canada": "Canada", "Zone4": "EU", "GBP": "UK", "BRL": "Brazil", "MXN": "Mexico",
+           "JPY": "Japan", "TWD": "Taiwan", "Zone5": "China", "CHF": "Switzerland", "DKK": "Denmark",
+           "SEK": "Sweden", "NOK": "Norway"}
+
+
+def prices(product=None, market=None):
+    import pricebook
+    book = pricebook.book()
+    if not book or not book.get("prices"):
+        return {"error": "the Price Book has no prices yet (open the Price Book page once to load them)"}
+    want_p = (product or "").lower().replace(" ", "").replace("+", "")
+    want_m = (market or "").lower().strip()
+    out = []
+    for key, label in PLANS.items():
+        if want_p and want_p not in (key.lower() + label.lower().replace(" ", "").replace("+", "")):
+            continue
+        row = book["prices"].get(key) or {}
+        cells = {MARKETS[c]: v for c, v in row.items() if c in MARKETS and (not want_m or want_m in MARKETS[c].lower())}
+        # pricebook.js shows Solo's first-year promo only in these markets (SOLO_PROMO_MARKETS)
+        promo = {MARKETS[c]: v for c, v in ((book.get("promos") or {}).get(key) or {}).items()
+                 if c in PROMO_MARKETS.get(key, ()) and (not want_m or want_m in MARKETS[c].lower())}
+        if cells:
+            out.append(dict({"plan": label, "list_price": cells}, **({"first_year_promo": promo} if promo else {})))
+    when = book.get("when")
+    return {"prices": out, "as_of": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(when / 1000)) if when else None,
+            "note": "Annual list prices from splashtop.com unless the plan says monthly. AEM and Antivirus have more bands; see the Price Book page."}
+
+
 TOOLS = {
     "sos_overview": (sos_overview, "Counts of Custom SOS package requests over the last N days: by verdict, generic-email "
                      "creators, trials, top creator domains, flagged requests whose ticket is still open, AI review cost.",
@@ -146,6 +183,10 @@ TOOLS = {
     "sso_lookup": (sso_lookup, "SSO method validation requests: counts by status, and requests matching a text (ticket, "
                    "domain, requester) or a status (verified / not found / waiting / needs details).",
                    {"text": {"type": "string"}, "status": {"type": "string"}, "limit": {"type": "integer"}}),
+    "prices": (prices, "Splashtop list prices from the Price Book, per plan and market (USA, Canada, EU, UK, Brazil, "
+               "Mexico, Japan, Taiwan, China, Switzerland, Denmark, Sweden, Norway). Plans: Solo, Pro, Performance, "
+               "SOS+10, SOS+300, AEM monthly/yearly, Antivirus. Leave a filter empty to get all.",
+               {"product": {"type": "string"}, "market": {"type": "string"}}),
     "runs_summary": (runs_summary, "The SplashHub run log (every AI and tool run by agents in the Zendesk app) over the "
                      "last N days: totals, cost, and breakdowns by tool, agent and model.",
                      {"days": {"type": "integer"}}),
@@ -159,7 +200,7 @@ def _tool_specs():
 
 SYSTEM = ("You are the assistant inside SplashHub Centre, Splashtop support's internal tool. Answer questions about "
           "what SplashHub Centre holds: Custom SOS package requests and their AI brand reviews, SSO method validation "
-          "requests and their DNS checks, and the SplashHub run log. Use the tools to look things up; answer ONLY from "
+          "requests and their DNS checks, Splashtop list prices (the Price Book), and the SplashHub run log. Use the tools to look things up; answer ONLY from "
           "their results and never invent numbers or tickets. If the tools can't answer, say so plainly. Be brief: a "
           "sentence or two, then a short list if useful. Write ticket numbers as #12345. Today is %s (UTC).")
 

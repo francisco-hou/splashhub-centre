@@ -27,6 +27,12 @@
     $('signOut').hidden = !s.required;
     $('page').hidden = false;
     setup(); settings(); pollImport();
+    // The Price Book's feed settings: SplashHub's own pbsettings.js.
+    if (window.PricebookSettingsPage) PricebookSettingsPage.boot(window.CentrePriceClient);
+    if (location.hash === '#pricebook') {
+      var sect = document.getElementById('setSect-pricebook');
+      if (sect) { sect.scrollIntoView({ block: 'start' }); var u = document.getElementById('pbsUrl'); if (u) u.focus(); }
+    }
   });
   $('signOut').addEventListener('click', function () {
     fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = '/'; });

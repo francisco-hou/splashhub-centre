@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=0.9.0">
+  <link rel="stylesheet" href="app.css?v=0.9.1">
 </head>
 <body>
   <header class="topbar">
@@ -20,6 +20,7 @@
       <a class="topnav-item" href="/">Logs</a>
       <a class="topnav-item" href="/scans">SOS Scans</a>
       <a class="topnav-item" href="/sso">SSO Requests</a>
+      <a class="topnav-item" href="/prices">Price Book</a>
       <a class="topnav-item" href="/ask">Ask AI</a>
       <a class="topnav-item active" href="/settings" aria-current="page">Settings</a>
     </nav>
@@ -99,8 +100,32 @@
         </div>
       </div>
     </section>
+
+    <!-- The Price Book's feed: SplashHub's own settings code (pbsettings.js, unchanged). -->
+    <section class="card set-card" aria-labelledby="pbH" id="setSect-pricebook">
+      <h2 class="set-h" id="pbH">Price Book</h2>
+      <div class="set-row">
+        <div class="set-txt">
+          <div class="set-t">Price feed</div>
+          <div class="set-d">Where the Price Book reads its prices on splashtop.com. The link carries a version hash that changes whenever splashtop.com rebuilds; the Price Book re-finds it by itself, or scan here to do it on demand, or paste a link to set it by hand.</div>
+          <input id="pbsUrl" type="url" class="sc-input pbs-url" spellcheck="false" autocomplete="off" placeholder="https://www.splashtop.com/page-data/sq/d/….json">
+          <div id="pbsMsg" class="pbs-msg" style="display:none;"></div>
+          <div class="frow set-form">
+            <button id="pbsSave" type="button" class="btn btn-primary">Save</button>
+            <button id="pbsScan" type="button" class="btn">Scan for the current feed</button>
+            <button id="pbsReset" type="button" class="btn">Reset to default</button>
+            <span id="pbsStamp" class="sc-msg"></span>
+          </div>
+          <div id="pbsHist" class="pbs-hist" style="display:none;"></div>
+        </div>
+      </div>
+    </section>
   </main>
 
+  <link rel="stylesheet" href="prices.css?v=0.9.1">
+  <script src="prices.js?v=0.9.1"></script>
+  <script src="pricebook.js?v=0.9.2"></script>
+  <script src="pbsettings.js?v=0.9.1"></script>
   <script src="settings.js?v=0.8.3"></script>
 </body>
 </html>

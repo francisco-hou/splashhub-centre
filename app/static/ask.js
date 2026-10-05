@@ -10,7 +10,7 @@
   var MSGS = [];
   var ZD = '';
   var STEP_NAMES = { sos_overview: 'SOS overview', sos_search: 'SOS search', sos_request: 'one SOS request',
-                     sso_lookup: 'SSO requests', runs_summary: 'run log' };
+                     sso_lookup: 'SSO requests', runs_summary: 'run log', prices: 'Price Book' };
 
   function $(id) { return document.getElementById(id); }
   function esc(s) {

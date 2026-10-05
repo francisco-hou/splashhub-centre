@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=0.9.0">
+  <link rel="stylesheet" href="app.css?v=0.9.1">
 </head>
 <body>
   <header class="topbar">
@@ -20,6 +20,7 @@
       <a class="topnav-item" href="/">Logs</a>
       <a class="topnav-item" href="/scans">SOS Scans</a>
       <a class="topnav-item" href="/sso">SSO Requests</a>
+      <a class="topnav-item" href="/prices">Price Book</a>
       <a class="topnav-item active" href="/ask" aria-current="page">Ask AI</a>
       <a class="topnav-item" href="/settings">Settings</a>
     </nav>
@@ -32,7 +33,7 @@
     <div class="hdr">
       <div class="hdr-left">
         <h1 class="hdr-title">Ask AI</h1>
-        <div class="hdr-sub">Questions about what SplashHub Centre holds &mdash; SOS requests and their reviews, SSO requests, and the SplashHub run log. Answered by Spark, Splashtop&rsquo;s own AI, from this data only; each answer shows what it looked at.</div>
+        <div class="hdr-sub">Questions about what SplashHub Centre holds &mdash; SOS requests and their reviews, SSO requests, the Price Book, and the SplashHub run log. Answered by Spark, Splashtop&rsquo;s own AI, from this data only; each answer shows what it looked at.</div>
       </div>
       <div class="hdr-right">
         <button type="button" class="btn btn-sm" id="newChat">New conversation</button>
@@ -49,6 +50,7 @@
             <button type="button">Which creator domains sent the most requests this month?</button>
             <button type="button">Which SSO domains are still not verified?</button>
             <button type="button">Who used SplashHub most this week, and what did it cost?</button>
+            <button type="button">How much is SOS+10 in Japan and the UK?</button>
           </div>
         </div>
       </div>

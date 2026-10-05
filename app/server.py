@@ -148,13 +148,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("index.html", "text/html; charset=utf-8")
             if u.path in ("/scans", "/scans.html"):
                 return self.static("scans.html", "text/html; charset=utf-8")
+            if u.path in ("/prices", "/prices.html"):
+                return self.static("prices.html", "text/html; charset=utf-8")
             if u.path in ("/ask", "/ask.html"):
                 return self.static("ask.html", "text/html; charset=utf-8")
             if u.path in ("/settings", "/settings.html"):
                 return self.static("settings.html", "text/html; charset=utf-8")
             if u.path in ("/sso", "/sso.html"):
                 return self.static("sso.html", "text/html; charset=utf-8")
-            if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js", "/ask.js", "/splashtop-icon.png"):
+            if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js", "/ask.js",
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -256,6 +259,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(row)
             if u.path == "/api/import-past":
                 return self.json(sosscan.import_status())
+            # ---- Price Book (pricebook.py) ----
+            if u.path == "/api/pricebook/fetch":
+                import pricebook
+                try:
+                    return self._send(200, pricebook.fetch((qs.get("url") or [""])[0]), "application/json; charset=utf-8")
+                except pricebook.PriceError as e:
+                    return self.json({"error": str(e)}, 502)
+            if u.path == "/api/pricebook/store":
+                import pricebook
+                return self.json(pricebook.records())
             # ---- SSO method validation requests ----
             if u.path == "/api/sso":
                 one = lambda k: ((qs.get(k) or [""])[0]).strip()
@@ -327,7 +340,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         u = urlparse(self.path)
         n = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(min(n, 64 * 1024)) if n else b""
+        # 64 KB is plenty for every form here; the Price Book's cached prices are the one bigger save.
+        raw = self.rfile.read(min(n, (2 * 1024 * 1024) if u.path == "/api/pricebook/store" else 64 * 1024)) if n else b""
         if u.path == "/login":
             try:
                 given = (json.loads(raw or b"{}").get("password") or "")
@@ -381,6 +395,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.json({"ok": True, "ai_review": "on" if on else "off"})
         if u.path.startswith("/api/sso"):
             return self.sso_post(u, raw)
+        if u.path == "/api/pricebook/store":
+            if not self.authed():
+                return self.json({"error": "login required"}, 401)
+            import pricebook
+            try:
+                d = json.loads(raw or b"{}")
+                pricebook.save(str(d.get("id") or ""), d.get("payload"))
+                return self.json({"ok": True})
+            except (ValueError, pricebook.PriceError) as e:
+                return self.json({"error": str(e) if isinstance(e, pricebook.PriceError) else "bad request"}, 400)
         if u.path == "/api/ask":
             # Ask AI: a question about SplashHub Centre's own data, answered by
             # Spark with read-only lookups (askai.py).
