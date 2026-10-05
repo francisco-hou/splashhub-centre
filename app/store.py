@@ -444,6 +444,25 @@ def scan_update(scan_id, **fields):
         c.close()
 
 
+def scan_set_statuses(statuses, ms):
+    """The Ticket status column, many rows in one go: {scan id: status or None}
+    (None keeps the old status and only marks it as checked)."""
+    if not statuses:
+        return
+    ensure_schema()
+    c = connect(True)
+    try:
+        cur = c.cursor()
+        for sid, st in statuses.items():
+            if st:
+                cur.execute(_q("UPDATE sos_scans SET ticket_status = %s, ticket_status_ms = %s WHERE id = %s"), (st, ms, int(sid)))
+            else:
+                cur.execute(_q("UPDATE sos_scans SET ticket_status_ms = %s WHERE id = %s"), (ms, int(sid)))
+        c.commit()
+    finally:
+        c.close()
+
+
 def scan_get(scan_id, fresh=False):
     ensure_schema()
     rows = _read("SELECT " + ", ".join(SCAN_COLS) + " FROM sos_scans WHERE id = %s", [int(scan_id)], fresh)

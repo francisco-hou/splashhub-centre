@@ -190,7 +190,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 except ValueError:
                     page = 0
                 res = store.scans(one("q")[:80] or None, one("verdict") or None, page, 50)
-                sosscan.refresh_statuses(res["rows"])      # the Ticket status column, kept fresh
+                # The Ticket status column: the refresh button (fresh=1) reads
+                # every status on screen now and shows it; other loads top up
+                # old ones in the background.
+                fresh = one("fresh") == "1"
+                if sosscan.refresh_statuses(res["rows"], force=fresh, wait=fresh):
+                    res = store.scans(one("q")[:80] or None, one("verdict") or None, page, 50)
                 return self.json(res)
             m = re.match(r"^/api/scans/(\d+)/image/(\d+)$", u.path)
             if m:

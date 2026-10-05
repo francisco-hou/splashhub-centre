@@ -80,11 +80,12 @@
   }
   setInterval(function () { if (document.visibilityState === 'visible' && !$('page').hidden) load(); }, 60000);
 
-  function load() {
+  function load(fresh) {
     var my = ++seq;
     spinOn();
     var p = 'page=' + S.page + (S.verdict ? '&verdict=' + encodeURIComponent(S.verdict) : '') + (S.q ? '&q=' + encodeURIComponent(S.q) : '');
-    api('/api/scans?' + p).then(function (res) {
+    // fresh: the refresh button -- the server reads every ticket status on screen from Zendesk first
+    api('/api/scans?' + p + (fresh ? '&fresh=1' : '')).then(function (res) {
       spinOff();
       if (my !== seq) return;
       var sig = JSON.stringify([p, res.total, res.counts, res.rows.map(function (r) { return [r.id, r.status, r.verdict, r.subject, r.creator_email, r.cost, r.ticket_status]; })]);
@@ -598,7 +599,7 @@
     var v = this.value.trim(); clearTimeout(typing);
     typing = setTimeout(function () { S.q = v; S.page = 0; load(); }, 250);
   });
-  $('refresh').addEventListener('click', function () { setup(); load(); });
+  $('refresh').addEventListener('click', function () { setup(); load(true); });
   $('prev').addEventListener('click', function () { if (S.page > 0) { S.page--; load(); } });
   $('next').addEventListener('click', function () { S.page++; load(); });
 

@@ -459,8 +459,8 @@ def note_html(row, style="summary"):
     shows (bold, dividers, links). Everything from the ticket or the AI is
     escaped; links are only the http(s) ones parse_request found.
 
-    SplashHub AI Review / Status / Reason / Review (summary, or per image with
-    style="details") / package, creator and when / Quick links."""
+    SplashHub AI Review / Status / Reason / Review (with style="details": Image
+    and Package details) / Quick links / package and creator / one divider / when."""
     res = json.loads(row.get("result_json") or "null")
     if not res:
         raise ScanError("This request has no AI review yet.")
@@ -474,7 +474,7 @@ def note_html(row, style="summary"):
 
     reasons = review_reasons(row, res)
 
-    h = ["<p><strong>SplashHub AI Review</strong></p>", "<hr>",
+    h = ["<p><strong>SplashHub AI Review</strong></p>",
          "<p><strong>Status:</strong> %s%s</p>" % (_e(STATUS_WORDS.get(verdict, verdict)),
             # the average confidence over the images, as SplashHub's sidebar shows it
             (" (%d%%)" % round(sum(f.get("confidence") or 0 for f in fs) / len(fs) * 100)) if fs else "")]
@@ -482,8 +482,9 @@ def note_html(row, style="summary"):
         h.append("<p><strong>Reason:</strong> %s</p>" % _e(reasons[0]))
     else:
         h.append("<p><strong>Reason:</strong></p><ul>%s</ul>" % "".join("<li>%s</li>" % _e(r) for r in reasons))
-    h += ["<hr>", "<p><strong>Review</strong></p>", "<p>%s</p>" % _e((res.get("overall_summary") or "").strip())]
+    h += ["<p><strong>Review</strong></p>", "<p>%s</p>" % _e((res.get("overall_summary") or "").strip())]
     if style == "details":
+        bullets = []             # Image details / Package details, as bullet points under the review
         if fs:
             # One line for all the images, like Package details: the worst
             # verdict, the average confidence, and the summaries together.
@@ -491,28 +492,18 @@ def note_html(row, style="summary"):
             worst = max((f.get("verdict") for f in fs), key=lambda v: sev.get(v, 0))
             confs = [f["confidence"] for f in fs if f.get("confidence") is not None]
             summ = " ".join(s_.strip().rstrip(".") + "." for s_ in (f.get("summary") or "" for f in fs) if s_.strip())
-            h.append("<p><strong>Image details:</strong> %s%s%s</p>" % (
+            bullets.append("<li><strong>Image details:</strong> %s%s%s</li>" % (
                 _e(VERDICT_WORDS.get(worst, worst)),
                 (" (%d%%)" % round(sum(confs) / len(confs) * 100)) if confs else "",
                 (". " + _e(summ)) if summ else ""))
         if tr:
-            h.append("<p><strong>Package details:</strong> %s%s</p>" % (
+            bullets.append("<li><strong>Package details:</strong> %s%s</li>" % (
                 _e(VERDICT_WORDS.get(tr.get("verdict"), tr.get("verdict") or "?")),
                 (". " + _e(tr["summary"].strip())) if tr.get("summary") else ""))
-    # who / when
+        if bullets:
+            h.append("<ul>%s</ul>" % "".join(bullets))
     req = parse_request(row.get("description") or "")
-    labels = {f["label"].lower(): f["value"] for f in req["fields"]}
-    meta = []
-    if labels.get("package name"):
-        meta.append("Package: " + labels["package name"])
-    if row.get("creator_email"):
-        meta.append("Creator: " + row["creator_email"])
-    h.append("<hr>")
-    if meta:
-        h.append("<p><small>%s</small></p>" % _e(" \u00b7 ".join(meta)))
-    h.append("<p><small>Reviewed %s \u00b7 %s \u00b7 AI-generated; check before acting on it.</small></p>" % (
-        _e(when), _e(row.get("model") or "Claude")))
-    # Quick links, last
+    # Quick links, right under the review
     links = [(LINK_WORDS.get(l["label"].lower(), l["label"]), l["url"]) for l in req["links"]
              if re.match(r"https?://", l["url"] or "")]
     order = {"Manage SOS PKG on ACP": 0, "View team on ACP": 1, "Download package": 2}
@@ -520,6 +511,18 @@ def note_html(row, style="summary"):
     if links:
         h.append("<p><strong>Quick links:</strong> %s</p>" % " \u00b7 ".join(
             '<a href="%s">%s</a>' % (_e(u), _e(t)) for t, u in links))
+    # who; then the note's only divider; then when
+    labels = {f["label"].lower(): f["value"] for f in req["fields"]}
+    meta = []
+    if labels.get("package name"):
+        meta.append("Package: " + labels["package name"])
+    if row.get("creator_email"):
+        meta.append("Creator: " + row["creator_email"])
+    if meta:
+        h.append("<p><small>%s</small></p>" % _e(" \u00b7 ".join(meta)))
+    h.append("<hr>")
+    h.append("<p><small>Reviewed %s \u00b7 %s \u00b7 AI-generated; check before acting on it.</small></p>" % (
+        _e(when), _e(row.get("model") or "Claude")))
     return "\n".join(h)
 
 
@@ -844,35 +847,43 @@ def review_now(scan_id):
 
 
 # ---- the list's Ticket status column ------------------------------------------------------
-# Zendesk's own status for each listed ticket. Refreshed when the list is
-# looked at -- the rows on screen whose status is older than STATUS_MAX_AGE,
-# in ONE Zendesk call (up to 100 at a time), in the background so the page
-# never waits. The next refresh of the list shows the new statuses.
+# Zendesk's own status for each listed ticket, read in ONE Zendesk call for
+# the rows on screen (show_many, up to 100 at a time).
+#   - The refresh button (wait=True, force=True): every row on screen, right
+#     away; the page shows the result of that same click.
+#   - Other loads (the check every minute, paging, filters): rows older than
+#     STATUS_MAX_AGE, in the background; the next load shows them.
+#   - Closed tickets are never read again: that status is final.
 
-STATUS_MAX_AGE = 5 * 60 * 1000
+STATUS_MAX_AGE = 2 * 60 * 1000
 _status_busy = threading.Lock()
 
 
-def refresh_statuses(rows):
-    stale = [r for r in rows if not r.get("ticket_status_ms") or _now() - r["ticket_status_ms"] > STATUS_MAX_AGE]
-    if not stale or zendesk.configured() or not _status_busy.acquire(blocking=False):
-        return
+def refresh_statuses(rows, force=False, wait=False):
+    """True when statuses were read now (wait=True), so the caller re-reads."""
+    # Closed is final in Zendesk (a follow-up is a new ticket): never read again.
+    # Solved is still read -- a customer reply reopens it.
+    stale = [r for r in rows if r.get("ticket_status") != "closed" and
+             (force or not r.get("ticket_status_ms") or _now() - r["ticket_status_ms"] > STATUS_MAX_AGE)]
+    if not stale or zendesk.configured() or not _status_busy.acquire(blocking=wait, timeout=15 if wait else -1):
+        return False
 
     def run():
         try:
             got = zendesk.statuses([r["ticket_id"] for r in stale])
-            now = _now()
-            for r in stale:
-                st = got.get(int(r["ticket_id"]))
-                # a ticket Zendesk no longer returns (deleted / archived) keeps its last status
-                store.scan_update(r["id"], ticket_status_ms=now, **({"ticket_status": st} if st else {}))
+            # a ticket Zendesk no longer returns (deleted / archived) keeps its last status
+            store.scan_set_statuses({r["id"]: got.get(int(r["ticket_id"])) for r in stale}, _now())
         except zendesk.ZendeskError as e:
             sys.stderr.write("[status] could not refresh ticket statuses: %s\n" % e)
         except Exception as e:
             sys.stderr.write("[status] refresh failed: %s\n" % type(e).__name__)
         finally:
             _status_busy.release()
+    if wait:
+        run()
+        return True
     threading.Thread(target=run, name="ticket-status", daemon=True).start()
+    return False
 
 
 RETRY_EVERY = 600     # seconds between retries of requests still waiting
