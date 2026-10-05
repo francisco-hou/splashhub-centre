@@ -198,7 +198,7 @@ def _spark_lookalikes(rows):
             "From this list of package names, pick the ones that imitate or misspell a well-known brand or institution "
             "(banks, payment services, big tech, governments) that the creator domain does not belong to. Answer one "
             "per line as: name | brand it imitates. Answer NONE if there are none.",
-            "\n".join(_brief(r) for r in rows[:120]), max_tokens=300), max_age_ms=60 * 60000)
+            "\n".join(_brief(r) for r in rows[:120])), max_age_ms=60 * 60000)
         items = []
         for line in text.splitlines():
             if "|" in line:
