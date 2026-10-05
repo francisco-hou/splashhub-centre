@@ -16,7 +16,7 @@ app:
   port: 8795
   health_check_path: /health
   stage: in_development
-  version: "0.3.9"
+  version: "0.3.10"
 
 deployment:
   environment: dev

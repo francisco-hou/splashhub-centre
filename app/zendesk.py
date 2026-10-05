@@ -49,6 +49,7 @@ class _NoAuthAcrossHosts(urllib.request.HTTPRedirectHandler):
     (attachment downloads redirect from zendesk.com to zdusercontent.com)."""
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        LAST["redirect_host"] = urllib.parse.urlparse(newurl).netloc   # named if that hop fails
         new = super().redirect_request(req, fp, code, msg, headers, newurl)
         if new is not None and urllib.parse.urlparse(newurl).netloc != urllib.parse.urlparse(req.full_url).netloc:
             for h in ("Authorization",):
@@ -66,6 +67,7 @@ LAST = {}      # the last response's status / final URL / type, for describing a
 
 def _open(url, auth=True, accept="application/json", limit=None):
     host = urllib.parse.urlparse(url).netloc
+    LAST.pop("redirect_host", None)
     req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": UA})
     if auth:
         req.add_unredirected_header("Authorization", _auth())
@@ -83,7 +85,11 @@ def _open(url, auth=True, accept="application/json", limit=None):
                 404: "not found", 429: "Zendesk rate limit"}.get(e.code, "")
         raise ZendeskError("Zendesk answered HTTP %d for %s%s" % (e.code, host, (" -- " + hint) if hint else ""))
     except Exception as e:     # URLError, timeouts, proxy refusals: never str(e)
-        raise ZendeskError("could not reach %s (%s) -- is it in the OUTBOUND_HTTP grant?" % (host, type(e).__name__))
+        # Name the host that was actually refused: attachment downloads are
+        # redirected (to pNN.zdusercontent.com), and it is that hop that fails.
+        where = LAST.get("redirect_host") or host
+        raise ZendeskError("could not reach %s%s (%s) -- is it in the OUTBOUND_HTTP grant?" % (
+            where, (" (redirected from %s)" % host) if where != host else "", type(e).__name__))
 
 
 def describe_page(data):
@@ -137,7 +143,7 @@ def comments(ticket_id, max_pages=20):
     return out
 
 
-def search_tickets(query, max_pages=50):
+def search_tickets(query, max_pages=2000):
     """Every ticket a search query matches. The export endpoint pages with a
     cursor and has no 1,000-result ceiling, unlike /search.json."""
     from urllib.parse import quote

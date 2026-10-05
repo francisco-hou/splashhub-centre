@@ -349,8 +349,10 @@ def save_gallery(ticket_id, comments, reviewed):
     rev = {img["id"]: i for i, img in enumerate(reviewed)}
     gallery, data_by_id = [], {}
     for img in all_images(comments):
+        # url: Zendesk's own link, which the page falls back to when no copy
+        # could be kept (it loads for anyone signed in to Zendesk).
         entry = {"id": img["id"], "filename": img["filename"], "content_type": img["content_type"],
-                 "reviewed_index": rev.get(img["id"])}
+                 "reviewed_index": rev.get(img["id"]), "url": img.get("content_url")}
         try:
             data, _ = zendesk.download(img["content_url"])
             data_by_id[img["id"]] = data
@@ -407,7 +409,9 @@ def run_scan(scan_id, ticket_id, force=False):
                               organization=who["organization"] or None, fields_json=json.dumps(fields),
                               images_json=json.dumps([{k: i[k] for k in ("id", "filename", "content_type", "content_url")} for i in images]),
                               description=(t["description"] or "")[:20000])
-                gallery, data_by_id = save_gallery(ticket_id, cs, images)
+                # Image bytes are only REQUIRED when the AI will review them;
+                # otherwise a failed copy must not hold up the details.
+                gallery, data_by_id = save_gallery(ticket_id, cs, images if review else [])
                 store.scan_update(scan_id, gallery_json=json.dumps(gallery), **common)
                 fetched = True
             except zendesk.ZendeskError as e:
@@ -636,11 +640,15 @@ def _run_import():
             raise ScanError("SplashHub Centre has no Zendesk login yet (missing " + ", ".join(zendesk.configured()) + ")")
         found = []
         for t in zendesk.search_tickets('type:ticket subject:"%s"' % SOS_SUBJECT):
+            if IMPORT.get("stop"):
+                break
             if str(t.get("subject") or "").startswith(SOS_SUBJECT):   # search matches words; keep true subjects
                 found.append(t)
                 IMPORT["found"] = len(found)
         have = store.scan_ticket_ids([t["id"] for t in found])
         for t in found:
+            if IMPORT.get("stop"):
+                break
             if int(t["id"]) in have:
                 IMPORT["skipped"] += 1
             else:
@@ -657,6 +665,7 @@ def _run_import():
         IMPORT["error"] = "internal error (%s) -- see the app log" % type(e).__name__
         sys.stderr.write("[import] failed: %s\n" % type(e).__name__)
     finally:
+        IMPORT["stopped"] = bool(IMPORT.get("stop"))
         IMPORT["running"] = False
         IMPORT["finished_ms"] = _now()
         sys.stderr.write("[import] finished: %d found, %d added, %d skipped%s\n" % (
@@ -668,6 +677,93 @@ def start_import():
     with _import_lock:
         if IMPORT["running"]:
             return False
-        IMPORT.update(running=True, found=0, done=0, added=0, skipped=0, error=None, started_ms=_now(), finished_ms=None)
+        IMPORT.update(running=True, stop=False, stopped=False, found=0, done=0, added=0, skipped=0, error=None,
+                      started_ms=_now(), finished_ms=None)
     threading.Thread(target=_run_import, name="sos-import", daemon=True).start()
     return True
+
+
+# ---- fetch missing images ---------------------------------------------------------------
+# The "Fetch missing images" button. For requests whose image copies could not
+# be kept (e.g. the attachment host was not yet in the OUTBOUND_HTTP grant), read
+# the ticket's attachments again and keep copies. Never touches an AI-reviewed
+# request (its image order is tied to the review) and never calls the AI.
+
+REFILL = {"running": False, "found": 0, "done": 0, "fixed": 0, "still_missing": 0, "error": None,
+          "started_ms": None, "finished_ms": None}
+
+
+def refill_status():
+    return dict(REFILL)
+
+
+def _missing_copies(row):
+    try:
+        gal = json.loads(row.get("gallery_json") or "[]")
+    except ValueError:
+        return False
+    return any(not g.get("key") for g in gal)
+
+
+def _run_refill():
+    try:
+        if zendesk.configured():
+            raise ScanError("SplashHub Centre has no Zendesk login yet (missing " + ", ".join(zendesk.configured()) + ")")
+        todo, page = [], 0
+        while True:
+            res = store.scans(page=page, per_page=200)
+            for r in res["rows"]:
+                if r["status"] in ("held", "skipped", "waiting", "error"):
+                    full = store.scan_get(r["id"], fresh=True) or {}
+                    if _missing_copies(full):
+                        todo.append(full)
+            page += 1
+            if page * 200 >= res["total"]:
+                break
+        REFILL["found"] = len(todo)
+        for row in todo:
+            if REFILL.get("stop"):
+                break
+            try:
+                cs = zendesk.comments(row["ticket_id"])
+                gallery, _ = save_gallery(row["ticket_id"], cs, [])
+                store.scan_update(row["id"], gallery_json=json.dumps(gallery))
+                if any(not g.get("key") for g in gallery):
+                    REFILL["still_missing"] += 1
+                else:
+                    REFILL["fixed"] += 1
+            except zendesk.ZendeskError as e:
+                sys.stderr.write("[images] #%s: %s\n" % (row["ticket_id"], e))
+                REFILL["still_missing"] += 1
+            REFILL["done"] += 1
+    except (ScanError, zendesk.ZendeskError) as e:
+        REFILL["error"] = str(e)[:400]
+    except Exception as e:
+        REFILL["error"] = "internal error (%s) -- see the app log" % type(e).__name__
+        sys.stderr.write("[images] failed: %s\n" % type(e).__name__)
+    finally:
+        REFILL["stopped"] = bool(REFILL.get("stop"))
+        REFILL["running"] = False
+        REFILL["finished_ms"] = _now()
+        sys.stderr.write("[images] finished: %d with missing copies, %d fixed, %d still missing%s\n" % (
+            REFILL["found"], REFILL["fixed"], REFILL["still_missing"], (" -- " + REFILL["error"]) if REFILL["error"] else ""))
+
+
+def start_refill():
+    with _import_lock:
+        if REFILL["running"] or IMPORT["running"]:
+            return False
+        REFILL.update(running=True, stop=False, stopped=False, found=0, done=0, fixed=0, still_missing=0, error=None,
+                      started_ms=_now(), finished_ms=None)
+    threading.Thread(target=_run_refill, name="sos-images", daemon=True).start()
+    return True
+
+
+def stop_job(which):
+    """Ask a running import / image fetch to stop after the ticket it is on.
+    Everything already listed stays; pressing the button again carries on."""
+    job = IMPORT if which == "import" else REFILL
+    if job["running"]:
+        job["stop"] = True
+        return True
+    return False

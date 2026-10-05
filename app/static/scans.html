@@ -62,7 +62,15 @@
         <span class="sc-label">Past requests</span>
         <button type="button" class="btn" id="impBtn"
           title="Find every past “New SOS package created by…” ticket in Zendesk and list it here, with copies of its images. No AI review. Tickets already listed are skipped.">Import past SOS requests</button>
+        <button type="button" class="btn btn-sm" id="impStop" hidden>Stop</button>
         <span class="sc-msg" id="impMsg" aria-live="polite"></span>
+      </div>
+      <div class="frow imp-row">
+        <span class="sc-label">Images</span>
+        <button type="button" class="btn" id="refBtn"
+          title="Go back over requests whose image copies could not be kept and try again. No AI review.">Fetch missing images</button>
+        <button type="button" class="btn btn-sm" id="refStop" hidden>Stop</button>
+        <span class="sc-msg" id="refMsg" aria-live="polite"></span>
       </div>
     </section>
 

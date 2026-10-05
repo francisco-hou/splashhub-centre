@@ -216,6 +216,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(row)
             if u.path == "/api/import-past":
                 return self.json(sosscan.import_status())
+            if u.path == "/api/fetch-images":
+                return self.json(sosscan.refill_status())
             if u.path == "/api/scan-setup":
                 missing = sosscan.missing_config()
                 if not (os.environ.get("ZENDESK_WEBHOOK_SECRET") or "").strip():
@@ -262,6 +264,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                               "No ADMIN_PASSWORD is set for this app yet."}, 401)
         if u.path == "/logout":
             return self.json({"ok": True}, 200, [("Set-Cookie", "%s=; Path=/; Max-Age=0" % COOKIE)])
+        if u.path in ("/api/import-past/stop", "/api/fetch-images/stop"):
+            if not self.authed():
+                return self.json({"error": "login required"}, 401)
+            which = "import" if u.path.startswith("/api/import-past") else "images"
+            return self.json({"ok": sosscan.stop_job(which)})
+        if u.path == "/api/fetch-images":
+            # "Fetch missing images": background job, like the import.
+            if not self.authed():
+                return self.json({"error": "login required"}, 401)
+            started = sosscan.start_refill()
+            return self.json(dict(sosscan.refill_status(), started=started))
         if u.path == "/api/import-past":
             # "Import past SOS requests": runs in the background on the server.
             if not self.authed():

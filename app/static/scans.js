@@ -88,11 +88,15 @@
   function drawImport(st) {
     var btn = $('impBtn'), msg = $('impMsg');
     btn.disabled = !!st.running;
+    $('impStop').hidden = !st.running;
+    $('impStop').disabled = !!st.stop;
     if (st.running) {
       msg.textContent = st.found ? 'Importing… ' + st.done + ' of ' + st.found + ' (' + st.added + ' added)' : 'Searching Zendesk…';
       clearTimeout(impPoll); impPoll = setTimeout(pollImport, 2000);
     } else if (st.error) {
       msg.textContent = 'Stopped: ' + st.error;
+    } else if (st.stopped) {
+      msg.textContent = 'Stopped \u2014 ' + st.added + ' added so far. Press Import again to carry on from there.';
     } else if (st.finished_ms) {
       msg.textContent = 'Done — ' + st.added + ' added, ' + st.skipped + ' already listed (' + st.found + ' found).';
     } else {
@@ -113,6 +117,48 @@
     });
   });
   pollImport();   // pick up an import already running (another tab, a reload)
+  $('impStop').addEventListener('click', function () {
+    this.disabled = true; $('impMsg').textContent = 'Stopping after the current ticket…';
+    api('/api/import-past/stop', { method: 'POST' }).then(function () { setTimeout(pollImport, 800); });
+  });
+
+  // ---- fetch missing images (server-side job, same pattern as the import)
+  var refPoll = null;
+  function drawRefill(st) {
+    var btn = $('refBtn'), msg = $('refMsg');
+    btn.disabled = !!st.running;
+    $('refStop').hidden = !st.running;
+    $('refStop').disabled = !!st.stop;
+    if (st.running) {
+      msg.textContent = st.found ? 'Fetching… ' + st.done + ' of ' + st.found + ' (' + st.fixed + ' complete)' : 'Looking for missing images…';
+      clearTimeout(refPoll); refPoll = setTimeout(pollRefill, 2000);
+    } else if (st.error) {
+      msg.textContent = 'Stopped: ' + st.error;
+    } else if (st.stopped) {
+      msg.textContent = 'Stopped \u2014 ' + st.fixed + ' completed so far.';
+    } else if (st.finished_ms) {
+      msg.textContent = st.found ? 'Done \u2014 ' + st.fixed + ' complete, ' + st.still_missing + ' still missing images.' : 'No requests were missing images.';
+    } else {
+      msg.textContent = '';
+    }
+  }
+  function pollRefill() {
+    api('/api/fetch-images').then(function (st) {
+      var was = $('refBtn').disabled;
+      drawRefill(st);
+      if (was && !st.running) { lastSig = ''; load(); }
+    }).catch(function () {});
+  }
+  $('refBtn').addEventListener('click', function () {
+    api('/api/fetch-images', { method: 'POST' }).then(drawRefill).catch(function (e) {
+      if (e.message !== 'login') $('refMsg').textContent = e.message;
+    });
+  });
+  pollRefill();
+  $('refStop').addEventListener('click', function () {
+    this.disabled = true; $('refMsg').textContent = 'Stopping after the current request…';
+    api('/api/fetch-images/stop', { method: 'POST' }).then(function () { setTimeout(pollRefill, 800); });
+  });
 
   // ---- list ----------------------------------------------------------------------
   // The list updates in place: no dimming, and nothing is redrawn when nothing
