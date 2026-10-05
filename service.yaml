@@ -62,3 +62,8 @@ permissions:
   # Scans page; declaring the grant only means no release is needed then.
   - service: CUSTOM_AI
     reason: Team Anthropic key for the SOS package scan (Claude vision, same policy and model as SplashHub's sidebar scan)
+  # Spark: Splashtop's own AI (spark.py). Approved and filled in by an
+  # administrator (AI_SPARK_BASE_URL, AI_SPARK_API_KEY); the dashboard's spike
+  # summary and lookalike names use it. Same reason as the approved grant.
+  - service: SPLUKI_AI_SPARK
+    reason: Zendesk Ticket AI Review
