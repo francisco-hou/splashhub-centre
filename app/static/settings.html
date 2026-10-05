@@ -31,7 +31,7 @@
   </nav>
   <script src="nav.js?v=1.0.0"></script>
 
-  <main class="page page-narrow" id="page" hidden>
+  <main class="page page-set" id="page" hidden>
     <div class="hdr">
       <div class="hdr-left">
         <h1 class="hdr-title">Settings</h1>
@@ -41,9 +41,21 @@
 
     <div class="note warn-note" id="setup" hidden></div>
 
-    <section class="card set-card" aria-labelledby="sosH">
-      <h2 class="set-h" id="sosH">SOS Scans</h2>
-
+    <div class="set-shell">
+      <nav class="set-nav" id="setNav" aria-label="Settings sections">
+        <div class="set-nav-group">SOS Scans</div>
+        <a class="set-nav-item" href="#review" data-sect="review"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>Reviews &amp; notes</a>
+        <a class="set-nav-item" href="#translate" data-sect="translate"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/></svg>Translation</a>
+        <a class="set-nav-item" href="#import" data-sect="import"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Scan &amp; import</a>
+        <div class="set-nav-group">AI</div>
+        <a class="set-nav-item" href="#spark" data-sect="spark"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>Spark</a>
+        <div class="set-nav-group">PriceBook</div>
+        <a class="set-nav-item" href="#pricebook" data-sect="pricebook"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/></svg>Price feed</a>
+      </nav>
+      <div class="set-body">
+        <section class="card set-card set-sect" id="setSect-review" aria-labelledby="h-review">
+          <h2 class="set-h" id="h-review">Reviews &amp; notes</h2>
+          <div class="set-sub">How new Custom SOS package requests are checked, and what happens with the result.</div>
       <div class="set-row">
         <div class="set-txt">
           <div class="set-t">AI review</div>
@@ -66,6 +78,10 @@
         </label>
       </div>
 
+        </section>
+        <section class="card set-card set-sect" id="setSect-translate" aria-labelledby="h-translate">
+          <h2 class="set-h" id="h-translate">Translation</h2>
+          <div class="set-sub">The <em>Translate to English</em> button on an SOS request.</div>
       <div class="set-row">
         <div class="set-txt">
           <div class="set-t">Translate with</div>
@@ -77,10 +93,14 @@
         </div>
       </div>
 
+        </section>
+        <section class="card set-card set-sect" id="setSect-import" aria-labelledby="h-import">
+          <h2 class="set-h" id="h-import">Scan &amp; import</h2>
+          <div class="set-sub">Bring SOS requests from Zendesk into SOS Scans by hand.</div>
       <div class="set-row">
         <div class="set-txt">
           <div class="set-t">Scan a ticket</div>
-          <div class="set-d">Read one ticket from Zendesk and list it on SOS Scans now; it gets an AI review if the switch above is on.</div>
+          <div class="set-d">Read one ticket from Zendesk and list it on SOS Scans now; it gets an AI review if <b>AI review</b> is on.</div>
           <form class="frow set-form" id="scanForm">
             <input class="sc-input" id="tid" inputmode="numeric" placeholder="Ticket number, e.g. 48213" autocomplete="off" aria-label="Ticket number">
             <label class="sc-check"><input type="checkbox" id="force"> Re-scan even if already reviewed</label>
@@ -101,16 +121,14 @@
           <div class="sc-msg" id="impMsg" aria-live="polite"></div>
         </div>
       </div>
-    </section>
-
-    <!-- Spark: Splashtop's own AI (Translate with Spark, the dashboard's spike notes, Ask AI). -->
-    <section class="card set-card" aria-labelledby="spH">
-      <h2 class="set-h" id="spH">Spark</h2>
-      <div class="set-d" id="spState" style="margin-top:-2px"></div>
+        </section>
+        <section class="card set-card set-sect" id="setSect-spark" aria-labelledby="h-spark">
+          <h2 class="set-h" id="h-spark">Spark</h2>
+          <div class="set-sub"><span id="spState"></span></div>
       <div class="set-row">
         <div class="set-txt">
           <div class="set-t">Model</div>
-          <div class="set-d">Which of Spark&rsquo;s models answers: Ask AI, Spark translations, and the dashboard&rsquo;s spike notes and lookalike names. Smaller models answer faster; bigger ones may answer better. Use <b>Test speed</b> to compare.</div>
+          <div class="set-d">Which of Spark&rsquo;s models answers: the AI page, Spark translations, and the dashboard&rsquo;s spike notes and lookalike names. Smaller models answer faster; bigger ones may answer better. Use <b>Test speed</b> to compare.</div>
           <div class="frow set-form">
             <button type="button" class="btn" id="spTest">Test speed</button>
             <span class="sc-msg" id="spTestMsg" aria-live="polite"></span>
@@ -128,11 +146,10 @@
           <span class="aisw-state" id="thinkState">…</span>
         </label>
       </div>
-    </section>
-
-    <!-- The Price Book's feed: SplashHub's own settings code (pbsettings.js, unchanged). -->
-    <section class="card set-card" aria-labelledby="pbH" id="setSect-pricebook">
-      <h2 class="set-h" id="pbH">Price Book</h2>
+        </section>
+        <section class="card set-card set-sect" id="setSect-pricebook" aria-labelledby="h-pricebook">
+          <h2 class="set-h" id="h-pricebook">Price feed</h2>
+          <div class="set-sub">Where the PriceBook gets its prices on splashtop.com.</div>
       <div class="set-row">
         <div class="set-txt">
           <div class="set-t">Price feed</div>
@@ -148,13 +165,15 @@
           <div id="pbsHist" class="pbs-hist" style="display:none;"></div>
         </div>
       </div>
-    </section>
+        </section>
+      </div>
+    </div>
   </main>
 
   <link rel="stylesheet" href="prices.css?v=0.9.4">
   <script src="prices.js?v=0.9.1"></script>
   <script src="pricebook.js?v=0.9.2"></script>
   <script src="pbsettings.js?v=0.9.1"></script>
-  <script src="settings.js?v=0.9.3"></script>
+  <script src="settings.js?v=1.0.0"></script>
 </body>
 </html>

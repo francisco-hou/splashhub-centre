@@ -29,11 +29,18 @@
     setup(); settings(); pollImport();
     // The Price Book's feed settings: SplashHub's own pbsettings.js.
     if (window.PricebookSettingsPage) PricebookSettingsPage.boot(window.CentrePriceClient);
-    if (location.hash === '#pricebook') {
-      var sect = document.getElementById('setSect-pricebook');
-      if (sect) { sect.scrollIntoView({ block: 'start' }); var u = document.getElementById('pbsUrl'); if (u) u.focus(); }
-    }
+    showSect();
+    if (location.hash === '#pricebook') { var u = document.getElementById('pbsUrl'); if (u) u.focus(); }
   });
+  // One section at a time, picked on the left (the link's #hash, so it can be shared and survives a reload).
+  function showSect() {
+    var want = (location.hash || '').slice(1), items = document.querySelectorAll('.set-nav-item');
+    if (!document.getElementById('setSect-' + want)) want = items[0].getAttribute('data-sect');
+    Array.prototype.forEach.call(items, function (a) { a.classList.toggle('active', a.getAttribute('data-sect') === want); });
+    Array.prototype.forEach.call(document.querySelectorAll('.set-sect'), function (s) { s.classList.toggle('active', s.id === 'setSect-' + want); });
+  }
+  window.addEventListener('hashchange', showSect);
+
   $('signOut').addEventListener('click', function () {
     fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = '/'; });
   });
