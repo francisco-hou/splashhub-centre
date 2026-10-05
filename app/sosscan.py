@@ -1,20 +1,21 @@
-"""Custom SOS package brand scan -- run by SplashHub Centre, stored here only.
+"""Custom SOS package brand scan -- run by SplashHub Centre, stored here.
 
 The same review as SplashHub's sidebar "Scan Custom SOS PKG" button (scan.js):
 the same system prompt, output schema, creator / [Label] extraction and
 thumbnail selection, so a verdict means the same thing in both places. The
 difference is where it runs and where it goes: started by a Zendesk webhook (or
 the "Scan a ticket" box on the SOS Scans page), and stored in the sos_scans
-table. NOTHING is written back to Zendesk.
+table. The one write to Zendesk is an internal note with a review, and only
+when an agent presses "Add as internal note" (add_note).
 
 Keep SYSTEM_PROMPT / OUTPUT_SCHEMA in step with scan.js -- change both together.
 
 AI: the CUSTOM_AI grant (AI_BASE_URL, AI_API_KEY, AI_MODELS -- the first model
-is used). Zendesk: zendesk.py (read-only).
+is used). Zendesk: zendesk.py. Images are never stored: the page shows them
+from Zendesk, and a review downloads the ones it checks, in memory.
 """
 import base64, hashlib, json, os, queue, re, sys, threading, time, urllib.error, urllib.request
 
-import imagestore
 import store
 import zendesk
 
@@ -299,6 +300,13 @@ def call_claude(images, b64s, ctext, ftext):
             "output_config": {"effort": "high", "format": OUTPUT_SCHEMA}, "system": SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": [{"type": "text", "text": ctext}, {"type": "text", "text": ftext}]
                           + blocks + [{"type": "text", "text": instruction}]}]}
+    return _messages(body, model, "Claude declined to analyze these images (safety refusal).")
+
+
+def _messages(body, model, refused):
+    """POST one Messages API request through CUSTOM_AI; the parsed JSON answer,
+    usage and model. Errors are worded here (never str(e) of a network error)."""
+    base, key, _ = ai_config()
     req = urllib.request.Request(base + "/v1/messages", data=json.dumps(body).encode(), method="POST",
                                  headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
     try:
@@ -316,7 +324,7 @@ def call_claude(images, b64s, ctext, ftext):
     except Exception as e:     # never str(e): see zendesk.py
         raise ScanError("could not reach the Claude API (%s) -- is the CUSTOM_AI grant approved?" % type(e).__name__)
     if res.get("stop_reason") == "refusal":
-        raise ScanError("Claude declined to analyze these images (safety refusal).")
+        raise ScanError(refused)
     text = next((b.get("text") for b in res.get("content") or [] if b.get("type") == "text"), None)
     if not text:
         raise ScanError("Claude's answer had no text to read" + (" (cut off at max_tokens)" if res.get("stop_reason") == "max_tokens" else ""))
@@ -325,6 +333,131 @@ def call_claude(images, b64s, ctext, ftext):
     except ValueError:
         raise ScanError("Claude's answer was not the expected JSON")
     return parsed, res.get("usage") or {}, res.get("model") or model
+
+
+# ---- the Translate button ------------------------------------------------------------
+# English for the words the package shows its end users (name, caption,
+# instruction text, disclaimer...), so anyone can read a Japanese or German
+# request. Asked once per request and saved; never written to Zendesk.
+
+TRANSLATE_SCHEMA = {
+    "type": "json_schema",
+    "schema": {
+        "type": "object",
+        "properties": {"items": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"key": {"type": "string"}, "english": {"type": "string"}},
+            "required": ["key", "english"], "additionalProperties": False}}},
+        "required": ["items"], "additionalProperties": False,
+    },
+}
+TRANSLATE_PROMPT = ("You translate short texts from a remote-support software package into plain English for a "
+                    "support team. Keep the meaning and tone; keep product names, numbers and URLs as they are. "
+                    "Return one item per input key. If a text is already English, return it unchanged.")
+NON_ASCII = re.compile(r"[^\x00-\x7f]")
+
+
+def translate(scan_id):
+    """English for this request's non-English texts: {key: english}. Saved on
+    the row; a second press returns the saved one without calling the AI."""
+    row = store.scan_get(scan_id, fresh=True)
+    if not row:
+        raise ScanError("That request is gone.")
+    if row.get("translation_json"):
+        return json.loads(row["translation_json"])
+    miss = [m for m in missing_config() if m.startswith("AI_")]
+    if miss:
+        raise ScanError("Translation needs the AI set up (missing %s)." % ", ".join(miss))
+    req = parse_request(row.get("description") or "")
+    texts = {f["label"].lower(): f["value"] for f in req["fields"] if f.get("value") and NON_ASCII.search(f["value"])}
+    if row.get("subject") and NON_ASCII.search(row["subject"]):
+        texts["subject"] = row["subject"]
+    if not texts:
+        out = {}
+    else:
+        _, _, model = ai_config()
+        body = {"model": model, "max_tokens": 4000, "system": TRANSLATE_PROMPT,
+                "output_config": {"effort": "low", "format": TRANSLATE_SCHEMA},
+                "messages": [{"role": "user", "content": [{"type": "text", "text": json.dumps(
+                    [{"key": k, "text": v} for k, v in texts.items()], ensure_ascii=False)}]}]}
+        parsed, usage, model = _messages(body, model, "Claude declined to translate this request.")
+        out = {i["key"]: i["english"] for i in parsed.get("items") or [] if i.get("key") in texts and i.get("english")}
+        cost = cost_of(usage, model)
+        store.insert_many([{"when": _now(), "agent": "SplashHub Centre", "kind": "translate (SOS request)", "model": model,
+                            "topic": "#%d custom SOS package" % int(row["ticket_id"]), "tickets": 1,
+                            "input_tokens": usage.get("input_tokens", 0), "output_tokens": usage.get("output_tokens", 0),
+                            "cost": cost, "source": "centre"}])
+    store.scan_update(scan_id, translation_json=json.dumps(out, ensure_ascii=False))
+    return out
+
+
+# ---- "Add as internal note" -------------------------------------------------------------
+# After an AI review, an agent can add it to the ticket as an internal note --
+# a short summary or the full details. Manual for now (a button press each
+# time); nothing is posted without one.
+
+VERDICT_WORDS = {"suspicious": "Suspicious", "needs_review": "Needs review", "normal": "Normal",
+                 "not_applicable": "Not applicable"}
+REF_WORDS = {"powered_by_attribution": "\u201cPowered by Splashtop\u201d credit",
+             "unmodified_default": "Splashtop default UI visible", "other_reference": "Misleading \u201cby Splashtop\u201d text"}
+
+
+def note_text(row, style="summary"):
+    """The internal note for this request's AI review, as plain text."""
+    res = json.loads(row.get("result_json") or "null")
+    if not res:
+        raise ScanError("This request has no AI review yet.")
+    when = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime((row.get("reviewed_ms") or row.get("finished_ms") or _now()) / 1000))
+    lines = ["SplashHub Centre \u2014 AI brand review: %s" % VERDICT_WORDS.get(row.get("verdict"), row.get("verdict") or "?"),
+             "", (res.get("overall_summary") or "").strip()]
+    if res.get("text_only"):
+        lines += ["", "Text-only review: %d image(s) could not be downloaded, so the AI did not see them." % res["text_only"]]
+    if style == "details":
+        names = {g.get("reviewed_index"): g.get("filename") for g in json.loads(row.get("gallery_json") or "[]")
+                 if g.get("reviewed_index") is not None}
+        fs = res.get("findings") or []
+        if fs:
+            lines += ["", "Images:"]
+            for f in fs:
+                line = "- %s \u2014 %s" % (names.get(f.get("image_index")) or "Image %d" % (f.get("image_index", 0) + 1),
+                                          VERDICT_WORDS.get(f.get("verdict"), f.get("verdict")))
+                if f.get("confidence") is not None:
+                    line += " (%d%%)" % round(f["confidence"] * 100)
+                if f.get("summary"):
+                    line += ": " + f["summary"].strip()
+                lines.append(line)
+                extra = []
+                if f.get("splashtop_reference") not in (None, "none"):
+                    extra.append(REF_WORDS.get(f["splashtop_reference"], f["splashtop_reference"]))
+                if f.get("detected_brand_references"):
+                    extra.append("Brands: " + ", ".join(f["detected_brand_references"]))
+                if f.get("flagged_elements"):
+                    extra.append("Flagged: " + "; ".join(f["flagged_elements"]))
+                if extra:
+                    lines.append("    " + " \u00b7 ".join(extra))
+        tr = res.get("ticket_review") or {}
+        if tr:
+            lines += ["", "Package details \u2014 %s%s" % (VERDICT_WORDS.get(tr.get("verdict"), tr.get("verdict") or "?"),
+                                                        (": " + tr["summary"].strip()) if tr.get("summary") else "")]
+            for x in tr.get("flagged_fields") or []:
+                lines.append("    Flagged: " + x)
+    lines += ["", "Reviewed %s \u00b7 %s \u00b7 AI-generated; check before acting on it." % (when, row.get("model") or "Claude")]
+    return "\n".join(lines).strip()
+
+
+def add_note(scan_id, style="summary"):
+    """Add the review to the ticket as an internal note; records when."""
+    row = store.scan_get(scan_id, fresh=True)
+    if not row:
+        raise ScanError("That request is gone.")
+    if zendesk.configured():
+        raise ScanError("SplashHub Centre has no Zendesk login yet.")
+    text = note_text(row, style)
+    zendesk.add_internal_note(row["ticket_id"], text)
+    info = {"ms": _now(), "style": style}
+    store.scan_update(scan_id, note_json=json.dumps(info))
+    sys.stderr.write("[note] #%s internal note added (%s)\n" % (row["ticket_id"], style))
+    return info
 
 
 RANK = {"suspicious": 3, "needs_review": 2, "normal": 1}
@@ -341,34 +474,31 @@ def cost_of(usage, model):
     return (usage.get("input_tokens", 0) or 0) / 1e6 * pi + (usage.get("output_tokens", 0) or 0) / 1e6 * po
 
 
-def save_gallery(ticket_id, comments, reviewed):
-    """Download every image on the ticket once and keep a copy of each.
-    Returns (gallery entries for the page, bytes by attachment id for the
-    review). A gallery image that fails is noted and skipped; one the AI must
-    review that fails stops the scan, as it always has."""
+def _ms(iso):
+    from datetime import datetime
+    try:
+        return int(datetime.fromisoformat(str(iso).replace("Z", "+00:00")).timestamp() * 1000)
+    except (TypeError, ValueError):
+        return None
+
+
+def save_gallery(ticket_id, comments, reviewed, strict=True):
+    """List every image on the ticket for the page, as Zendesk's own links:
+    no copies are kept, and the images load from Zendesk for anyone signed in
+    to it. Only the images an AI review needs (`reviewed`) are downloaded, in
+    memory, and never stored. Returns (gallery entries, bytes by attachment id).
+    A reviewed image that cannot be downloaded stops the scan when strict (the
+    automatic review); the button's review goes ahead without it."""
     rev = {img["id"]: i for i, img in enumerate(reviewed)}
-    gallery, data_by_id = [], {}
-    for img in all_images(comments):
-        # url: Zendesk's own link, which the page falls back to when no copy
-        # could be kept (it loads for anyone signed in to Zendesk).
-        entry = {"id": img["id"], "filename": img["filename"], "content_type": img["content_type"],
-                 "reviewed_index": rev.get(img["id"]), "url": img.get("content_url")}
+    gallery = [{"id": img["id"], "filename": img["filename"], "content_type": img["content_type"],
+                "reviewed_index": rev.get(img["id"]), "url": img.get("content_url")} for img in all_images(comments)]
+    data_by_id = {}
+    for img in reviewed:
         try:
-            data, _ = zendesk.download(img["content_url"])
-            data_by_id[img["id"]] = data
-            entry["bytes"] = len(data)
-            try:
-                k = imagestore.key_for(ticket_id, img["id"], img["filename"])
-                imagestore.store().put(k, data, img["content_type"])
-                entry["key"] = k
-            except Exception as e:
-                entry["error"] = "could not keep a copy (%s)" % type(e).__name__
-        except zendesk.ZendeskError as e:
-            entry["error"] = str(e)
-        gallery.append(entry)
-    for img in reviewed:                      # not in the gallery (over its cap) or failed there
-        if img["id"] not in data_by_id:
             data_by_id[img["id"]] = zendesk.download(img["content_url"])[0]
+        except zendesk.ZendeskError:
+            if strict:
+                raise
     return gallery, data_by_id
 
 
@@ -383,18 +513,25 @@ def _now():
     return int(time.time() * 1000)
 
 
-def run_scan(scan_id, ticket_id, force=False):
+class _NotRun(Exception):
+    """A manual review that could not run: the request keeps what it had."""
+
+
+def run_scan(scan_id, ticket_id, force=False, manual=False, was=None):
     """One request, start to finish. Every outcome is written to its row.
 
     1. The ticket's details and images: read from Zendesk when SplashHub Centre
-       may (copies of every image kept); otherwise what the trigger sent stays.
-    2. The AI review -- only if the switch was on when the request came in.
+       may (images listed as Zendesk links); otherwise what the trigger sent stays.
+    2. The AI review -- only if the switch was on when the request came in, or
+       someone pressed the panel's "AI review" button (manual). A manual review
+       that cannot run leaves the request as it was, with a note why; images it
+       cannot download are left out and the review says so (text_only).
     """
     row = store.scan_get(scan_id, fresh=True) or {}
     store.scan_update(scan_id, status="running")
     try:
         # Decided when the request arrived (request() stamps it), never now.
-        review = row.get("ai_review") == "on" and row.get("source") != "import"
+        review = manual or (row.get("ai_review") == "on" and row.get("source") != "import")
         fetched, zd_note = False, ""
         images, data_by_id, who, fields = [], {}, None, []
         if not zendesk.configured():
@@ -411,7 +548,14 @@ def run_scan(scan_id, ticket_id, force=False):
                               description=(t["description"] or "")[:20000])
                 # Image bytes are only REQUIRED when the AI will review them;
                 # otherwise a failed copy must not hold up the details.
-                gallery, data_by_id = save_gallery(ticket_id, cs, images if review else [])
+                gallery, data_by_id = save_gallery(ticket_id, cs, images if review else [], strict=not manual)
+                if manual:
+                    got = [i for i in images if i["id"] in data_by_id]
+                    left_out = len(images) - len(got)
+                    images = got
+                    idx = {i["id"]: n for n, i in enumerate(images)}
+                    for g in gallery:
+                        g["reviewed_index"] = idx.get(g["id"])
                 store.scan_update(scan_id, gallery_json=json.dumps(gallery), **common)
                 fetched = True
             except zendesk.ZendeskError as e:
@@ -419,6 +563,8 @@ def run_scan(scan_id, ticket_id, force=False):
         else:
             zd_note = "SplashHub Centre has no Zendesk login yet"
 
+        if manual and not fetched:
+            raise _NotRun("it needs Zendesk access (%s)" % zd_note)
         has_details = fetched or bool(row.get("description") or row.get("gallery_json"))
         if not has_details:
             # Nothing to show yet: keep it, and try again at the next start-up.
@@ -432,18 +578,22 @@ def run_scan(scan_id, ticket_id, force=False):
                               error=("Past request -- listed for reference, never reviewed by AI." if row.get("source") == "import"
                                      else "AI review is off -- details and images only.") + shown_from)
             return
+        if manual and fields == [] and not images:
+            raise _NotRun("there are no images or package details on this ticket to review")
         if fields == [] and not images and fetched:
             store.scan_update(scan_id, status="skipped", finished_ms=_now(),
                               error="No thumbnail images or [Label] package fields on this ticket.")
             return
         miss = missing_config()
+        if manual and miss:
+            raise _NotRun("setup is missing " + ", ".join(miss))
         if miss or not fetched:
             store.scan_update(scan_id, status="waiting",
                               error="The AI review is waiting for " + ("setup (missing " + ", ".join(miss) + ")" if miss else
                                                                        "Zendesk access (%s)" % zd_note) + "." + shown_from)
             return
         key = hashlib.sha256(",".join(str(i["id"]) for i in images).encode()).hexdigest()[:24]
-        if not force:
+        if not force and not manual:
             prev = store.scan_done_for(ticket_id, key)
             if prev:
                 store.scan_update(scan_id, status="skipped", finished_ms=_now(), attach_key=key,
@@ -453,20 +603,37 @@ def run_scan(scan_id, ticket_id, force=False):
         parsed, usage, model = call_claude(images, b64s, creator_text(who), fields_text(fields))
         cost = cost_of(usage, model)
         verdict = overall(parsed)
+        if manual and left_out:
+            parsed["text_only"] = left_out     # images the review could not see
         store.scan_update(scan_id, status="done", verdict=verdict, finished_ms=_now(), attach_key=key,
                           result_json=json.dumps(parsed), model=model, input_tokens=usage.get("input_tokens", 0) or 0,
-                          output_tokens=usage.get("output_tokens", 0) or 0, cost=cost, error=None)
+                          output_tokens=usage.get("output_tokens", 0) or 0, cost=cost, error=None, reviewed_ms=_now())
         # Its cost on the Logs page, next to the sidebar's own scans.
-        store.insert_many([{"when": _now(), "agent": "SplashHub Centre", "kind": "brand scan (auto)",
+        store.insert_many([{"when": _now(), "agent": "SplashHub Centre", "kind": "brand scan (manual)" if manual else "brand scan (auto)",
                             "model": model, "topic": "#%d custom SOS package · %s" % (int(ticket_id), verdict),
                             "tickets": 1, "input_tokens": usage.get("input_tokens", 0), "output_tokens": usage.get("output_tokens", 0),
                             "cost": cost, "source": "centre"}])
+    except _NotRun as e:
+        _restore(scan_id, row, was, "The AI review didn't run: %s." % e)
     except (ScanError, zendesk.ZendeskError) as e:
-        store.scan_update(scan_id, status="error", finished_ms=_now(), error=str(e)[:500])
+        if manual:
+            _restore(scan_id, row, was, "The AI review didn't finish: %s" % str(e)[:400])
+        else:
+            store.scan_update(scan_id, status="error", finished_ms=_now(), error=str(e)[:500])
     except Exception as e:    # a bug: say what kind, never the text
         sys.stderr.write("[scan] #%s failed: %s\n" % (ticket_id, type(e).__name__))
-        store.scan_update(scan_id, status="error", finished_ms=_now(),
-                          error="internal error (%s) -- see the app log" % type(e).__name__)
+        why = "internal error (%s) -- see the app log" % type(e).__name__
+        if manual:
+            _restore(scan_id, row, was, "The AI review didn't finish: " + why)
+        else:
+            store.scan_update(scan_id, status="error", finished_ms=_now(), error=why)
+
+
+def _restore(scan_id, row, was, note):
+    """Put a request back the way it was before its manual review was asked
+    for: same status, same verdict and earlier review (if any), plus a note."""
+    store.scan_update(scan_id, status=was if was not in (None, "queued", "running") else "held",
+                      verdict=row.get("verdict"), error=note)
 
 
 # ---- the queue: one scan at a time, off the webhook loop ------------------------------
@@ -477,9 +644,11 @@ _lock = threading.Lock()
 
 def _worker():
     while True:
-        scan_id, ticket_id, force = _Q.get()
-        sys.stderr.write("[scan] #%s started (scan %s)\n" % (ticket_id, scan_id))
-        run_scan(scan_id, ticket_id, force)
+        item = _Q.get()
+        scan_id, ticket_id, force = item[:3]
+        manual, was = (item[3], item[4]) if len(item) > 4 else (False, None)   # request() puts three
+        sys.stderr.write("[scan] #%s started (scan %s%s)\n" % (ticket_id, scan_id, ", AI review button" if manual else ""))
+        run_scan(scan_id, ticket_id, force, manual, was)
         row = store.scan_get(scan_id, fresh=True) or {}
         why = (" -- " + (row.get("error") or "")[:300]) if row.get("status") in ("waiting", "error") else ""
         sys.stderr.write("[scan] #%s %s%s%s\n" % (ticket_id, row.get("status"),
@@ -546,6 +715,25 @@ def request(ticket_id, source, requested_by=None, force=False, pushed=None):
     return scan_id
 
 
+def review_now(scan_id):
+    """The panel's "AI review" button: review this one request now, whatever
+    the switch says and whenever it arrived. Returns an error message, or None."""
+    row = store.scan_get(scan_id, fresh=True)
+    if not row:
+        return "That request is gone."
+    if row.get("status") in ("queued", "running"):
+        return "This request is already being processed."
+    miss = missing_config()
+    if miss:
+        return "AI review isn't set up yet (missing %s)." % ", ".join(miss)
+    # The status it had goes back if the review cannot run (_restore); the
+    # verdict and any earlier review stay on the row until a new one replaces them.
+    store.scan_update(scan_id, ai_review="manual", status="queued", error=None)
+    sys.stderr.write("[scan] #%s AI review requested from the panel\n" % row["ticket_id"])
+    request_existing(scan_id, row["ticket_id"], manual=True, was=row.get("status"))
+    return None
+
+
 RETRY_EVERY = 600     # seconds between retries of requests still waiting
 
 
@@ -575,23 +763,25 @@ def requeue_unfinished():
     for st in ("queued", "running", "waiting"):
         rows += store.scans(verdict=st, per_page=200)["rows"]
     for r in rows:
+        full = store.scan_get(r["id"], fresh=True) or {}
         store.scan_update(r["id"], status="queued")
-        request_existing(r["id"], r["ticket_id"])
+        # an "AI review" button press the restart interrupted carries on as one
+        request_existing(r["id"], r["ticket_id"], manual=full.get("ai_review") == "manual" and r["status"] in ("queued", "running"))
 
 
-def request_existing(scan_id, ticket_id):
+def request_existing(scan_id, ticket_id, manual=False, was=None):
     global _started
     with _lock:
         if not _started:
             threading.Thread(target=_worker, name="sos-scan", daemon=True).start()
             _started = True
-    _Q.put((scan_id, int(ticket_id), False))
+    _Q.put((scan_id, int(ticket_id), manual, manual, was))
 
 
 # ---- past requests: imported from Zendesk by SplashHub Centre itself -------------------
 # The "Import past SOS requests" button on the SOS Scans page. Finds every
-# ticket whose subject starts "New SOS package created by ...", keeps copies of
-# the images, and lists each as a past request at its own creation date. Never
+# ticket whose subject starts "New SOS package created by ...", lists its
+# images as Zendesk links, and each as a past request at its own creation date. Never
 # reviewed by AI. Tickets already listed are skipped, so the button can be
 # pressed again to pick up anything new.
 #
@@ -615,12 +805,8 @@ def import_status():
 def _import_one(t):
     tid = int(t["id"])
     cs = zendesk.comments(tid)
+    created = _ms(t.get("created_at")) or _now()
     gallery, _ = save_gallery(tid, cs, [])
-    try:
-        from datetime import datetime
-        created = int(datetime.fromisoformat(str(t.get("created_at")).replace("Z", "+00:00")).timestamp() * 1000)
-    except (TypeError, ValueError):
-        created = _now()
     desc = (t.get("description") or "")[:20000]
     # Creator from the [Creator] line only: the requester is either the system
     # account (not a person) or whoever an agent changed it to later.
@@ -638,27 +824,38 @@ def _run_import():
     try:
         if zendesk.configured():
             raise ScanError("SplashHub Centre has no Zendesk login yet (missing " + ", ".join(zendesk.configured()) + ")")
-        found = []
+        # Each page of results is added before the next is fetched, so the
+        # list fills from the first minute and a restart loses nothing done.
+        batch = []
+
+        def add(batch):
+            have = store.scan_ticket_ids([t["id"] for t in batch])
+            for t in batch:
+                if IMPORT.get("stop"):
+                    return
+                if int(t["id"]) in have:
+                    IMPORT["skipped"] += 1
+                else:
+                    try:
+                        _import_one(t)
+                        IMPORT["added"] += 1
+                    except zendesk.ZendeskError as e:
+                        sys.stderr.write("[import] #%s: %s\n" % (t.get("id"), e))
+                        IMPORT["failed"] = IMPORT.get("failed", 0) + 1
+                IMPORT["done"] += 1
+                if IMPORT["done"] % 500 == 0:
+                    sys.stderr.write("[import] %d checked, %d added\n" % (IMPORT["done"], IMPORT["added"]))
+
         for t in zendesk.search_tickets('type:ticket subject:"%s"' % SOS_SUBJECT):
             if IMPORT.get("stop"):
                 break
             if str(t.get("subject") or "").startswith(SOS_SUBJECT):   # search matches words; keep true subjects
-                found.append(t)
-                IMPORT["found"] = len(found)
-        have = store.scan_ticket_ids([t["id"] for t in found])
-        for t in found:
-            if IMPORT.get("stop"):
-                break
-            if int(t["id"]) in have:
-                IMPORT["skipped"] += 1
-            else:
-                try:
-                    _import_one(t)
-                    IMPORT["added"] += 1
-                except zendesk.ZendeskError as e:
-                    sys.stderr.write("[import] #%s: %s\n" % (t.get("id"), e))
-                    IMPORT["skipped"] += 1
-            IMPORT["done"] += 1
+                IMPORT["found"] += 1
+                batch.append(t)
+            if len(batch) >= 100:
+                add(batch); batch = []
+        if batch and not IMPORT.get("stop"):
+            add(batch)
     except (ScanError, zendesk.ZendeskError) as e:
         IMPORT["error"] = str(e)[:400]
     except Exception as e:
@@ -668,102 +865,43 @@ def _run_import():
         IMPORT["stopped"] = bool(IMPORT.get("stop"))
         IMPORT["running"] = False
         IMPORT["finished_ms"] = _now()
+        try:     # finished, stopped or failed: nothing to resume (a killed container never gets here)
+            store.set_setting("import_running", "", "import")
+        except Exception:
+            pass
         sys.stderr.write("[import] finished: %d found, %d added, %d skipped%s\n" % (
             IMPORT["found"], IMPORT["added"], IMPORT["skipped"], (" -- " + IMPORT["error"]) if IMPORT["error"] else ""))
 
 
-def start_import():
+def start_import(resumed=False):
     """Start the import in the background; False if one is already running."""
     with _import_lock:
         if IMPORT["running"]:
             return False
-        IMPORT.update(running=True, stop=False, stopped=False, found=0, done=0, added=0, skipped=0, error=None,
-                      started_ms=_now(), finished_ms=None)
+        IMPORT.update(running=True, stop=False, stopped=False, found=0, done=0, added=0, skipped=0, failed=0, error=None,
+                      started_ms=_now(), finished_ms=None, resumed=resumed)
+    # Remembered in the database: a restart (a new release, a grant change)
+    # ends the thread, and the next container picks the import up again.
+    store.set_setting("import_running", "yes", "import")
     threading.Thread(target=_run_import, name="sos-import", daemon=True).start()
     return True
 
 
-# ---- fetch missing images ---------------------------------------------------------------
-# The "Fetch missing images" button. For requests whose image copies could not
-# be kept (e.g. the attachment host was not yet in the OUTBOUND_HTTP grant), read
-# the ticket's attachments again and keep copies. Never touches an AI-reviewed
-# request (its image order is tied to the review) and never calls the AI.
-
-REFILL = {"running": False, "found": 0, "done": 0, "fixed": 0, "still_missing": 0, "error": None,
-          "started_ms": None, "finished_ms": None}
-
-
-def refill_status():
-    return dict(REFILL)
-
-
-def _missing_copies(row):
+def resume_import():
+    """At start-up: carry on an import the previous container was running.
+    Tickets already listed are skipped, so it picks up where it was."""
     try:
-        gal = json.loads(row.get("gallery_json") or "[]")
-    except ValueError:
-        return False
-    return any(not g.get("key") for g in gal)
-
-
-def _run_refill():
-    try:
-        if zendesk.configured():
-            raise ScanError("SplashHub Centre has no Zendesk login yet (missing " + ", ".join(zendesk.configured()) + ")")
-        todo, page = [], 0
-        while True:
-            res = store.scans(page=page, per_page=200)
-            for r in res["rows"]:
-                if r["status"] in ("held", "skipped", "waiting", "error"):
-                    full = store.scan_get(r["id"], fresh=True) or {}
-                    if _missing_copies(full):
-                        todo.append(full)
-            page += 1
-            if page * 200 >= res["total"]:
-                break
-        REFILL["found"] = len(todo)
-        for row in todo:
-            if REFILL.get("stop"):
-                break
-            try:
-                cs = zendesk.comments(row["ticket_id"])
-                gallery, _ = save_gallery(row["ticket_id"], cs, [])
-                store.scan_update(row["id"], gallery_json=json.dumps(gallery))
-                if any(not g.get("key") for g in gallery):
-                    REFILL["still_missing"] += 1
-                else:
-                    REFILL["fixed"] += 1
-            except zendesk.ZendeskError as e:
-                sys.stderr.write("[images] #%s: %s\n" % (row["ticket_id"], e))
-                REFILL["still_missing"] += 1
-            REFILL["done"] += 1
-    except (ScanError, zendesk.ZendeskError) as e:
-        REFILL["error"] = str(e)[:400]
+        if store.get_setting("import_running", "") == "yes":
+            sys.stderr.write("[import] carrying on after a restart\n")
+            start_import(resumed=True)
     except Exception as e:
-        REFILL["error"] = "internal error (%s) -- see the app log" % type(e).__name__
-        sys.stderr.write("[images] failed: %s\n" % type(e).__name__)
-    finally:
-        REFILL["stopped"] = bool(REFILL.get("stop"))
-        REFILL["running"] = False
-        REFILL["finished_ms"] = _now()
-        sys.stderr.write("[images] finished: %d with missing copies, %d fixed, %d still missing%s\n" % (
-            REFILL["found"], REFILL["fixed"], REFILL["still_missing"], (" -- " + REFILL["error"]) if REFILL["error"] else ""))
+        sys.stderr.write("[import] could not resume: %s\n" % type(e).__name__)
 
 
-def start_refill():
-    with _import_lock:
-        if REFILL["running"] or IMPORT["running"]:
-            return False
-        REFILL.update(running=True, stop=False, stopped=False, found=0, done=0, fixed=0, still_missing=0, error=None,
-                      started_ms=_now(), finished_ms=None)
-    threading.Thread(target=_run_refill, name="sos-images", daemon=True).start()
-    return True
-
-
-def stop_job(which):
-    """Ask a running import / image fetch to stop after the ticket it is on.
-    Everything already listed stays; pressing the button again carries on."""
-    job = IMPORT if which == "import" else REFILL
-    if job["running"]:
-        job["stop"] = True
+def stop_job(which="import"):
+    """Ask a running import to stop after the ticket it is on. Everything
+    already listed stays; pressing the button again carries on."""
+    if IMPORT["running"]:
+        IMPORT["stop"] = True
         return True
     return False

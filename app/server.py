@@ -187,7 +187,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(store.scans(one("q")[:80] or None, one("verdict") or None, page, 50))
             m = re.match(r"^/api/scans/(\d+)/image/(\d+)$", u.path)
             if m:
-                # A stored copy of one of the ticket's images (imagestore.py).
+                # A stored copy of one of the ticket's images (imagestore.py). Only
+                # requests from before copies were dropped have any.
                 row = store.scan_get(int(m.group(1)))
                 try:
                     gallery = json.loads((row or {}).get("gallery_json") or "[]")
@@ -201,11 +202,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self._send(404, "Not found", "text/plain; charset=utf-8")
                 return self._send(200, data, g["content_type"], [("Cache-Control", "private, max-age=86400"),
                                                                   ("Content-Disposition", "inline")])
+            m = re.match(r"^/api/scans/(\d+)/note$", u.path)
+            if m:
+                # The note's preview, exactly as it would be added.
+                row = store.scan_get(int(m.group(1)))
+                if not row:
+                    return self.json({"error": "not found"}, 404)
+                try:
+                    return self.json({"text": sosscan.note_text(row, "details" if (qs.get("style") or [""])[0] == "details" else "summary")})
+                except sosscan.ScanError as e:
+                    return self.json({"error": str(e)}, 400)
             if u.path.startswith("/api/scans/") and u.path.rsplit("/", 1)[1].isdigit():
                 row = store.scan_get(int(u.path.rsplit("/", 1)[1]))
                 if not row:
                     return self.json({"error": "not found"}, 404)
-                for k in ("images_json", "fields_json", "result_json", "gallery_json"):
+                for k in ("images_json", "fields_json", "result_json", "gallery_json", "translation_json", "note_json"):
                     try:
                         row[k[:-5]] = json.loads(row.pop(k) or "null")
                     except ValueError:
@@ -216,8 +227,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(row)
             if u.path == "/api/import-past":
                 return self.json(sosscan.import_status())
-            if u.path == "/api/fetch-images":
-                return self.json(sosscan.refill_status())
             if u.path == "/api/scan-setup":
                 missing = sosscan.missing_config()
                 if not (os.environ.get("ZENDESK_WEBHOOK_SECRET") or "").strip():
@@ -264,17 +273,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                               "No ADMIN_PASSWORD is set for this app yet."}, 401)
         if u.path == "/logout":
             return self.json({"ok": True}, 200, [("Set-Cookie", "%s=; Path=/; Max-Age=0" % COOKIE)])
-        if u.path in ("/api/import-past/stop", "/api/fetch-images/stop"):
+        if u.path == "/api/import-past/stop":
             if not self.authed():
                 return self.json({"error": "login required"}, 401)
-            which = "import" if u.path.startswith("/api/import-past") else "images"
-            return self.json({"ok": sosscan.stop_job(which)})
-        if u.path == "/api/fetch-images":
-            # "Fetch missing images": background job, like the import.
-            if not self.authed():
-                return self.json({"error": "login required"}, 401)
-            started = sosscan.start_refill()
-            return self.json(dict(sosscan.refill_status(), started=started))
+            return self.json({"ok": sosscan.stop_job("import")})
         if u.path == "/api/import-past":
             # "Import past SOS requests": runs in the background on the server.
             if not self.authed():
@@ -293,6 +295,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
             store.set_setting("ai_review", "on" if on else "off", "Centre admin")
             sys.stderr.write("[scan] AI review switched %s\n" % ("on" if on else "off"))
             return self.json({"ok": True, "ai_review": "on" if on else "off"})
+        m = re.match(r"^/api/scans/(\d+)/note$", u.path)
+        if m:
+            # "Add as internal note": the one thing SplashHub Centre writes to
+            # Zendesk, and only on this button press.
+            if not self.authed():
+                return self.json({"error": "login required"}, 401)
+            try:
+                style = "details" if (json.loads(raw or b"{}").get("style") == "details") else "summary"
+                return self.json({"ok": True, "note": sosscan.add_note(int(m.group(1)), style)})
+            except ValueError:
+                return self.json({"error": "bad request"}, 400)
+            except (sosscan.ScanError, zendesk.ZendeskError) as e:
+                return self.json({"error": str(e)}, 400)
+        m = re.match(r"^/api/scans/(\d+)/translate$", u.path)
+        if m:
+            # The pop-up's Translate button: English for the package's own
+            # words, saved on the request. Takes a few seconds.
+            if not self.authed():
+                return self.json({"error": "login required"}, 401)
+            try:
+                return self.json({"ok": True, "translation": sosscan.translate(int(m.group(1)))})
+            except sosscan.ScanError as e:
+                return self.json({"error": str(e)}, 400)
+        m = re.match(r"^/api/scans/(\d+)/review$", u.path)
+        if m:
+            # The side panel's "AI review" button: this one request, now,
+            # whether or not the switch is on.
+            if not self.authed():
+                return self.json({"error": "login required"}, 401)
+            err = sosscan.review_now(int(m.group(1)))
+            return self.json({"error": err}, 400) if err else self.json({"ok": True})
         if u.path == "/api/scans":
             # "Scan a ticket now" on the SOS Scans page; force re-runs a ticket
             # whose images were already reviewed.
@@ -319,6 +352,7 @@ def main():
     feed.start()
     sosscan.requeue_unfinished()      # scans a previous container left half-done
     sosscan.start_retries()           # and waiting ones, every 10 minutes
+    sosscan.resume_import()           # an import a restart interrupted carries on
     srv = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print("SplashHub Centre on http://%s:%d  (backend: %s%s)" % (HOST, PORT, store.backend(), ", sample data" if SAMPLE else ""))
     srv.serve_forever()

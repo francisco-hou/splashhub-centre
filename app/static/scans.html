@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="app.css?v=0.5.1">
 </head>
 <body>
   <header class="topbar">
@@ -29,7 +29,7 @@
     <div class="hdr">
       <div class="hdr-left">
         <h1 class="hdr-title">SOS Scans</h1>
-        <div class="hdr-sub">Custom SOS package requests, brand-reviewed when they arrive. Results stay here &mdash; nothing is written to Zendesk.</div>
+        <div class="hdr-sub">Custom SOS package requests, brand-reviewed when they arrive. Results stay here; a review is added to the ticket only if you choose &ldquo;Add as internal note&rdquo;.</div>
       </div>
       <div class="hdr-right">
         <!-- The AI review switch: off until the team decides. Applies only to
@@ -61,16 +61,9 @@
       <div class="frow imp-row">
         <span class="sc-label">Past requests</span>
         <button type="button" class="btn" id="impBtn"
-          title="Find every past “New SOS package created by…” ticket in Zendesk and list it here, with copies of its images. No AI review. Tickets already listed are skipped.">Import past SOS requests</button>
+          title="Find every past “New SOS package created by…” ticket in Zendesk and list it here; its images show from Zendesk. No AI review. Tickets already listed are skipped.">Import past SOS requests</button>
         <button type="button" class="btn btn-sm" id="impStop" hidden>Stop</button>
         <span class="sc-msg" id="impMsg" aria-live="polite"></span>
-      </div>
-      <div class="frow imp-row">
-        <span class="sc-label">Images</span>
-        <button type="button" class="btn" id="refBtn"
-          title="Go back over requests whose image copies could not be kept and try again. No AI review.">Fetch missing images</button>
-        <button type="button" class="btn btn-sm" id="refStop" hidden>Stop</button>
-        <span class="sc-msg" id="refMsg" aria-live="polite"></span>
       </div>
     </section>
 
@@ -84,7 +77,7 @@
       </div>
     </section>
 
-    <section class="card">
+    <section class="card sc-list">
       <div class="card-head">
         <h2 class="card-title">Scans</h2>
         <span class="count" id="count"></span>
@@ -105,6 +98,25 @@
     </section>
   </main>
 
-  <script src="scans.js"></script>
+  <!-- One request, in full: a pop-up over the list. -->
+  <div class="pn-overlay" id="pnWrap" hidden>
+    <aside class="pn" id="panel" role="dialog" aria-modal="true" aria-label="Request details" tabindex="-1">
+      <div class="pn-bar">
+        <span class="pn-pos" id="pnPos"></span>
+        <button type="button" class="btn btn-icon btn-sm" id="pnPrev" title="Previous request (↑)" aria-label="Previous request">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>
+        </button>
+        <button type="button" class="btn btn-icon btn-sm" id="pnNext" title="Next request (↓)" aria-label="Next request">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button type="button" class="btn btn-icon btn-sm" id="pnClose" title="Close (Esc)" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="pn-body" id="detail"></div>
+    </aside>
+  </div>
+
+  <script src="scans.js?v=0.5.1"></script>
 </body>
 </html>

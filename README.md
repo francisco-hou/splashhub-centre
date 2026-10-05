@@ -62,9 +62,18 @@ gallery of every image on the ticket, and -- when it ran -- the AI review.
   ticket's text and image links, so a request shows even before SplashHub
   Centre may call Zendesk itself.
 - **With Zendesk access** (`OUTBOUND_HTTP` grant + `ZENDESK_EMAIL` /
-  `ZENDESK_API_TOKEN`) it reads the ticket read-only and keeps copies of every
-  image in its bucket (`SPLUKI_STORAGE`, `imagestore.py`). Nothing is written
-  back to Zendesk.
+  `ZENDESK_API_TOKEN`) it reads the ticket. Images are not stored: the page
+  shows them from Zendesk (they load for anyone signed in to Zendesk), and an
+  AI review downloads the thumbnails it checks, in memory. (`imagestore.py`
+  still serves copies kept by earlier versions.)
+- **Request pop-up**: a row opens the request -- details (with **Translate to
+  English**), images, the ACP links and the download, and the AI review card
+  with a **Run AI review** / **Re-review** button that works whatever the
+  switch says. `/scans#<id>` links straight to one.
+- **Add as internal note**: after a review, a button previews the note
+  (summary or details) and adds it to the Zendesk ticket as an internal
+  note. This is the only write to Zendesk, and only on that press; the
+  token's account must be an agent who can comment on these tickets.
 - **AI review switch** (page header), **off** by default. It applies only to
   requests that arrive while it is on -- the decision is stamped on each request
   when it arrives. Same policy, schema and model as SplashHub's sidebar scan
@@ -73,17 +82,17 @@ gallery of every image on the ticket, and -- when it ran -- the AI review.
 - **Import past SOS requests** (button): searches Zendesk for every past
   request -- by subject only, since agents often change the requester from
   `be-admin@my-mail.splashtop.com` to the customer -- and lists it at its own
-  date, with image copies. Never AI-reviewed.
-  Tickets already listed are skipped, so it can be pressed again.
+  date, its images as Zendesk links. Never AI-reviewed. It adds as it goes and
+  carries on by itself after a restart; tickets already listed are skipped.
 
 ## Layout
 
 ```
 app/server.py        routes, sign-in, CSV export
 app/feed.py          webhook pickup: SplashHub's runs + Zendesk's SOS triggers, verified
-app/sosscan.py       SOS package requests: details, image copies, AI review (switch), import
-app/zendesk.py       read-only Zendesk API client
-app/imagestore.py    image copies: Spluki bucket, or app/images locally
+app/sosscan.py       SOS package requests: details, AI review (switch + button), translate, internal note, import
+app/zendesk.py       Zendesk API client (reads; one write: the internal note)
+app/imagestore.py    image copies kept by earlier versions: Spluki bucket, or app/images locally
 app/store.py         runs table: PostgreSQL on Spluki, SQLite locally
 app/sample.py        sample runs for the preview (never on Spluki)
 app/static/          Logs (index.html, app.js) and SOS Scans (scans.html, scans.js) pages

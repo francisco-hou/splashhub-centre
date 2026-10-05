@@ -100,7 +100,7 @@
         if (!j.ok) { $('loginErr').textContent = j.error || 'Sign-in failed.'; $('loginErr').hidden = false; return; }
         // back to the page that sent us here to sign in (only our own paths)
         var next = new URLSearchParams(location.search).get('next');
-        if (next === '/scans') { location.href = next; return; }
+        if (/^\/scans(#\d+)?$/.test(next || '')) { location.href = next; return; }   // only ever back to SOS Scans
         $('pw').value = ''; $('login').hidden = true; $('signOut').hidden = false; start();
       });
   });
@@ -115,7 +115,8 @@
         showLogin(s.configured ? '' : 'No ADMIN_PASSWORD is set for this app yet, so the log stays locked.');
         return;
       }
-      if (new URLSearchParams(location.search).get('next') === '/scans') { location.href = '/scans'; return; }
+      var nx = new URLSearchParams(location.search).get('next');
+      if (/^\/scans(#\d+)?$/.test(nx || '')) { location.href = nx; return; }
       $('signOut').hidden = !s.required;
       start();
     }).catch(function () { showLogin('Could not reach the server.'); });

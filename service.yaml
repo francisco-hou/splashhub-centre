@@ -10,13 +10,14 @@ app:
     period, tool, agent and model, with per-day and per-tool charts and CSV export.
     Admin-only behind ADMIN_PASSWORD, like the Logs page inside SplashHub. Also reviews
     Custom SOS package requests (brand impersonation check on the thumbnails, Claude
-    vision) when a Zendesk trigger sends them; results are kept here only.
+    vision) when a Zendesk trigger sends them; results are kept here, and a review is
+    added to the ticket as an internal note only when an agent presses that button.
   type: web-service
   runtime: docker
   port: 8795
   health_check_path: /health
   stage: in_development
-  version: "0.3.10"
+  version: "0.4.0"
 
 deployment:
   environment: dev
@@ -32,7 +33,8 @@ secrets:
   RUNLOG_SECRET:
     name: RUNLOG_SECRET
     required: true
-  # SOS package scans (sosscan.py / zendesk.py). Read-only Zendesk access; not
+  # SOS package scans (sosscan.py / zendesk.py). Zendesk access (reads; one write:
+  # the internal note an agent asks for); not
   # required, so a release never waits on them -- the SOS Scans page lists what's missing.
   ZENDESK_EMAIL:
     name: ZENDESK_EMAIL
@@ -49,11 +51,11 @@ permissions:
   - service: SPLUKI_POSTGRES
     reason: The run log itself -- one row per SplashHub run; the container filesystem is wiped on redeploy
   - service: SPLUKI_STORAGE
-    reason: Copies of the images on Custom SOS package tickets, so the SOS Scans page always shows them -- without a Zendesk session and after they are removed from Zendesk
+    reason: Image copies that earlier versions kept for Custom SOS package tickets, still shown on the SOS Scans page. New requests no longer store copies (images show from Zendesk).
   - service: SPLUKI_WEBHOOK
     reason: Zendesk SplashHub Logs -- SplashHub (inside Zendesk) cannot reach a Spluki app directly; it posts each run to the platform's public intake and this app picks them up
   - service: OUTBOUND_HTTP
-    reason: Read-only Zendesk API for the automatic Custom SOS package scan (ticket, comments, thumbnail downloads from zdusercontent.com). Nothing is written back to Zendesk.
+    reason: Zendesk API for the Custom SOS package scan -- reads the ticket, its comments and the thumbnails it reviews (zdusercontent.com). One write, only when an agent presses "Add as internal note" on a reviewed request - the review is added to that ticket as an internal (agent-only) note.
   # The AI review itself stays off until someone turns on the switch on the SOS
   # Scans page; declaring the grant only means no release is needed then.
   - service: CUSTOM_AI

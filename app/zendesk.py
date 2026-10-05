@@ -1,7 +1,9 @@
-"""Read-only Zendesk API client for the SOS package scan.
+"""Zendesk API client for the SOS package scan.
 
-Reads a ticket, its full comment history and its image attachments. Never
-writes: the token's account only needs to read tickets.
+Reads a ticket, its full comment history and its image attachments. Writes
+one thing only: an internal note with an AI review, when an agent presses
+"Add as internal note" on the SOS Scans page (add_internal_note). The
+token's account must be an agent who can comment on these tickets.
 
 Settings (environment):
   ZENDESK_SUBDOMAIN   default "splashtopbusiness"
@@ -65,10 +67,13 @@ UA = "SplashHubCentre/1.0 (Splashtop support tooling)"
 LAST = {}      # the last response's status / final URL / type, for describing a surprise
 
 
-def _open(url, auth=True, accept="application/json", limit=None):
+def _open(url, auth=True, accept="application/json", limit=None, method="GET", body=None):
     host = urllib.parse.urlparse(url).netloc
     LAST.pop("redirect_host", None)
-    req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": UA})
+    headers = {"Accept": accept, "User-Agent": UA}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=body, method=method, headers=headers)
     if auth:
         req.add_unredirected_header("Authorization", _auth())
     try:
@@ -81,8 +86,9 @@ def _open(url, auth=True, accept="application/json", limit=None):
                         redirected=r.geturl() != url)
             return data, (r.headers.get("Content-Type") or "")
     except urllib.error.HTTPError as e:
-        hint = {401: "the API token or its email was refused", 403: "the token's account may not read this ticket",
-                404: "not found", 429: "Zendesk rate limit"}.get(e.code, "")
+        hint = {401: "the API token or its email was refused",
+                403: "the token's account may not %s this ticket" % ("read" if method == "GET" else "comment on"),
+                404: "not found", 422: "Zendesk did not accept the update", 429: "Zendesk rate limit"}.get(e.code, "")
         raise ZendeskError("Zendesk answered HTTP %d for %s%s" % (e.code, host, (" -- " + hint) if hint else ""))
     except Exception as e:     # URLError, timeouts, proxy refusals: never str(e)
         # Name the host that was actually refused: attachment downloads are
@@ -155,6 +161,17 @@ def search_tickets(query, max_pages=2000):
         nxt = (d.get("links") or {}).get("next") if (d.get("meta") or {}).get("has_more") else None
         url = nxt[len(base_url()):] if nxt and nxt.startswith(base_url()) else None
         max_pages -= 1
+
+
+def add_internal_note(ticket_id, text):
+    """Add `text` to the ticket as an internal note (public: false) -- seen by
+    agents only, never sent to the requester. Nothing else on the ticket changes."""
+    body = json.dumps({"ticket": {"comment": {"body": text, "public": False}}}).encode("utf-8")
+    data, _ = _open(base_url() + "/api/v2/tickets/%d.json" % int(ticket_id), method="PUT", body=body)
+    try:
+        return json.loads(data or b"{}")
+    except ValueError:
+        return {}
 
 
 def download(url):
