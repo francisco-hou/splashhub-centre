@@ -193,6 +193,36 @@ TOOLS = {
 }
 
 
+def plan_guide(market="USA"):
+    import planguide, pricebook
+    try:
+        return planguide.guide(market)
+    except pricebook.PriceError as e:
+        return {"error": str(e)}
+
+
+def quote(items=None, market="USA"):
+    import planguide, pricebook
+    try:
+        return planguide.quote(items or [], market)
+    except pricebook.PriceError as e:
+        return {"error": str(e)}
+
+
+TOOLS["plan_guide"] = (plan_guide, "Every Splashtop plan with who it is for, its limits (users, computers, attended / "
+                       "unattended), its yearly list price per unit in a market INCLUDING volume steps (Pro and "
+                       "Performance are cheaper from 4 and from 10 licences), splashtop.com's pricing FAQ, and the team's "
+                       "own notes. Call this first for any 'which plan' or 'how much would it cost' question.",
+                       {"market": {"type": "string", "description": "USA, Canada, EU, UK, Brazil, Mexico, Japan, Taiwan, "
+                                   "China, Switzerland, Denmark, Sweden or Norway (default USA)"}})
+TOOLS["quote"] = (quote, "Price a combination of plans: line items with the right volume step and a yearly total. "
+                  "ALWAYS use this for totals -- never add prices up yourself. Plans: solo, pro, performance, sos10, "
+                  "sos300, aem, antivirus.",
+                  {"items": {"type": "array", "items": {"type": "object", "properties": {
+                      "plan": {"type": "string"}, "quantity": {"type": "integer"}}}},
+                   "market": {"type": "string"}})
+
+
 def _tool_specs():
     return [{"type": "function", "function": {"name": n, "description": d, "parameters": {"type": "object", "properties": p}}}
             for n, (_, d, p) in TOOLS.items()]
@@ -202,15 +232,31 @@ SYSTEM = ("You are the assistant inside SplashHub Centre, Splashtop support's in
           "what SplashHub Centre holds: Custom SOS package requests and their AI brand reviews, SSO method validation "
           "requests and their DNS checks, Splashtop list prices (the Price Book), and the SplashHub run log. Use the tools to look things up; answer ONLY from "
           "their results and never invent numbers or tickets. If the tools can't answer, say so plainly. Be brief: a "
-          "sentence or two, then a short list if useful. Write ticket numbers as #12345. Today is %s (UTC).")
+          "sentence or two, then a short list if useful. Write ticket numbers as #12345. Today is %s (UTC).\n\n"
+          "PLAN QUESTIONS (\"what's the best plan for 3 techs, 200 users and 10 devices\", attended vs unattended...): "
+          "call plan_guide, decide what fits from its 'for' lines and the FAQ, then call quote for EACH option. Answer as:\n"
+          "**Assumptions** - how you read the need (technicians = concurrent technician licences for supporting OTHER "
+          "people; users reaching their OWN computers = Remote Access user licences; attended = on-demand with a "
+          "session code; unattended = installed agent; computers/devices/endpoints counts).\n"
+          "**Option 1 - <name>** then each quote line as '- <plan>: <quantity> x <each> = <line total>' (say when a "
+          "volume price applies), then '**Total: <total> per year**', and one line on why it fits.\n"
+          "**Option 2 - <name>** the same, when a second combination also fits (e.g. a bigger plan with room to grow, "
+          "or attended-only vs with unattended computers). Leave it out if only one option makes sense.\n"
+          "End with: 'List prices from splashtop.com; Sales can confirm a formal quote.' If the need is unclear, say "
+          "which assumption you made rather than asking.")
 
 
-def ask(messages):
+def ask(messages, focus=None):
     """messages: the conversation so far, [{role: user|assistant, content}].
+    focus: "prices" when asked from the PriceBook page.
     Returns {answer, steps: [{tool, args, note}]}."""
     if not spark.available():
         raise spark.SparkError("Spark isn't connected yet")
-    convo = [{"role": "system", "content": SYSTEM % time.strftime("%Y-%m-%d")}]
+    sysmsg = SYSTEM % time.strftime("%Y-%m-%d")
+    if focus == "prices":
+        sysmsg += ("\n\nThe user is on the PriceBook page: questions are most likely about Splashtop plans and "
+                   "prices -- use plan_guide and quote.")
+    convo = [{"role": "system", "content": sysmsg}]
     for m in messages[-10:]:
         if m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str):
             convo.append({"role": m["role"], "content": m["content"][:4000]})

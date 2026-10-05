@@ -516,3 +516,16 @@ button.air-file:hover { color: #0071ce; }
 .ask-form textarea:focus { outline: none; border-color: #0071ce; }
 .ask-foot { padding: 0 16px 12px; font-size: 11.5px; color: #98a3ae; }
 .sp-select { flex: none; width: 260px; height: 36px; align-self: flex-start; margin-top: 2px; }
+
+/* ---- the AI chat as a side panel (PriceBook) ---- */
+.ai-drawer { position: fixed; top: 52px; right: 0; bottom: 0; z-index: 35; width: min(460px, 100vw); background: #fff;
+  border-left: 1px solid #dce7f2; box-shadow: -10px 0 30px rgba(15, 20, 26, .10); display: flex; flex-direction: column; }
+.ai-drawer-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #eaf1f9; }
+.ai-drawer-t { margin-right: auto; font-size: 13px; font-weight: 600; }
+.ai-drawer-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ai-drawer .ask-log { max-height: none; min-height: 0; flex: 1; }
+.ai-drawer .ask-msg { max-width: 92%; }
+body.ai-open .page { margin-right: min(460px, 100vw); }
+@media (max-width: 900px) { body.ai-open .page { margin-right: auto; } }
+.aichat { display: flex; flex-direction: column; min-height: 0; }
+.ask-card.aichat { min-height: 520px; }

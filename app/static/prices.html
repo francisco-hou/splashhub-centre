@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Price Book · SplashHub Centre</title>
+  <title>PriceBook · SplashHub Centre</title>
   <link rel="icon" href="splashtop-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=0.9.1">
+  <link rel="stylesheet" href="app.css?v=1.0.0">
   <link rel="stylesheet" href="prices.css?v=0.9.4">
 </head>
 <body>
@@ -21,8 +21,8 @@
       <a class="topnav-item" href="/">Logs</a>
       <a class="topnav-item" href="/scans">SOS Scans</a>
       <a class="topnav-item" href="/sso">SSO Requests</a>
-      <a class="topnav-item active" href="/prices" aria-current="page">Price Book</a>
-      <a class="topnav-item" href="/ask">Ask AI</a>
+      <a class="topnav-item active" href="/prices" aria-current="page">PriceBook</a>
+      <a class="topnav-item" href="/ask">AI</a>
       <a class="topnav-item" href="/settings">Settings</a>
     </nav>
     <div class="topbar-right">
@@ -35,12 +35,16 @@
     <div id="pagePricebook">
       <div class="hdr">
         <div class="hdr-left">
-          <h1 class="hdr-title">Price Book</h1>
-          <div class="hdr-sub">List pricing in local currency, from splashtop.com &mdash; the same price book as SplashHub in Zendesk.</div>
+          <h1 class="hdr-title">PriceBook</h1>
+          <div class="hdr-sub">List pricing in local currency, from splashtop.com &mdash; the same PriceBook as SplashHub in Zendesk. Ask the AI for a plan and a quote.</div>
         </div>
         <div class="hdr-right">
           <span id="pbUpdated" class="stamp"></span>
           <input id="pbSearch" class="pg-filter" type="search" autocomplete="off" placeholder="Filter plans…" aria-label="Filter plans">
+          <button id="aiOpen" type="button" class="btn btn-primary" aria-expanded="false" aria-controls="aiPanel">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z"/><path d="M19 15l.8 2 2.2.8-2.2.8L19 21l-.8-2.4L16 17.8l2.2-.8z"/></svg>
+            AI
+          </button>
           <button id="pbRefresh" type="button" class="btn">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M21 12a9 9 0 1 1-2.64-6.36"></path><polyline points="21 3 21 9 15 9"></polyline>
@@ -54,6 +58,18 @@
       <div id="pbBody"></div>
     </div>
   </main>
+
+  <!-- The AI, about plans and prices: the same chat as the AI page, in a side panel. -->
+  <aside class="ai-drawer" id="aiPanel" aria-label="AI: plans and prices" hidden>
+    <div class="ai-drawer-bar">
+      <span class="ai-drawer-t">AI &middot; plans and prices</span>
+      <button type="button" class="btn btn-sm" id="aiNew">New</button>
+      <button type="button" class="btn btn-icon btn-sm" id="aiClose" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="ai-drawer-body" id="aiChat"></div>
+  </aside>
 
   <div id="pbCalcOverlay" class="cf-overlay" style="display:none;">
     <div class="cf-modal calc-modal" role="dialog" aria-modal="true" aria-labelledby="pdName">
@@ -83,6 +99,7 @@
 
   <script src="prices.js?v=0.9.1"></script>
   <script src="pricebook.js?v=0.9.2"></script>
+  <script src="aichat.js?v=1.0.0"></script>
   <script>
     // Same session as the other pages; then hand SplashHub's Pricebook its client.
     fetch('/api/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
@@ -90,6 +107,33 @@
       document.getElementById('signOut').hidden = !s.required;
       document.getElementById('page').hidden = false;
       PricebookPage.boot(window.CentrePriceClient);
+    });
+    // The AI side panel: mounted the first time it opens.
+    var aiChat = null;
+    function aiShow(open) {
+      var panel = document.getElementById('aiPanel');
+      panel.hidden = !open;
+      document.body.classList.toggle('ai-open', open);
+      document.getElementById('aiOpen').setAttribute('aria-expanded', open);
+      if (open && !aiChat) {
+        aiChat = AiChat.mount(document.getElementById('aiChat'), {
+          focus: 'prices',
+          placeholder: 'Ask about plans, prices or a quote\u2026',
+          suggestions: ['Best plan for 3 technicians, 200 users and 10 devices?',
+                        'Attended support only, for 5 technicians: what do we need?',
+                        'How much for 12 Pro users in the UK?',
+                        'What is the difference between SOS+10 and SOS+300?',
+                        'Quote 150 endpoints of AEM plus Antivirus in Japan']
+        });
+      }
+      if (open) aiChat.focus();
+    }
+    document.getElementById('aiOpen').addEventListener('click', function () { aiShow(document.getElementById('aiPanel').hidden); });
+    document.getElementById('aiClose').addEventListener('click', function () { aiShow(false); });
+    document.getElementById('aiNew').addEventListener('click', function () { if (aiChat) aiChat.reset(); });
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && !document.getElementById('aiPanel').hidden &&
+          document.getElementById('pbCalcOverlay').style.display === 'none') aiShow(false);
     });
     document.getElementById('signOut').addEventListener('click', function () {
       fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = '/'; });

@@ -3,11 +3,12 @@
 Everything is counted from the sos_scans table -- no extra calls to Zendesk
 or the AI. Two optional extras come from Spark (spark.py) when it is
 connected: what stands out in a spike, and package names that look like a
-well-known brand. Both are cached, so a page refresh does not ask again.
+well-known brand. Both are cached and asked for in the background, so the
+page never waits on Spark.
 
 Days are the viewer's days (the page sends its timezone offset).
 """
-import hashlib, json, time
+import hashlib, json, threading, time
 
 import spark
 import store
@@ -149,7 +150,14 @@ def build(tz_offset_min=0, fresh=False):
 
 # ---- Spark extras (cached in settings; None when Spark is not connected) ---------------
 
+_busy = set()                 # cache keys Spark is working on now
+_busy_lock = threading.Lock()
+
+
 def _cached(key, rows, make, max_age_ms=30 * 60000):
+    """Spark's answer for these rows, never waited on: the saved one when it
+    is current; otherwise Spark is asked in the background and the page gets
+    the last answer (or {"pending": True}) and asks again a moment later."""
     sig = hashlib.sha256(",".join(str(r["id"]) for r in rows).encode()).hexdigest()[:16]
     try:
         got = json.loads(store.get_setting(key, "") or "null")
@@ -157,9 +165,27 @@ def _cached(key, rows, make, max_age_ms=30 * 60000):
         got = None
     if got and got.get("sig") == sig and _now() - got.get("ms", 0) < max_age_ms:
         return got["value"]
-    value = make()
-    store.set_setting(key, json.dumps({"sig": sig, "ms": _now(), "value": value}), "spark")
-    return value
+
+    def run():
+        try:
+            value = make()
+        except spark.SparkError as e:
+            value = {"error": str(e)}
+        except Exception as e:
+            value = {"error": "Spark's answer could not be read (%s)" % type(e).__name__}
+        try:
+            store.set_setting(key, json.dumps({"sig": sig, "ms": _now(), "value": value}), "spark")
+        finally:
+            with _busy_lock:
+                _busy.discard(key)
+    with _busy_lock:
+        start = key not in _busy
+        _busy.add(key)
+    if start:
+        threading.Thread(target=run, name="dash-" + key, daemon=True).start()
+    if got and "value" in got:
+        return dict(got["value"], updating=True)
+    return {"pending": True}
 
 
 def _brief(r):
@@ -176,16 +202,16 @@ def _brief(r):
 def _spark_spike(rows, window):
     if not spark.available():
         return {"off": True}
-    try:
-        text = _cached("spark_spike_" + window, rows, lambda: spark.chat(
+
+    def make():
+        text = spark.chat(
             "You look at a burst of Custom SOS package requests (white-labelled remote-support builds) and say, in at most "
             "3 short bullet points, what they have in common: shared creator domains, generic email providers, trial vs "
             "paid, repeated or similar package names, time of day. Facts from the list only; no advice. Start each bullet with '- '.",
             "%d requests in the last %s:\n%s" % (len(rows), "24 hours" if window == "day" else "7 days",
-                                                  "\n".join(_brief(r) for r in rows[:60]))))
+                                                  "\n".join(_brief(r) for r in rows[:60])), max_tokens=400)
         return {"points": [l.strip()[2:].strip() for l in text.splitlines() if l.strip().startswith("- ")][:3] or [text.strip()]}
-    except spark.SparkError as e:
-        return {"error": str(e)}
+    return _cached("spark_spike2_" + window, rows, make)
 
 
 def _spark_lookalikes(rows):
@@ -193,12 +219,13 @@ def _spark_lookalikes(rows):
         return {"off": True}
     if not rows:
         return {"items": []}
-    try:
-        text = _cached("spark_lookalikes", rows, lambda: spark.chat(
+
+    def make():
+        text = spark.chat(
             "From this list of package names, pick the ones that imitate or misspell a well-known brand or institution "
             "(banks, payment services, big tech, governments) that the creator domain does not belong to. Answer one "
             "per line as: name | brand it imitates. Answer NONE if there are none.",
-            "\n".join(_brief(r) for r in rows[:120])), max_age_ms=60 * 60000)
+            "\n".join(_brief(r) for r in rows[-120:]), max_tokens=400)
         items = []
         for line in text.splitlines():
             if "|" in line:
@@ -206,5 +233,4 @@ def _spark_lookalikes(rows):
                 if name:
                     items.append({"name": name, "brand": brand})
         return {"items": items[:5]}
-    except spark.SparkError as e:
-        return {"error": str(e)}
+    return _cached("spark_lookalikes2", rows, make, max_age_ms=60 * 60000)

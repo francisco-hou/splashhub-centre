@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ask AI · SplashHub Centre</title>
+  <title>AI · SplashHub Centre</title>
   <link rel="icon" href="splashtop-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=0.9.1">
+  <link rel="stylesheet" href="app.css?v=1.0.0">
 </head>
 <body>
   <header class="topbar">
@@ -20,8 +20,8 @@
       <a class="topnav-item" href="/">Logs</a>
       <a class="topnav-item" href="/scans">SOS Scans</a>
       <a class="topnav-item" href="/sso">SSO Requests</a>
-      <a class="topnav-item" href="/prices">Price Book</a>
-      <a class="topnav-item active" href="/ask" aria-current="page">Ask AI</a>
+      <a class="topnav-item" href="/prices">PriceBook</a>
+      <a class="topnav-item active" href="/ask" aria-current="page">AI</a>
       <a class="topnav-item" href="/settings">Settings</a>
     </nav>
     <div class="topbar-right">
@@ -32,36 +32,39 @@
   <main class="page page-narrow" id="page" hidden>
     <div class="hdr">
       <div class="hdr-left">
-        <h1 class="hdr-title">Ask AI</h1>
-        <div class="hdr-sub">Questions about what SplashHub Centre holds &mdash; SOS requests and their reviews, SSO requests, the Price Book, and the SplashHub run log. Answered by Spark, Splashtop&rsquo;s own AI, from this data only; each answer shows what it looked at.</div>
+        <h1 class="hdr-title">AI</h1>
+        <div class="hdr-sub">Questions about what SplashHub Centre holds &mdash; SOS requests and their reviews, SSO requests, plans and prices (with quotes), and the SplashHub run log. Answered by Spark, Splashtop&rsquo;s own AI, from this data only; each answer shows what it looked at.</div>
       </div>
       <div class="hdr-right">
         <button type="button" class="btn btn-sm" id="newChat">New conversation</button>
       </div>
     </div>
 
-    <section class="card ask-card">
-      <div class="ask-log" id="log" aria-live="polite">
-        <div class="ask-empty" id="empty">
-          <div class="ask-empty-t">Try one of these</div>
-          <div class="ask-sugg" id="sugg">
-            <button type="button">How many SOS requests came in this week, and how many need review?</button>
-            <button type="button">Which high-risk packages still have an open ticket?</button>
-            <button type="button">Which creator domains sent the most requests this month?</button>
-            <button type="button">Which SSO domains are still not verified?</button>
-            <button type="button">Who used SplashHub most this week, and what did it cost?</button>
-            <button type="button">How much is SOS+10 in Japan and the UK?</button>
-          </div>
-        </div>
-      </div>
-      <form class="ask-form" id="form">
-        <textarea id="q" rows="1" placeholder="Ask about SOS requests, SSO requests or SplashHub usage…" aria-label="Your question"></textarea>
-        <button type="submit" class="btn btn-primary" id="send">Ask</button>
-      </form>
-      <div class="ask-foot">Spark can be wrong &mdash; check the tickets it names before acting. Nothing you ask changes anything or reaches Zendesk.</div>
-    </section>
+    <section class="card ask-card" id="chat"></section>
   </main>
 
-  <script src="ask.js?v=0.9.0"></script>
+  <script src="aichat.js?v=1.0.0"></script>
+  <script>
+    // Same session as the other pages; then the chat.
+    var chat = null;
+    fetch('/api/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
+      if (s.required && !s.authed) { location.href = '/?next=/ask'; return; }
+      document.getElementById('signOut').hidden = !s.required;
+      document.getElementById('page').hidden = false;
+      chat = AiChat.mount(document.getElementById('chat'), {
+        placeholder: 'Ask about SOS requests, SSO requests, plans and prices, or SplashHub usage\u2026',
+        suggestions: ['How many SOS requests came in this week, and how many need review?',
+                      'Which high-risk packages still have an open ticket?',
+                      'Which SSO domains are still not verified?',
+                      'Who used SplashHub most this week, and what did it cost?',
+                      'What is the best plan for 3 technicians, 200 users and 10 devices?']
+      });
+      chat.focus();
+    });
+    document.getElementById('newChat').addEventListener('click', function () { if (chat) chat.reset(); });
+    document.getElementById('signOut').addEventListener('click', function () {
+      fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = '/'; });
+    });
+  </script>
 </body>
 </html>
