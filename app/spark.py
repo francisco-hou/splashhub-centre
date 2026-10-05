@@ -11,7 +11,7 @@ Until both are there, available() is False and callers carry on without it.
 
 Errors are worded here, never copied from the library (see zendesk.py).
 """
-import json, os, time, urllib.error, urllib.request
+import json, os, re, time, urllib.error, urllib.request
 
 TIMEOUT = 60
 _MODELS = {"at": 0, "list": []}
@@ -64,6 +64,14 @@ def chat(system, user, max_tokens=400):
     d = _call("/chat/completions", {"model": model(), "max_tokens": max_tokens, "temperature": 0.2,
                                      "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]})
     try:
-        return (d["choices"][0]["message"]["content"] or "").strip()
+        text = d["choices"][0]["message"]["content"] or ""
     except (KeyError, IndexError, TypeError):
         raise SparkError("Spark's answer had no text")
+    # Reasoning models (Qwen3 on Spark) may think out loud first, in a
+    # <think> block; only what comes after it is the answer.
+    if "</think>" in text:
+        text = text.split("</think>")[-1]
+    text = re.sub(r"<think>.*", "", text, flags=re.S)
+    if not text.strip():
+        raise SparkError("Spark's answer had no text")
+    return text.strip()
