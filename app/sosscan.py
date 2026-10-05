@@ -419,7 +419,7 @@ def run_scan(scan_id, ticket_id, force=False):
         if not has_details:
             # Nothing to show yet: keep it, and try again at the next start-up.
             store.scan_update(scan_id, status="waiting",
-                              error="Waiting for Zendesk access (%s). It is picked up again when SplashHub Centre restarts." % zd_note)
+                              error="Waiting for Zendesk access (%s). Tried again every 10 minutes." % zd_note)
             return
         shown_from = "" if fetched else " The details and images below are what Zendesk's trigger sent."
 
@@ -477,7 +477,9 @@ def _worker():
         sys.stderr.write("[scan] #%s started (scan %s)\n" % (ticket_id, scan_id))
         run_scan(scan_id, ticket_id, force)
         row = store.scan_get(scan_id, fresh=True) or {}
-        sys.stderr.write("[scan] #%s %s%s\n" % (ticket_id, row.get("status"), (" " + row["verdict"]) if row.get("verdict") else ""))
+        why = (" -- " + (row.get("error") or "")[:300]) if row.get("status") in ("waiting", "error") else ""
+        sys.stderr.write("[scan] #%s %s%s%s\n" % (ticket_id, row.get("status"),
+                                                 (" " + row["verdict"]) if row.get("verdict") else "", why))
 
 
 IMAGE_EXT = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}
@@ -538,6 +540,29 @@ def request(ticket_id, source, requested_by=None, force=False, pushed=None):
         _apply_pushed(scan_id, pushed)
     _Q.put((scan_id, int(ticket_id), force))
     return scan_id
+
+
+RETRY_EVERY = 600     # seconds between retries of requests still waiting
+
+
+def _retry_waiting():
+    """Requests waiting on Zendesk or setup are tried again every few minutes,
+    so fixing a credential or a grant takes effect without a restart."""
+    while True:
+        time.sleep(RETRY_EVERY)
+        try:
+            rows = store.scans(verdict="waiting", per_page=200)["rows"]
+            for r in rows:
+                store.scan_update(r["id"], status="queued")
+                request_existing(r["id"], r["ticket_id"])
+            if rows:
+                sys.stderr.write("[scan] retrying %d waiting request(s)\n" % len(rows))
+        except Exception as e:
+            sys.stderr.write("[scan] retry pass failed: %s\n" % type(e).__name__)
+
+
+def start_retries():
+    threading.Thread(target=_retry_waiting, name="sos-retry", daemon=True).start()
 
 
 def requeue_unfinished():

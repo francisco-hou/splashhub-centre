@@ -305,6 +305,7 @@ def main():
         print("seeded %d sample runs into %s" % (n, store.SQLITE_FILE))
     feed.start()
     sosscan.requeue_unfinished()      # scans a previous container left half-done
+    sosscan.start_retries()           # and waiting ones, every 10 minutes
     srv = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print("SplashHub Centre on http://%s:%d  (backend: %s%s)" % (HOST, PORT, store.backend(), ", sample data" if SAMPLE else ""))
     srv.serve_forever()

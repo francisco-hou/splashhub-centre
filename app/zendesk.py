@@ -60,14 +60,20 @@ class _NoAuthAcrossHosts(urllib.request.HTTPRedirectHandler):
 _OPENER = urllib.request.build_opener(_NoAuthAcrossHosts())
 
 
+UA = "SplashHubCentre/1.0 (Splashtop support tooling)"
+LAST = {}      # the last response's status / final URL / type, for describing a surprise
+
+
 def _open(url, auth=True, accept="application/json", limit=None):
     host = urllib.parse.urlparse(url).netloc
-    req = urllib.request.Request(url, headers={"Accept": accept})
+    req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": UA})
     if auth:
         req.add_unredirected_header("Authorization", _auth())
     try:
         with _OPENER.open(req, timeout=TIMEOUT) as r:
             data = r.read(limit + 1 if limit else -1)
+            LAST.update(status=r.status, final=r.geturl(), ctype=r.headers.get("Content-Type") or "",
+                        redirected=r.geturl() != url)
             return data, (r.headers.get("Content-Type") or "")
     except urllib.error.HTTPError as e:
         hint = {401: "the API token or its email was refused", 403: "the token's account may not read this ticket",
@@ -77,12 +83,30 @@ def _open(url, auth=True, accept="application/json", limit=None):
         raise ZendeskError("could not reach %s (%s) -- is it in the OUTBOUND_HTTP grant?" % (host, type(e).__name__))
 
 
+def describe_page(data):
+    """What a non-JSON answer was, safely: status, type, where it ended up,
+    its <title> and first words -- never headers, cookies or the login."""
+    import re
+    text = (data or b"")[:20000].decode("utf-8", "replace")
+    m = re.search(r"<title[^>]*>(.*?)</title>", text, re.S | re.I)
+    title = re.sub(r"\s+", " ", m.group(1)).strip()[:80] if m else ""
+    first = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text)).strip()[:100]
+    final = urllib.parse.urlparse(LAST.get("final") or "")
+    return "HTTP %s, %s, %d bytes%s%s%s" % (
+        LAST.get("status"), (LAST.get("ctype") or "no type").split(";")[0], len(data or b""),
+        (", redirected to " + final.netloc + final.path) if LAST.get("redirected") else "",
+        (", page title \"%s\"" % title) if title else "", (", starts \"%s\"" % first) if first and not title else "")
+
+
 def get_json(path):
     data, _ = _open(base_url() + path)
     try:
         return json.loads(data or b"{}")
     except ValueError:
-        raise ZendeskError("Zendesk returned something that is not JSON for " + path.split("?")[0])
+        what = describe_page(data)
+        import sys
+        sys.stderr.write("[zendesk] not JSON for %s: %s\n" % (path.split("?")[0], what))
+        raise ZendeskError("Zendesk returned a web page instead of data for %s (%s)" % (path.split("?")[0], what))
 
 
 def ticket(ticket_id):
