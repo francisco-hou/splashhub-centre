@@ -292,3 +292,6 @@
 .pg-filter:focus { outline: none; border-color: #0071ce; }
 .pg-filter::placeholder { color: #98a3ae; }
 #setSect-pricebook .pbs-url { width: 100%; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px; margin-top: 4px; }
+/* SplashHub Centre's app.css has a page-wide .sel (the Logs page's filter
+   selects); the calculator's selected card uses .sel too -- undo it there. */
+.calc-card.sel { height: auto; max-width: none; font-size: inherit; color: inherit; }
