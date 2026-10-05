@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=0.6.0">
+  <link rel="stylesheet" href="app.css?v=0.7.1">
 </head>
 <body>
   <header class="topbar">
@@ -20,6 +20,7 @@
       <a class="topnav-item" href="/">Logs</a>
       <a class="topnav-item active" href="/scans" aria-current="page">SOS Scans</a>
       <a class="topnav-item" href="/sso">SSO Requests</a>
+      <a class="topnav-item" href="/settings">Settings</a>
     </nav>
     <div class="topbar-right">
       <button type="button" class="link-btn" id="signOut" hidden>Sign out</button>
@@ -30,43 +31,15 @@
     <div class="hdr">
       <div class="hdr-left">
         <h1 class="hdr-title">SOS Scans</h1>
-        <div class="hdr-sub">Custom SOS package requests, brand-reviewed when they arrive. Results stay here; a review is added to the ticket only if you choose &ldquo;Add as internal note&rdquo;.</div>
+        <div class="hdr-sub">Custom SOS package requests, brand-reviewed when they arrive. A review goes to the Zendesk ticket as an internal note when someone adds it, or automatically if that&rsquo;s on in Settings.</div>
       </div>
       <div class="hdr-right">
-        <!-- The AI review switch: off until the team decides. Applies only to
-             requests that arrive while it is on. -->
-        <label class="aisw" id="aiSwitch" title="">
-          <span class="aisw-txt">AI review</span>
-          <span class="aisw-sw"><input type="checkbox" id="aiToggle" aria-describedby="aiState"><span class="aisw-track"></span></span>
-          <span class="aisw-state" id="aiState">…</span>
-        </label>
         <span class="stamp" id="stamp"></span>
         <button type="button" class="btn btn-icon" id="refresh" title="Refresh" aria-label="Refresh">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
         </button>
       </div>
     </div>
-
-    <div class="note warn-note" id="setup" hidden></div>
-
-    <section class="card filters" aria-label="Scan a ticket">
-      <form class="frow" id="scanForm">
-        <label class="sc-label" for="tid">Scan a ticket</label>
-        <input class="sc-input" id="tid" inputmode="numeric" placeholder="Ticket number, e.g. 48213" autocomplete="off">
-        <label class="sc-check"><input type="checkbox" id="force"> Re-scan even if already reviewed</label>
-        <button type="submit" class="btn btn-primary" id="scanBtn">Scan now</button>
-        <span class="sc-msg" id="scanMsg" aria-live="polite"></span>
-      </form>
-      <!-- Past requests: found by SplashHub Centre's own Zendesk search; listed
-           at their original dates, never AI-reviewed. Safe to press again. -->
-      <div class="frow imp-row">
-        <span class="sc-label">Past requests</span>
-        <button type="button" class="btn" id="impBtn"
-          title="Find every past “New SOS package created by…” ticket in Zendesk and list it here; its images show from Zendesk. No AI review. Tickets already listed are skipped.">Import past SOS requests</button>
-        <button type="button" class="btn btn-sm" id="impStop" hidden>Stop</button>
-        <span class="sc-msg" id="impMsg" aria-live="polite"></span>
-      </div>
-    </section>
 
     <section class="card filters" aria-label="Filters">
       <div class="frow">
@@ -86,7 +59,7 @@
       <div class="table-wrap">
         <table class="runs scans">
           <thead><tr>
-            <th>When</th><th>Ticket</th><th>Verdict</th><th>Subject</th><th>Creator</th><th>Started by</th><th class="r">Est. cost</th>
+            <th>When</th><th>Ticket</th><th>Ticket status</th><th>Verdict</th><th>Subject</th><th>Creator</th><th class="r">Est. cost</th>
           </tr></thead>
           <tbody id="rows"></tbody>
         </table>
@@ -118,6 +91,6 @@
     </aside>
   </div>
 
-  <script src="scans.js?v=0.6.0"></script>
+  <script src="scans.js?v=0.7.1"></script>
 </body>
 </html>

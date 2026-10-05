@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings · SplashHub Centre</title>
+  <link rel="icon" href="splashtop-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css?v=0.7.0">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="splashtop-icon.png" alt="" width="24" height="24">
+      <span class="brand-name">SplashHub <span class="brand-sub">Centre</span></span>
+    </div>
+    <nav class="topnav" aria-label="Pages">
+      <a class="topnav-item" href="/">Logs</a>
+      <a class="topnav-item" href="/scans">SOS Scans</a>
+      <a class="topnav-item" href="/sso">SSO Requests</a>
+      <a class="topnav-item active" href="/settings" aria-current="page">Settings</a>
+    </nav>
+    <div class="topbar-right">
+      <button type="button" class="link-btn" id="signOut" hidden>Sign out</button>
+    </div>
+  </header>
+
+  <main class="page page-narrow" id="page" hidden>
+    <div class="hdr">
+      <div class="hdr-left">
+        <h1 class="hdr-title">Settings</h1>
+        <div class="hdr-sub">Team-wide: a change here applies to everyone using SplashHub Centre.</div>
+      </div>
+    </div>
+
+    <div class="note warn-note" id="setup" hidden></div>
+
+    <section class="card set-card" aria-labelledby="sosH">
+      <h2 class="set-h" id="sosH">SOS Scans</h2>
+
+      <div class="set-row">
+        <div class="set-txt">
+          <div class="set-t">AI review</div>
+          <div class="set-d">Review new Custom SOS package requests with Claude as they arrive. Applies only to requests that arrive while it&rsquo;s on; anything already listed keeps the decision it arrived with. Any request can still be reviewed by hand with its Run AI review button.</div>
+        </div>
+        <label class="aisw" id="aiSwitch">
+          <span class="aisw-sw"><input type="checkbox" id="aiToggle" aria-label="AI review"><span class="aisw-track"></span></span>
+          <span class="aisw-state" id="aiState">…</span>
+        </label>
+      </div>
+
+      <div class="set-row">
+        <div class="set-txt">
+          <div class="set-t">Auto add internal note</div>
+          <div class="set-d">After every AI review (automatic or by button), add it to the Zendesk ticket as an internal note. Agents only; the customer is not notified. If it fails, the request says why.</div>
+          <div class="set-sub">
+            <span class="set-k">Note length</span>
+            <div class="seg" role="group" aria-label="Note length" id="noteStyle">
+              <button type="button" data-style="summary">Summary</button><button type="button" data-style="details">Details</button>
+            </div>
+          </div>
+        </div>
+        <label class="aisw" id="noteSwitch">
+          <span class="aisw-sw"><input type="checkbox" id="noteToggle" aria-label="Auto add internal note"><span class="aisw-track"></span></span>
+          <span class="aisw-state" id="noteState">…</span>
+        </label>
+      </div>
+
+      <div class="set-row">
+        <div class="set-txt">
+          <div class="set-t">Scan a ticket</div>
+          <div class="set-d">Read one ticket from Zendesk and list it on SOS Scans now; it gets an AI review if the switch above is on.</div>
+          <form class="frow set-form" id="scanForm">
+            <input class="sc-input" id="tid" inputmode="numeric" placeholder="Ticket number, e.g. 48213" autocomplete="off" aria-label="Ticket number">
+            <label class="sc-check"><input type="checkbox" id="force"> Re-scan even if already reviewed</label>
+            <button type="submit" class="btn btn-primary" id="scanBtn">Scan now</button>
+          </form>
+          <div class="sc-msg" id="scanMsg" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <div class="set-row">
+        <div class="set-txt">
+          <div class="set-t">Past requests</div>
+          <div class="set-d">Find every past &ldquo;New SOS package created by&hellip;&rdquo; ticket in Zendesk and list it on SOS Scans, its images shown from Zendesk. No AI review. Tickets already listed are skipped, and it carries on by itself after a restart.</div>
+          <div class="frow set-form">
+            <button type="button" class="btn" id="impBtn">Import past SOS requests</button>
+            <button type="button" class="btn btn-sm" id="impStop" hidden>Stop</button>
+          </div>
+          <div class="sc-msg" id="impMsg" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="settings.js?v=0.7.0"></script>
+</body>
+</html>

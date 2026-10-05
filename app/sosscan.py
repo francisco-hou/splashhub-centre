@@ -402,50 +402,128 @@ REF_WORDS = {"powered_by_attribution": "\u201cPowered by Splashtop\u201d credit"
              "unmodified_default": "Splashtop default UI visible", "other_reference": "Misleading \u201cby Splashtop\u201d text"}
 
 
-def note_text(row, style="summary"):
-    """The internal note for this request's AI review, as plain text."""
+STATUS_WORDS = {"normal": "Verified", "needs_review": "Needs review", "suspicious": "High risk"}
+LINK_WORDS = {"manage": "Manage SOS PKG on ACP", "team info": "View team on ACP", "download package": "Download package"}
+
+
+def _e(s):
+    import html
+    return html.escape(str(s or ""), quote=True)
+
+
+def is_generic(row, res):
+    """The creator's email is a generic / free one: SplashHub's list, or the AI's own call."""
+    return bool(res.get("generic_email") or res.get("creator_domain_is_generic_email") or
+                (row.get("creator_domain") or "").lower() in FREE_EMAIL_DOMAINS)
+
+
+def effective_verdict(row, res):
+    """The verdict as shown: a generic email is never "normal" (also for
+    reviews made before that rule)."""
+    v = row.get("verdict") or "normal"
+    return "needs_review" if v == "normal" and is_generic(row, res) else v
+
+
+def review_reasons(row, res=None):
+    """Why a review is not "Verified", most important first -- the Reason on
+    the page's card and in the internal note. ["No issues found"] when clean."""
+    res = res if res is not None else json.loads(row.get("result_json") or "null") or {}
+    verdict = effective_verdict(row, res)
+    names = {g.get("reviewed_index"): g.get("filename") for g in json.loads(row.get("gallery_json") or "[]")
+             if g.get("reviewed_index") is not None}
+    fs = res.get("findings") or []
+    tr = res.get("ticket_review") or {}
+    fname = lambda f: names.get(f.get("image_index")) or "Image %d" % (f.get("image_index", 0) + 1)
+    reasons = []
+    if is_generic(row, res):
+        reasons.append("Generic email (%s): not accepted unless the customer gives a reason" % (row.get("creator_email") or "creator"))
+    if any(f.get("splashtop_reference") == "other_reference" for f in fs):
+        reasons.append("Contains a Splashtop name/logo/attribution beyond \u201cPowered by\u201d: not acceptable for a white-label build")
+    for f in fs:
+        if f.get("verdict") in ("needs_review", "suspicious"):
+            why = "; ".join(f.get("flagged_elements") or []) or (f.get("summary") or "").strip()
+            reasons.append("%s: %s" % (fname(f), why))
+    if tr.get("verdict") in ("needs_review", "suspicious"):
+        reasons += ["Package details: " + x for x in (tr.get("flagged_fields") or [])] or \
+                   ["Package details: " + (tr.get("summary") or "").strip()]
+    if res.get("text_only"):
+        reasons.append("Text-only review: %d image(s) could not be downloaded, so the AI did not see them" % res["text_only"])
+    if not reasons:
+        reasons = ["No issues found"] if verdict == "normal" else [(res.get("overall_summary") or "").strip()]
+
+    return reasons
+
+
+def note_html(row, style="summary"):
+    """The internal note for this request's AI review, as the HTML Zendesk
+    shows (bold, dividers, links). Everything from the ticket or the AI is
+    escaped; links are only the http(s) ones parse_request found.
+
+    SplashHub AI Review / Status / Reason / Review (summary, or per image with
+    style="details") / package, creator and when / Quick links."""
     res = json.loads(row.get("result_json") or "null")
     if not res:
         raise ScanError("This request has no AI review yet.")
-    when = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime((row.get("reviewed_ms") or row.get("finished_ms") or _now()) / 1000))
-    lines = ["SplashHub Centre \u2014 AI brand review: %s" % VERDICT_WORDS.get(row.get("verdict"), row.get("verdict") or "?"),
-             "", (res.get("overall_summary") or "").strip()]
-    if res.get("generic_email") or res.get("creator_domain_is_generic_email"):
-        lines += ["", "Generic email detected (%s) -- not accepted unless the customer gives a reason." % (
-            row.get("creator_email") or "creator")]
-    if res.get("text_only"):
-        lines += ["", "Text-only review: %d image(s) could not be downloaded, so the AI did not see them." % res["text_only"]]
+    verdict = effective_verdict(row, res)
+    when = time.strftime("%b %d, %Y %H:%M UTC", time.gmtime((row.get("reviewed_ms") or row.get("finished_ms") or _now()) / 1000))
+    names = {g.get("reviewed_index"): g.get("filename") for g in json.loads(row.get("gallery_json") or "[]")
+             if g.get("reviewed_index") is not None}
+    fs = res.get("findings") or []
+    tr = res.get("ticket_review") or {}
+    fname = lambda f: names.get(f.get("image_index")) or "Image %d" % (f.get("image_index", 0) + 1)
+
+    reasons = review_reasons(row, res)
+
+    h = ["<p><strong>SplashHub AI Review</strong></p>", "<hr>",
+         "<p><strong>Status:</strong> %s%s</p>" % (_e(STATUS_WORDS.get(verdict, verdict)),
+            # the average confidence over the images, as SplashHub's sidebar shows it
+            (" (%d%%)" % round(sum(f.get("confidence") or 0 for f in fs) / len(fs) * 100)) if fs else "")]
+    if len(reasons) == 1:
+        h.append("<p><strong>Reason:</strong> %s</p>" % _e(reasons[0]))
+    else:
+        h.append("<p><strong>Reason:</strong></p><ul>%s</ul>" % "".join("<li>%s</li>" % _e(r) for r in reasons))
+    h += ["<hr>", "<p><strong>Review</strong></p>", "<p>%s</p>" % _e((res.get("overall_summary") or "").strip())]
     if style == "details":
-        names = {g.get("reviewed_index"): g.get("filename") for g in json.loads(row.get("gallery_json") or "[]")
-                 if g.get("reviewed_index") is not None}
-        fs = res.get("findings") or []
         if fs:
-            lines += ["", "Images:"]
+            items = []
             for f in fs:
-                line = "- %s \u2014 %s" % (names.get(f.get("image_index")) or "Image %d" % (f.get("image_index", 0) + 1),
-                                          VERDICT_WORDS.get(f.get("verdict"), f.get("verdict")))
+                t = "%s: %s" % (fname(f), VERDICT_WORDS.get(f.get("verdict"), f.get("verdict")))
                 if f.get("confidence") is not None:
-                    line += " (%d%%)" % round(f["confidence"] * 100)
-                if f.get("summary"):
-                    line += ": " + f["summary"].strip()
-                lines.append(line)
+                    t += " (%d%%)" % round(f["confidence"] * 100)
+                t += ". " + (f.get("summary") or "").strip()
                 extra = []
                 if f.get("splashtop_reference") not in (None, "none"):
                     extra.append(REF_WORDS.get(f["splashtop_reference"], f["splashtop_reference"]))
                 if f.get("detected_brand_references"):
                     extra.append("Brands: " + ", ".join(f["detected_brand_references"]))
-                if f.get("flagged_elements"):
-                    extra.append("Flagged: " + "; ".join(f["flagged_elements"]))
-                if extra:
-                    lines.append("    " + " \u00b7 ".join(extra))
-        tr = res.get("ticket_review") or {}
+                items.append("<li>%s%s</li>" % (_e(t), (" <em>%s</em>" % _e(" \u00b7 ".join(extra))) if extra else ""))
+            h.append("<p><strong>Images</strong></p><ul>%s</ul>" % "".join(items))
         if tr:
-            lines += ["", "Package details \u2014 %s%s" % (VERDICT_WORDS.get(tr.get("verdict"), tr.get("verdict") or "?"),
-                                                        (": " + tr["summary"].strip()) if tr.get("summary") else "")]
-            for x in tr.get("flagged_fields") or []:
-                lines.append("    Flagged: " + x)
-    lines += ["", "Reviewed %s \u00b7 %s \u00b7 AI-generated; check before acting on it." % (when, row.get("model") or "Claude")]
-    return "\n".join(lines).strip()
+            h.append("<p><strong>Package details:</strong> %s%s</p>" % (
+                _e(VERDICT_WORDS.get(tr.get("verdict"), tr.get("verdict") or "?")),
+                (". " + _e(tr["summary"].strip())) if tr.get("summary") else ""))
+    # who / when
+    req = parse_request(row.get("description") or "")
+    labels = {f["label"].lower(): f["value"] for f in req["fields"]}
+    meta = []
+    if labels.get("package name"):
+        meta.append("Package: " + labels["package name"])
+    if row.get("creator_email"):
+        meta.append("Creator: " + row["creator_email"])
+    h.append("<hr>")
+    if meta:
+        h.append("<p><small>%s</small></p>" % _e(" \u00b7 ".join(meta)))
+    h.append("<p><small>Reviewed %s \u00b7 %s \u00b7 AI-generated; check before acting on it.</small></p>" % (
+        _e(when), _e(row.get("model") or "Claude")))
+    # Quick links, last
+    links = [(LINK_WORDS.get(l["label"].lower(), l["label"]), l["url"]) for l in req["links"]
+             if re.match(r"https?://", l["url"] or "")]
+    order = {"Manage SOS PKG on ACP": 0, "View team on ACP": 1, "Download package": 2}
+    links.sort(key=lambda x: order.get(x[0], 9))
+    if links:
+        h.append("<p><strong>Quick links:</strong> %s</p>" % " \u00b7 ".join(
+            '<a href="%s">%s</a>' % (_e(u), _e(t)) for t, u in links))
+    return "\n".join(h)
 
 
 def add_note(scan_id, style="summary"):
@@ -455,8 +533,7 @@ def add_note(scan_id, style="summary"):
         raise ScanError("That request is gone.")
     if zendesk.configured():
         raise ScanError("SplashHub Centre has no Zendesk login yet.")
-    text = note_text(row, style)
-    zendesk.add_internal_note(row["ticket_id"], text)
+    zendesk.add_internal_note(row["ticket_id"], note_html(row, style), html=True)
     info = {"ms": _now(), "style": style}
     store.scan_update(scan_id, note_json=json.dumps(info))
     sys.stderr.write("[note] #%s internal note added (%s)\n" % (row["ticket_id"], style))
@@ -505,6 +582,30 @@ def save_gallery(ticket_id, comments, reviewed, strict=True):
     return gallery, data_by_id
 
 
+def auto_note():
+    """The Settings page's "Auto add internal note": None when off, else the
+    style ("summary" / "details") every finished AI review is added in."""
+    if store.get_setting("auto_note", "off") != "on":
+        return None
+    return "details" if store.get_setting("auto_note_style", "summary") == "details" else "summary"
+
+
+def _auto_note(scan_id, ticket_id):
+    """After a review: add it to the ticket when the setting is on. A failure
+    is noted on the request (the page shows it) and never undoes the review."""
+    style = auto_note()
+    if not style:
+        return
+    try:
+        info = add_note(scan_id, style)
+        info["auto"] = True
+        store.scan_update(scan_id, note_json=json.dumps(info))
+    except Exception as e:     # never let the note undo the review
+        why = str(e)[:300] if isinstance(e, (ScanError, zendesk.ZendeskError)) else "internal error (%s)" % type(e).__name__
+        store.scan_update(scan_id, note_json=json.dumps({"error": why, "ms": _now(), "auto": True}))
+        sys.stderr.write("[note] #%s automatic internal note failed: %s\n" % (ticket_id, why))
+
+
 def ai_review_on():
     """The team switch on the SOS Scans page. Off until someone turns it on --
     and it applies only to requests that arrive while it is on: nothing held
@@ -548,7 +649,8 @@ def run_scan(scan_id, ticket_id, force=False, manual=False, was=None):
                               creator_domain=who["domain"] or None, creator_source=who["source"],
                               organization=who["organization"] or None, fields_json=json.dumps(fields),
                               images_json=json.dumps([{k: i[k] for k in ("id", "filename", "content_type", "content_url")} for i in images]),
-                              description=(t["description"] or "")[:20000])
+                              description=(t["description"] or "")[:20000],
+                              ticket_status=t.get("status") or None, ticket_status_ms=_now())
                 # Image bytes are only REQUIRED when the AI will review them;
                 # otherwise a failed copy must not hold up the details.
                 gallery, data_by_id = save_gallery(ticket_id, cs, images if review else [], strict=not manual)
@@ -617,6 +719,7 @@ def run_scan(scan_id, ticket_id, force=False, manual=False, was=None):
         store.scan_update(scan_id, status="done", verdict=verdict, finished_ms=_now(), attach_key=key,
                           result_json=json.dumps(parsed), model=model, input_tokens=usage.get("input_tokens", 0) or 0,
                           output_tokens=usage.get("output_tokens", 0) or 0, cost=cost, error=None, reviewed_ms=_now())
+        _auto_note(scan_id, ticket_id)
         # Its cost on the Logs page, next to the sidebar's own scans.
         store.insert_many([{"when": _now(), "agent": "SplashHub Centre", "kind": "brand scan (manual)" if manual else "brand scan (auto)",
                             "model": model, "topic": "#%d custom SOS package · %s" % (int(ticket_id), verdict),
@@ -743,6 +846,38 @@ def review_now(scan_id):
     return None
 
 
+# ---- the list's Ticket status column ------------------------------------------------------
+# Zendesk's own status for each listed ticket. Refreshed when the list is
+# looked at -- the rows on screen whose status is older than STATUS_MAX_AGE,
+# in ONE Zendesk call (up to 100 at a time), in the background so the page
+# never waits. The next refresh of the list shows the new statuses.
+
+STATUS_MAX_AGE = 5 * 60 * 1000
+_status_busy = threading.Lock()
+
+
+def refresh_statuses(rows):
+    stale = [r for r in rows if not r.get("ticket_status_ms") or _now() - r["ticket_status_ms"] > STATUS_MAX_AGE]
+    if not stale or zendesk.configured() or not _status_busy.acquire(blocking=False):
+        return
+
+    def run():
+        try:
+            got = zendesk.statuses([r["ticket_id"] for r in stale])
+            now = _now()
+            for r in stale:
+                st = got.get(int(r["ticket_id"]))
+                # a ticket Zendesk no longer returns (deleted / archived) keeps its last status
+                store.scan_update(r["id"], ticket_status_ms=now, **({"ticket_status": st} if st else {}))
+        except zendesk.ZendeskError as e:
+            sys.stderr.write("[status] could not refresh ticket statuses: %s\n" % e)
+        except Exception as e:
+            sys.stderr.write("[status] refresh failed: %s\n" % type(e).__name__)
+        finally:
+            _status_busy.release()
+    threading.Thread(target=run, name="ticket-status", daemon=True).start()
+
+
 RETRY_EVERY = 600     # seconds between retries of requests still waiting
 
 
@@ -826,7 +961,8 @@ def _import_one(t):
                       subject=(t.get("subject") or "")[:300], description=desc or None,
                       creator_email=who["email"] or None, creator_domain=who["domain"] or None, creator_source=who["source"],
                       fields_json=json.dumps(label_fields(t.get("subject") or "", desc, cs)), gallery_json=json.dumps(gallery),
-                      error="Past request -- listed for reference, never reviewed by AI.")
+                      error="Past request -- listed for reference, never reviewed by AI.",
+                      ticket_status=t.get("status") or None, ticket_status_ms=_now())
 
 
 def _run_import():

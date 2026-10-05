@@ -147,9 +147,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("index.html", "text/html; charset=utf-8")
             if u.path in ("/scans", "/scans.html"):
                 return self.static("scans.html", "text/html; charset=utf-8")
+            if u.path in ("/settings", "/settings.html"):
+                return self.static("settings.html", "text/html; charset=utf-8")
             if u.path in ("/sso", "/sso.html"):
                 return self.static("sso.html", "text/html; charset=utf-8")
-            if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/splashtop-icon.png"):
+            if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -187,7 +189,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     page = int(one("page") or 0)
                 except ValueError:
                     page = 0
-                return self.json(store.scans(one("q")[:80] or None, one("verdict") or None, page, 50))
+                res = store.scans(one("q")[:80] or None, one("verdict") or None, page, 50)
+                sosscan.refresh_statuses(res["rows"])      # the Ticket status column, kept fresh
+                return self.json(res)
             m = re.match(r"^/api/scans/(\d+)/image/(\d+)$", u.path)
             if m:
                 # A stored copy of one of the ticket's images (imagestore.py). Only
@@ -212,7 +216,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not row:
                     return self.json({"error": "not found"}, 404)
                 try:
-                    return self.json({"text": sosscan.note_text(row, "details" if (qs.get("style") or [""])[0] == "details" else "summary")})
+                    return self.json({"html": sosscan.note_html(row, "details" if (qs.get("style") or [""])[0] == "details" else "summary")})
                 except sosscan.ScanError as e:
                     return self.json({"error": str(e)}, 400)
             if u.path.startswith("/api/scans/") and u.path.rsplit("/", 1)[1].isdigit():
@@ -228,6 +232,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 row["request"] = sosscan.parse_request(row.get("description") or "")
                 # SplashHub's FREE_EMAIL_DOMAINS (the AI's own broader call is in the result)
                 row["creator_is_free_email"] = (row.get("creator_domain") or "").lower() in sosscan.FREE_EMAIL_DOMAINS
+                if row.get("result"):
+                    # the card's Status and Reason -- the same as the internal note's
+                    full = store.scan_get(row["id"])
+                    row["status_verdict"] = sosscan.effective_verdict(full, row["result"])
+                    row["reasons"] = sosscan.review_reasons(full, row["result"])
+                    row["generic"] = sosscan.is_generic(full, row["result"])
                 row["zendesk_url"] = zendesk.base_url()
                 return self.json(row)
             if u.path == "/api/import-past":
@@ -267,6 +277,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(ssocheck.import_status())
             if u.path == "/api/sso-check-all":
                 return self.json(ssocheck.check_all_status())
+            if u.path == "/api/settings":
+                return self.json({"ai_review": "on" if sosscan.ai_review_on() else "off",
+                                  "auto_note": "on" if sosscan.auto_note() else "off",
+                                  "auto_note_style": store.get_setting("auto_note_style", "summary")})
             if u.path == "/api/scan-setup":
                 missing = sosscan.missing_config()
                 if not (os.environ.get("ZENDESK_WEBHOOK_SECRET") or "").strip():
@@ -323,6 +337,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json({"error": "login required"}, 401)
             started = sosscan.start_import()
             return self.json(dict(sosscan.import_status(), started=started))
+        if u.path == "/api/settings":
+            # Settings page: "Auto add internal note" (on/off, summary/details).
+            if not self.authed():
+                return self.json({"error": "login required"}, 401)
+            try:
+                data = json.loads(raw or b"{}")
+            except ValueError:
+                return self.json({"error": "bad request"}, 400)
+            if "auto_note" in data:
+                store.set_setting("auto_note", "on" if data["auto_note"] else "off", "Centre admin")
+                sys.stderr.write("[note] automatic internal notes switched %s\n" % ("on" if data["auto_note"] else "off"))
+            if data.get("auto_note_style") in ("summary", "details"):
+                store.set_setting("auto_note_style", data["auto_note_style"], "Centre admin")
+            return self.json({"ok": True, "auto_note": "on" if sosscan.auto_note() else "off",
+                              "auto_note_style": store.get_setting("auto_note_style", "summary")})
         if u.path == "/api/ai-review":
             # The AI review switch. Applies only to requests that arrive from now
             # on; anything already listed keeps the decision it arrived with.

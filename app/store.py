@@ -118,6 +118,8 @@ ADDED_COLUMNS = [
     ("sos_scans", "reviewed_ms", "BIGINT"),   # when the AI review finished
     ("sos_scans", "translation_json", "TEXT"),  # the Translate button's English, saved so it runs once
     ("sos_scans", "note_json", "TEXT"),       # the internal note added to Zendesk: when, which style
+    ("sos_scans", "ticket_status", "TEXT"),   # the Zendesk ticket's own status (new/open/pending/hold/solved/closed)
+    ("sos_scans", "ticket_status_ms", "BIGINT"),  # when that was last read
 ]
 
 
@@ -403,9 +405,10 @@ def facets():
 SCAN_COLS = ("id", "ticket_id", "requested_ms", "finished_ms", "source", "requested_by", "status", "verdict",
              "subject", "creator_email", "creator_domain", "creator_source", "organization", "attach_key",
              "images_json", "fields_json", "result_json", "error", "model", "input_tokens", "output_tokens", "cost",
-             "description", "gallery_json", "ai_review", "reviewed_ms", "translation_json", "note_json")
+             "description", "gallery_json", "ai_review", "reviewed_ms", "translation_json", "note_json", "ticket_status", "ticket_status_ms")
 SCAN_LIST_COLS = ("id", "ticket_id", "requested_ms", "finished_ms", "source", "requested_by", "status", "verdict",
-                  "subject", "creator_email", "creator_domain", "organization", "error", "cost")
+                  "subject", "creator_email", "creator_domain", "organization", "error", "cost",
+                  "ticket_status", "ticket_status_ms")
 
 
 def scan_create(ticket_id, source, requested_by=None):

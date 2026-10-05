@@ -31,6 +31,11 @@
   }
   // An imported past request is 'held' too, but reads as what it is.
   function state(r) { return r.verdict || (r.status === 'held' && r.source === 'import' ? 'past' : r.status); }
+  // The Zendesk ticket's own status, in Zendesk's colours.
+  var TSTATUS = { new: 'New', open: 'Open', pending: 'Pending', hold: 'On-hold', solved: 'Solved', closed: 'Closed' };
+  function tstatus(st) {
+    return st ? '<span class="tst tst-' + esc(st) + '">' + esc(TSTATUS[st] || st) + '</span>' : '<span class="muted">—</span>';
+  }
   function pill(st) { return '<span class="vpill v-' + esc(st) + '">' + esc(LABEL[st] || st) + '</span>'; }
   function api(path, opts) {
     return fetch(path, Object.assign({ credentials: 'same-origin' }, opts || {})).then(function (r) {
@@ -53,79 +58,11 @@
     fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = '/'; });
   });
 
+  // The Zendesk address for the ticket links. (The AI review switch, Scan a
+  // ticket and the import are on the Settings page.)
   function setup() {
-    api('/api/scan-setup').then(function (s) {
-      ZD = s.zendesk_url;
-      drawSwitch(s.ai_review === 'on');
-      var el = $('setup');
-      if (s.ai_review !== 'on') s.missing = s.missing.filter(function (m) { return !/^AI_/.test(m); });
-      if (!s.missing.length) { el.hidden = true; return; }
-      el.hidden = false;
-      el.innerHTML = '<b>Not fully set up.</b> Missing: ' + s.missing.map(function (m) { return '<code>' + esc(m) + '</code>'; }).join(', ') + '. ' +
-        (s.can_scan ? 'Scanning works; Zendesk&rsquo;s trigger can&rsquo;t be verified until the webhook secret is set.'
-                    : 'Requests from Zendesk still appear with their details and images; the AI review waits until these are in place.');
-    }).catch(function () {});
+    api('/api/scan-setup').then(function (s) { ZD = s.zendesk_url; }).catch(function () {});
   }
-
-  // ---- the AI review switch -------------------------------------------------------
-  function drawSwitch(on) {
-    $('aiToggle').checked = on;
-    $('aiState').textContent = on ? 'On' : 'Off';
-    $('aiSwitch').classList.toggle('on', on);
-    $('aiSwitch').title = on ? 'New SOS requests are reviewed by Claude as they arrive.'
-                             : 'New SOS requests are listed with their details and images, without an AI review.';
-  }
-  $('aiToggle').addEventListener('change', function () {
-    var on = this.checked;
-    var ask = on
-      ? 'Turn on the AI review?\n\nOnly SOS requests that arrive from now on are reviewed by Claude. Requests already on the list, and past requests, stay as they are.'
-      : 'Turn off the AI review?\n\nNew SOS requests will be listed with their details and images only.';
-    if (!confirm(ask)) { drawSwitch(!on); return; }
-    api('/api/ai-review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: on }) })
-      .then(function (r) { drawSwitch(r.ai_review === 'on'); setup(); })
-      .catch(function () { drawSwitch(!on); });
-  });
-
-  // ---- import past requests (runs on the server; this only starts and watches it)
-  var impPoll = null;
-  function drawImport(st) {
-    var btn = $('impBtn'), msg = $('impMsg');
-    btn.disabled = !!st.running;
-    $('impStop').hidden = !st.running;
-    $('impStop').disabled = !!st.stop;
-    if (st.running) {
-      msg.textContent = st.done ? 'Importing… ' + st.done.toLocaleString() + ' checked, ' + st.added.toLocaleString() + ' added' +
-        (st.resumed ? ' (carried on after a restart)' : '') : 'Searching Zendesk…';
-      clearTimeout(impPoll); impPoll = setTimeout(pollImport, 2000);
-    } else if (st.error) {
-      msg.textContent = 'Stopped: ' + st.error;
-    } else if (st.stopped) {
-      msg.textContent = 'Stopped \u2014 ' + st.added + ' added so far. Press Import again to carry on from there.';
-    } else if (st.finished_ms) {
-      msg.textContent = 'Done — ' + st.added.toLocaleString() + ' added, ' + st.skipped.toLocaleString() + ' already listed' +
-        (st.failed ? ', ' + st.failed + ' could not be read' : '') + ' (' + st.found.toLocaleString() + ' found).';
-    } else {
-      msg.textContent = '';
-    }
-  }
-  function pollImport() {
-    api('/api/import-past').then(function (st) {
-      var wasRunning = $('impBtn').disabled;
-      drawImport(st);
-      if (wasRunning && !st.running) { S.page = 0; load(); }      // show what arrived
-    }).catch(function () {});
-  }
-  $('impBtn').addEventListener('click', function () {
-    if (!confirm('Import past SOS requests?\n\nSplashHub Centre searches Zendesk for every past “New SOS package created by…” ticket and lists it here; its images show from Zendesk. No AI review. Tickets already listed are skipped.')) return;
-    api('/api/import-past', { method: 'POST' }).then(drawImport).catch(function (e) {
-      if (e.message !== 'login') $('impMsg').textContent = e.message;
-    });
-  });
-  pollImport();   // pick up an import already running (another tab, a reload)
-  $('impStop').addEventListener('click', function () {
-    this.disabled = true; $('impMsg').textContent = 'Stopping after the current ticket…';
-    api('/api/import-past/stop', { method: 'POST' }).then(function () { setTimeout(pollImport, 800); });
-  });
 
   // ---- list ----------------------------------------------------------------------
   // The list updates in place: no dimming, and nothing is redrawn when nothing
@@ -137,7 +74,7 @@
     var p = 'page=' + S.page + (S.verdict ? '&verdict=' + encodeURIComponent(S.verdict) : '') + (S.q ? '&q=' + encodeURIComponent(S.q) : '');
     api('/api/scans?' + p).then(function (res) {
       if (my !== seq) return;
-      var sig = JSON.stringify([p, res.total, res.counts, res.rows.map(function (r) { return [r.id, r.status, r.verdict, r.subject, r.creator_email, r.cost]; })]);
+      var sig = JSON.stringify([p, res.total, res.counts, res.rows.map(function (r) { return [r.id, r.status, r.verdict, r.subject, r.creator_email, r.cost, r.ticket_status]; })]);
       if (sig !== lastSig) {
         lastSig = sig;
         drawChips(res.counts);
@@ -173,10 +110,10 @@
         return '<tr class="sc-row' + (S.open === r.id ? ' open' : '') + '" data-id="' + r.id + '" tabindex="0">' +
           '<td class="when">' + esc(whenTxt(r.requested_ms)) + '</td>' +
           '<td><a href="' + esc(ZD) + '/agent/tickets/' + r.ticket_id + '" target="_blank" rel="noopener" class="tlink">#' + r.ticket_id + '</a></td>' +
+          '<td>' + tstatus(r.ticket_status) + '</td>' +
           '<td>' + pill(state(r)) + '</td>' +
           '<td class="topic" title="' + esc(r.subject || '') + '">' + esc(r.subject || (r.error && !r.subject ? r.error : '—')) + '</td>' +
           '<td>' + who + '</td>' +
-          '<td>' + esc(r.source === 'webhook' ? 'Zendesk trigger' : r.source === 'import' ? 'Import' : (r.requested_by || 'Manual')) + '</td>' +
           '<td class="n">' + esc(formatUsd(r.cost)) + '</td></tr>';
       }).join('');
     }
@@ -348,9 +285,11 @@
   var NOTE = { open: null, style: 'summary', text: '', busy: false };
   function noteBlock(s) {
     var h = '<div class="pn-note">';
-    if (s.note && s.note.ms) {
+    if (s.note && s.note.error) {
+      h += '<div class="pn-ai-warn">The automatic internal note failed: ' + esc(s.note.error) + '</div>';
+    } else if (s.note && s.note.ms) {
       h += '<div class="pn-note-done">&#10003; Added to Zendesk as an internal note (' + (s.note.style === 'details' ? 'details' : 'summary') +
-        ') · ' + esc(fullWhen(s.note.ms)) + '</div>';
+        (s.note.auto ? ', automatically' : '') + ') · ' + esc(fullWhen(s.note.ms)) + '</div>';
     }
     if (NOTE.open !== s.id) {
       return h + '<button type="button" class="btn pn-note-btn" data-note="1">' + (s.note ? 'Add another internal note' : 'Add as internal note') + '</button></div>';
@@ -362,7 +301,8 @@
             return '<button type="button" data-nstyle="' + k + '" class="' + (NOTE.style === k ? 'on' : '') + '" aria-pressed="' + (NOTE.style === k) + '">' +
               (k === 'summary' ? 'Summary' : 'Details') + '</button>';
           }).join('') + '</div></div>' +
-      '<pre class="pn-note-pre">' + (NOTE.text ? esc(NOTE.text) : 'Loading&hellip;') + '</pre>' +
+      // The server builds the note's HTML and escapes everything in it from the ticket or the AI.
+      '<div class="pn-note-pre zd-note">' + (NOTE.text || 'Loading&hellip;') + '</div>' +
       '<div class="pn-note-hint">Only agents see internal notes; the customer is not notified.</div>' +
       '<div class="pn-note-act"><button type="button" class="btn btn-primary btn-sm" data-notepost="1"' + (NOTE.busy || !NOTE.text ? ' disabled' : '') + '>' +
         (NOTE.busy ? 'Adding&hellip;' : 'Add to Zendesk') + '</button>' +
@@ -373,7 +313,7 @@
     NOTE.text = '';
     var want = NOTE.style;
     api('/api/scans/' + s.id + '/note?style=' + want).then(function (r) {
-      if (NOTE.open === s.id && NOTE.style === want) { NOTE.text = r.text; redraw(); }
+      if (NOTE.open === s.id && NOTE.style === want) { NOTE.text = r.html; redraw(); }
     }).catch(function (e) { if (e.message !== 'login') { NOTE.text = ''; noteMsg(e.message); } });
   }
   function redraw() { if (CUR) $('detail').innerHTML = render(CUR); }
@@ -553,10 +493,7 @@
   $('detail').addEventListener('click', function (ev) {
     var rv = ev.target.closest('[data-review]');
     if (rv && CUR) {
-      var s = CUR, again = !!s.result;
-      var ask = (again ? 'Run the AI review again on #' : 'Run the AI review on #') + s.ticket_id + '?\n\n' +
-        'It costs ' + COST_HINT + '.' + (again ? ' The new result replaces the current one.' : ' The result is saved on this request.');
-      if (!window.confirm(ask)) return;
+      var s = CUR;     // no confirm: the button is the decision (its hint gives the cost)
       rv.disabled = true;
       var msg = $('detail').querySelector('.pn-ai-msg');
       api('/api/scans/' + s.id + '/review', { method: 'POST' })
@@ -652,19 +589,4 @@
   $('prev').addEventListener('click', function () { if (S.page > 0) { S.page--; load(); } });
   $('next').addEventListener('click', function () { S.page++; load(); });
 
-  // ---- scan a ticket now ---------------------------------------------------------
-  $('scanForm').addEventListener('submit', function (ev) {
-    ev.preventDefault();
-    var tid = $('tid').value.trim().replace(/^#/, '');
-    if (!/^\d+$/.test(tid)) { $('scanMsg').textContent = 'Enter a ticket number.'; return; }
-    $('scanBtn').disabled = true; $('scanMsg').textContent = '';
-    api('/api/scans', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ticket_id: tid, force: $('force').checked }) })
-      .then(function (r) {
-        $('scanMsg').textContent = 'Queued #' + tid + ' — it usually takes under a minute.';
-        $('tid').value = ''; S.open = r.id; S.verdict = ''; S.page = 0; load();
-      })
-      .catch(function (e) { if (e.message !== 'login') $('scanMsg').textContent = e.message; })
-      .then(function () { $('scanBtn').disabled = false; });
-  });
 })();

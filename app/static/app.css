@@ -203,7 +203,7 @@ table.runs { width: 100%; border-collapse: collapse; font-size: 12px; }
 /* Verdict pills: a word always, colour as support. Status hues only. */
 .vpill { display: inline-block; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 2px 9px; white-space: nowrap; border: 1px solid transparent; }
 .v-suspicious { color: #b42318; background: #fdecea; border-color: #f6c8c2; }
-.v-needs_review { color: #8a5a00; background: #fff4dc; border-color: #f2dca8; }
+.v-needs_review { color: #b54708; background: #fff1e5; border-color: #f9cfa5; }   /* Needs review: orange */
 .v-normal { color: #00873b; background: #eaf7ef; border-color: #c8e8d4; }
 .v-queued, .v-running, .v-waiting { color: #0071ce; background: #eef5fc; border-color: #cfe1f5; }
 .v-skipped, .v-not_applicable { color: #55606b; background: #f2f4f6; border-color: #dfe4e9; }
@@ -336,6 +336,13 @@ button.air-file:hover { color: #0071ce; }
 .pn-note-pre { margin: 0; padding: 10px 12px; background: #f7fafd; border: 1px solid #e3edf7; border-radius: 8px; max-height: 320px; overflow: auto; scrollbar-width: none;
   font: 12px/1.55 "Poppins", "Helvetica Neue", Arial, sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pn-note-hint { font-size: 11.5px; color: #78838f; }
+/* the note preview, close to how Zendesk shows an internal note */
+.zd-note { white-space: normal; background: #fff8e5; border-color: #f1dfa8; font-size: 12.5px; line-height: 1.55; }
+.zd-note p { margin: 0 0 4px; }
+.zd-note ul { margin: 0 0 4px; padding-left: 18px; }
+.zd-note hr { border: 0; border-top: 1px solid #e6d49a; margin: 8px 0; }
+.zd-note small { color: #6b6250; font-size: 11.5px; }
+.zd-note a { color: #0071ce; }
 .pn-note-act { display: flex; gap: 8px; }
 /* Images: one row of small thumbnails (scrolls sideways when there are more); click for full size. */
 .pn .gal-grid { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
@@ -371,3 +378,38 @@ button.air-file:hover { color: #0071ce; }
 .sso-hist summary { cursor: pointer; font-size: 12px; color: #55606b; }
 .sso-hist ul { margin: 6px 0 0; padding-left: 18px; font-size: 12px; color: #55606b; }
 @media (max-width: 640px) { .sso-rec { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---- Settings ---- */
+.page-narrow { max-width: 920px; }
+.set-card { padding: 6px 22px 8px; }
+.set-h { margin: 14px 0 4px; font-size: 15px; font-weight: 600; }
+.set-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 18px 0; border-top: 1px solid #eaf1f9; }
+.set-h + .set-row { border-top: 0; }
+.set-txt { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.set-t { font-size: 14px; font-weight: 600; }
+.set-d { font-size: 12.5px; color: #55606b; line-height: 1.55; }
+.set-sub { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.set-k { font-size: 12px; color: #55606b; }
+.set-form { gap: 10px; margin-top: 4px; }
+.set-row .aisw { flex: none; margin-top: 2px; }
+/* On/off switch: a real checkbox underneath (keyboard and screen readers),
+   drawn as a track and knob; the word beside it says On / Off. */
+.aisw { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.aisw-sw { position: relative; width: 38px; height: 22px; flex: none; }
+.aisw-sw input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.aisw-track { position: absolute; inset: 0; border-radius: 999px; background: #cbd5df; transition: background .15s; pointer-events: none; }
+.aisw-track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 20, 26, .25); transition: transform .15s; }
+.aisw-sw input:checked + .aisw-track { background: #0071ce; }
+.aisw-sw input:checked + .aisw-track::after { transform: translateX(16px); }
+.aisw-sw input:focus-visible + .aisw-track { outline: 2px solid #0071ce; outline-offset: 2px; }
+.aisw-state { font-size: 12.5px; font-weight: 600; color: #55606b; min-width: 22px; }
+.aisw.on .aisw-state { color: #0071ce; }
+
+/* Zendesk ticket status, as Zendesk colours it */
+.tst { display: inline-block; font-size: 11px; font-weight: 600; border-radius: 4px; padding: 2px 7px; color: #fff; white-space: nowrap; }
+.tst-new { background: #ffb648; color: #4a3200; }
+.tst-open { background: #e34f32; }
+.tst-pending { background: #3091ec; }
+.tst-hold { background: #2f3941; }
+.tst-solved, .tst-closed { background: #87929d; }

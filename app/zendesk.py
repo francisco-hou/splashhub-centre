@@ -133,7 +133,17 @@ def ticket(ticket_id):
     req = users.get(t.get("requester_id")) or {}
     org = orgs.get(t.get("organization_id")) or {}
     return {"id": t.get("id"), "subject": t.get("subject") or "", "description": t.get("description") or "",
-            "requester_email": req.get("email") or "", "organization": org.get("name") or ""}
+            "requester_email": req.get("email") or "", "organization": org.get("name") or "",
+            "status": t.get("status") or ""}
+
+
+def statuses(ticket_ids):
+    """{ticket id: status} for up to 100 tickets in one call (show_many)."""
+    ids = [str(int(i)) for i in ticket_ids][:100]
+    if not ids:
+        return {}
+    d = get_json("/api/v2/tickets/show_many.json?ids=" + ",".join(ids))
+    return {int(t["id"]): t.get("status") or "" for t in d.get("tickets") or [] if t.get("id")}
 
 
 def comments(ticket_id, max_pages=20):
@@ -163,10 +173,11 @@ def search_tickets(query, max_pages=2000):
         max_pages -= 1
 
 
-def add_internal_note(ticket_id, text):
+def add_internal_note(ticket_id, text, html=False):
     """Add `text` to the ticket as an internal note (public: false) -- seen by
-    agents only, never sent to the requester. Nothing else on the ticket changes."""
-    body = json.dumps({"ticket": {"comment": {"body": text, "public": False}}}).encode("utf-8")
+    agents only, never sent to the requester. Nothing else on the ticket
+    changes. html=True sends it as html_body (bold, dividers, links)."""
+    body = json.dumps({"ticket": {"comment": {"html_body" if html else "body": text, "public": False}}}).encode("utf-8")
     data, _ = _open(base_url() + "/api/v2/tickets/%d.json" % int(ticket_id), method="PUT", body=body)
     try:
         return json.loads(data or b"{}")
