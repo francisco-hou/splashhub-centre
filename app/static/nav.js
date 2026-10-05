@@ -20,8 +20,11 @@
   });
 })();
 
-/* The top bar: who you are, top right. "User" for anybody; "Admin" once the
-   admin password has been entered (SSO will put a real name here later). Its
+/* The top bar: who you are, top right. "Splashtop Support" for now (SSO will
+   put a real name here later), with the role under it: Member for anybody,
+   Admin once the admin password has been entered. Its menu: Admin login (the
+   password, right there) or Log out. An admin also gets Logs and Settings in
+   the left menu, under AI. Its
    menu holds the two admin pages (Logs, Settings) and Admin sign-in / Sign out.
    Each page's own script handles the Sign out button (#signOut). */
 (function () {
@@ -37,24 +40,25 @@
     out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>'
   };
   var path = location.pathname.replace(/\/+$/, '') || '/';
-  var here = function (p) { return path === p ? ' active' : ''; };
-  var bar = document.createElement('header');
+    var bar = document.createElement('header');
   bar.className = 'topbar';
   bar.innerHTML =
     '<div class="tb-right">' +
       '<button type="button" class="tb-user" id="userBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenu">' +
-        '<span class="tb-av" id="userAv">' + SV(I.user) + '</span><span class="tb-name" id="userName">User</span>' + SV(I.caret) +
+        '<span class="tb-av" id="userAv">' + SV(I.user) + '</span>' +
+        '<span class="tb-id"><span class="tb-name">Splashtop Support</span><span class="tb-role" id="userRole">Member</span></span>' + SV(I.caret) +
       '</button>' +
       '<div class="tb-menu" id="userMenu" role="menu" hidden>' +
         '<div class="tb-who"><span class="tb-av tb-av-lg" id="userAv2">' + SV(I.user) + '</span>' +
-          '<span><b id="userName2">User</b><small id="userSub">Everyone on the team</small></span></div>' +
+          '<span><b>Splashtop Support</b><span class="tb-role" id="userRole2">Member</span><small id="userSub">Everyone on the team</small></span></div>' +
         '<div class="tb-sep"></div>' +
-        '<div class="tb-group">Admin</div>' +
-        '<a class="tb-item' + here('/logs') + '" href="/logs" role="menuitem">' + SV(I.logs) + 'Logs<span class="tb-lock" title="Needs the admin password">' + SV(I.lock) + '</span></a>' +
-        '<a class="tb-item' + here('/settings') + '" href="/settings" role="menuitem">' + SV(I.gear) + 'Settings<span class="tb-lock" title="Needs the admin password">' + SV(I.lock) + '</span></a>' +
-        '<div class="tb-sep"></div>' +
-        '<a class="tb-item" id="adminIn" href="/logs?next=' + encodeURIComponent(path) + '" role="menuitem">' + SV(I.key) + 'Admin sign-in</a>' +
-        '<button type="button" class="tb-item" id="signOut" role="menuitem" hidden>' + SV(I.out) + 'Sign out</button>' +
+        '<button type="button" class="tb-item" id="adminIn" role="menuitem" hidden>' + SV(I.key) + 'Admin login</button>' +
+        '<form class="tb-login" id="adminForm" hidden>' +
+          '<input type="password" id="adminPw" placeholder="Admin password" autocomplete="current-password" aria-label="Admin password">' +
+          '<button type="submit" class="btn btn-primary btn-sm">Log in</button>' +
+          '<div class="tb-err" id="adminErr" aria-live="polite"></div>' +
+        '</form>' +
+        '<button type="button" class="tb-item" id="signOut" role="menuitem" hidden>' + SV(I.out) + 'Log out</button>' +
       '</div>' +
     '</div>';
   var nav = document.getElementById('snav');
@@ -66,17 +70,43 @@
   document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target)) open(false); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) { open(false); btn.focus(); } });
 
+  // Admin login, right here in the menu: the password goes to /login, then the page reloads as Admin.
+  var form = document.getElementById('adminForm'), pw = document.getElementById('adminPw'), err = document.getElementById('adminErr');
+  document.getElementById('adminIn').addEventListener('click', function () {
+    form.hidden = !form.hidden; err.textContent = '';
+    if (!form.hidden) pw.focus();
+  });
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!pw.value) { pw.focus(); return; }
+    var b = form.querySelector('button'); b.disabled = true; err.textContent = '';
+    fetch('/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ password: pw.value }) })
+      .then(function (r) {
+        if (r.ok) { location.reload(); return; }
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          b.disabled = false; pw.value = ''; pw.focus();
+          err.textContent = r.status === 401 || r.status === 403 ? 'That password isn’t right.' : (j.error || 'Could not log in (HTTP ' + r.status + ').');
+        });
+      })
+      .catch(function () { b.disabled = false; err.textContent = 'Could not reach SplashHub Centre.'; });
+  });
+
   // Who: Admin when the admin password is set and was entered here; else User.
   fetch('/api/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
     var admin = !!(s.required && s.authed);
-    var name = admin ? 'Admin' : 'User';
-    ['userName', 'userName2'].forEach(function (id) { document.getElementById(id).textContent = name; });
+    var role = admin ? 'Admin' : 'Member';
+    ['userRole', 'userRole2'].forEach(function (id) { document.getElementById(id).textContent = role; });
     ['userAv', 'userAv2'].forEach(function (id) { document.getElementById(id).innerHTML = SV(admin ? I.admin : I.user); });
     bar.classList.toggle('is-admin', admin);
     document.getElementById('userSub').textContent = admin ? 'Signed in with the admin password'
       : (s.required ? 'Logs and Settings need the admin password' : 'No admin password is set yet');
-    // the locks only mean something when there is a password to ask for
-    Array.prototype.forEach.call(menu.querySelectorAll('.tb-lock'), function (l) { l.hidden = admin || !s.required; });
+    // Logs and Settings (left menu, under AI): for an admin only -- or for
+    // everyone while no admin password is set, as the server allows then.
+    Array.prototype.forEach.call(document.querySelectorAll('.snav-adm, .snav-adm-h'), function (el) {
+      if (!el.classList.contains('active')) el.hidden = !(admin || !s.required);
+    });
+    var h = document.querySelector('.snav-adm-h'); if (h) h.hidden = !(admin || !s.required);
     document.getElementById('adminIn').hidden = admin || !s.required;
     document.getElementById('signOut').hidden = !admin;
   }).catch(function () {});
