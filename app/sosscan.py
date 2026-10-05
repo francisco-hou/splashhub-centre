@@ -357,15 +357,41 @@ TRANSLATE_PROMPT = ("You translate short texts from a remote-support software pa
 NON_ASCII = re.compile(r"[^\x00-\x7f]")
 
 
+def translate_engine():
+    """Settings: "claude" (default) or "spark" for the Translate button."""
+    return "spark" if store.get_setting("translate_engine", "claude") == "spark" else "claude"
+
+
+def _translate_spark(texts):
+    """The same job on Spark: free, smaller model. Asked for the same JSON;
+    read leniently, since small models sometimes wrap it in prose."""
+    import spark
+    if not spark.available():
+        raise ScanError("Spark isn't connected yet -- pick Claude in Settings, or wait for the next release.")
+    try:
+        text = spark.chat(TRANSLATE_PROMPT + ' Answer with JSON only: {"items": [{"key": ..., "english": ...}]}.',
+                          json.dumps([{"key": k, "text": v} for k, v in texts.items()], ensure_ascii=False), max_tokens=1500)
+    except spark.SparkError as e:
+        raise ScanError("Spark couldn't translate: %s" % e)
+    start, end = text.find("{"), text.rfind("}")
+    try:
+        parsed = json.loads(text[start:end + 1]) if start >= 0 else {}
+    except ValueError:
+        raise ScanError("Spark's answer wasn't the expected JSON -- try again, or pick Claude in Settings.")
+    return parsed, spark.model()
+
+
 def translate(scan_id):
     """English for this request's non-English texts: {key: english}. Saved on
-    the row; a second press returns the saved one without calling the AI."""
+    the row; a second press returns the saved one without calling the AI.
+    Claude or Spark, as Settings says (translate_engine)."""
     row = store.scan_get(scan_id, fresh=True)
     if not row:
         raise ScanError("That request is gone.")
     if row.get("translation_json"):
         return json.loads(row["translation_json"])
-    miss = [m for m in missing_config() if m.startswith("AI_")]
+    engine = translate_engine()
+    miss = [m for m in missing_config() if m.startswith("AI_")] if engine == "claude" else []
     if miss:
         raise ScanError("Translation needs the AI set up (missing %s)." % ", ".join(miss))
     req = parse_request(row.get("description") or "")
@@ -374,6 +400,13 @@ def translate(scan_id):
         texts["subject"] = row["subject"]
     if not texts:
         out = {}
+    elif engine == "spark":
+        parsed, model = _translate_spark(texts)
+        out = {i["key"]: i["english"] for i in parsed.get("items") or []
+               if isinstance(i, dict) and i.get("key") in texts and i.get("english")}
+        store.insert_many([{"when": _now(), "agent": "SplashHub Centre", "kind": "translate (SOS request)", "model": "spark:" + model,
+                            "topic": "#%d custom SOS package" % int(row["ticket_id"]), "tickets": 1,
+                            "input_tokens": 0, "output_tokens": 0, "cost": 0, "source": "centre"}])
     else:
         _, _, model = ai_config()
         body = {"model": model, "max_tokens": 4000, "system": TRANSLATE_PROMPT,

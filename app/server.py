@@ -290,8 +290,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path == "/api/sso-check-all":
                 return self.json(ssocheck.check_all_status())
             if u.path == "/api/settings":
+                import spark
                 return self.json({"ai_review": "on" if sosscan.ai_review_on() else "off",
-                                  "auto_note": "on" if sosscan.auto_note() else "off"})
+                                  "auto_note": "on" if sosscan.auto_note() else "off",
+                                  "translate_engine": sosscan.translate_engine(), "spark": spark.available()})
             if u.path == "/api/scan-setup":
                 missing = sosscan.missing_config()
                 if not (os.environ.get("ZENDESK_WEBHOOK_SECRET") or "").strip():
@@ -356,10 +358,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 data = json.loads(raw or b"{}")
             except ValueError:
                 return self.json({"error": "bad request"}, 400)
+            if data.get("translate_engine") in ("claude", "spark"):
+                store.set_setting("translate_engine", data["translate_engine"], "Centre admin")
             if "auto_note" in data:
                 store.set_setting("auto_note", "on" if data["auto_note"] else "off", "Centre admin")
                 sys.stderr.write("[note] automatic internal notes switched %s\n" % ("on" if data["auto_note"] else "off"))
-            return self.json({"ok": True, "auto_note": "on" if sosscan.auto_note() else "off"})
+            return self.json({"ok": True, "auto_note": "on" if sosscan.auto_note() else "off",
+                              "translate_engine": sosscan.translate_engine()})
         if u.path == "/api/ai-review":
             # The AI review switch. Applies only to requests that arrive from now
             # on; anything already listed keeps the decision it arrived with.
@@ -461,6 +466,21 @@ def _sso_post(self, u, raw):
 Handler.sso_post = _sso_post
 
 
+def _spark_hello():
+    """One line in the log at start-up: is Spark reachable, and with which model."""
+    import spark, threading
+
+    def run():
+        if not spark.available():
+            sys.stderr.write("[spark] not connected (no AI_SPARK_BASE_URL / AI_SPARK_API_KEY)\n")
+            return
+        try:
+            sys.stderr.write("[spark] connected; model %s (of %d)\n" % (spark.model(), len(spark._MODELS["list"]) or 1))
+        except spark.SparkError as e:
+            sys.stderr.write("[spark] configured but not answering: %s\n" % e)
+    threading.Thread(target=run, daemon=True).start()
+
+
 def main():
     store.ensure_schema()
     if SAMPLE and store.count() == 0:
@@ -472,6 +492,7 @@ def main():
     sosscan.start_retries()           # and waiting ones, every 10 minutes
     sosscan.resume_import()           # an import a restart interrupted carries on
     ssocheck.resume_import()
+    _spark_hello()
     srv = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print("SplashHub Centre on http://%s:%d  (backend: %s%s)" % (HOST, PORT, store.backend(), ", sample data" if SAMPLE else ""))
     srv.serve_forever()

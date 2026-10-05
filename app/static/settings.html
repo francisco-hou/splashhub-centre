@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=0.8.0">
+  <link rel="stylesheet" href="app.css?v=0.8.3">
 </head>
 <body>
   <header class="topbar">
@@ -64,6 +64,17 @@
 
       <div class="set-row">
         <div class="set-txt">
+          <div class="set-t">Translate with</div>
+          <div class="set-d">The engine behind a request&rsquo;s <em>Translate to English</em> button. <b>Claude</b>: the best translations, a cent or two each. <b>Spark</b>: Splashtop&rsquo;s own AI, free, a smaller model. A translation is made once per request and kept.</div>
+          <div class="set-d" id="sparkState"></div>
+        </div>
+        <div class="seg seg-lg" role="group" aria-label="Translate with" id="trEngine">
+          <button type="button" data-engine="claude">Claude</button><button type="button" data-engine="spark">Spark</button>
+        </div>
+      </div>
+
+      <div class="set-row">
+        <div class="set-txt">
           <div class="set-t">Scan a ticket</div>
           <div class="set-d">Read one ticket from Zendesk and list it on SOS Scans now; it gets an AI review if the switch above is on.</div>
           <form class="frow set-form" id="scanForm">
@@ -89,6 +100,6 @@
     </section>
   </main>
 
-  <script src="settings.js?v=0.7.7"></script>
+  <script src="settings.js?v=0.8.3"></script>
 </body>
 </html>

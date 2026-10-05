@@ -55,6 +55,9 @@
     api('/api/settings').then(function (s) {
       drawSwitch('aiSwitch', 'aiToggle', 'aiState', s.ai_review === 'on');
       drawSwitch('noteSwitch', 'noteToggle', 'noteState', s.auto_note === 'on');
+      drawEngine(s.translate_engine);
+      $('sparkState').innerHTML = s.spark ? '<span class="set-ok">&#10003; Spark is connected.</span>'
+        : 'Spark isn&rsquo;t connected to SplashHub Centre yet; until it is, translations with Spark will say so.';
     }).catch(function () {});
   }
 
@@ -79,6 +82,19 @@
     post('/api/settings', { auto_note: on })
       .then(function (r) { drawSwitch('noteSwitch', 'noteToggle', 'noteState', r.auto_note === 'on'); })
       .catch(function () { drawSwitch('noteSwitch', 'noteToggle', 'noteState', !on); });
+  });
+
+  function drawEngine(e) {
+    [].forEach.call($('trEngine').querySelectorAll('button'), function (b) {
+      var on = b.getAttribute('data-engine') === e;
+      b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+    });
+  }
+  $('trEngine').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-engine]'); if (!b) return;
+    drawEngine(b.getAttribute('data-engine'));
+    post('/api/settings', { translate_engine: b.getAttribute('data-engine') })
+      .then(function (r) { drawEngine(r.translate_engine); }).catch(settings);
   });
 
   // ---- scan a ticket now ---------------------------------------------------------------
