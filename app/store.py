@@ -444,6 +444,15 @@ def scan_update(scan_id, **fields):
         c.close()
 
 
+def sos_dash_rows(since_ms):
+    """What the SOS Scans dashboard counts (sosdash.py): every request since then."""
+    ensure_schema()
+    cols = ("id", "ticket_id", "requested_ms", "source", "status", "verdict", "ticket_status", "ticket_status_ms",
+            "creator_domain", "creator_email", "subject", "fields_json", "cost")
+    return [dict(zip(cols, r)) for r in _read("SELECT " + ", ".join(cols) + " FROM sos_scans WHERE requested_ms >= %s "
+                                              "ORDER BY requested_ms", [int(since_ms)])]
+
+
 def scan_set_statuses(statuses, ms):
     """The Ticket status column, many rows in one go: {scan id: status or None}
     (None keeps the old status and only marks it as checked)."""

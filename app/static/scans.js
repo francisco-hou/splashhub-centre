@@ -10,12 +10,13 @@
 
   var S = { verdict: '', q: '', page: 0, open: null };
   var ZD = '';
-  var LABEL = { suspicious: 'Suspicious', needs_review: 'Needs review', normal: 'Normal',
+  // The same three words as the internal note: Verified / Needs review / High risk.
+  var LABEL = { suspicious: 'High risk', needs_review: 'Needs review', normal: 'Verified',
                 queued: 'Queued', running: 'Scanning…', waiting: 'Waiting', held: 'AI off', past: 'Past request', skipped: 'Skipped', error: 'Error', not_applicable: 'Not applicable' };
   var REF = { none: 'No Splashtop reference', powered_by_attribution: '“Powered by Splashtop” credit',
               unmodified_default: 'Splashtop default UI visible', other_reference: 'Misleading “by Splashtop” text' };
-  var CHIPS = [['', 'All'], ['flagged', 'Flagged'], ['suspicious', 'Suspicious'], ['needs_review', 'Needs review'],
-               ['normal', 'Normal'], ['held', 'Not reviewed'], ['waiting', 'Waiting'], ['skipped', 'Skipped'], ['error', 'Errors']];
+  var CHIPS = [['', 'All'], ['flagged', 'Flagged'], ['suspicious', 'High risk'], ['needs_review', 'Needs review'],
+               ['normal', 'Verified'], ['held', 'Not reviewed'], ['waiting', 'Waiting'], ['skipped', 'Skipped'], ['error', 'Errors']];
 
   function $(id) { return document.getElementById(id); }
   function esc(s) {
@@ -49,10 +50,13 @@
     if (s.required && !s.authed) { location.href = '/?next=' + encodeURIComponent('/scans' + location.hash); return; }
     $('signOut').hidden = !s.required;
     $('page').hidden = false;
-    var m = /^#(\d+)$/.exec(location.hash);       // /scans#123 opens that request
+    var m = /^#(\d+)$/.exec(location.hash);       // /scans#123 opens that request (on View Scans)
     if (m) S.open = +m[1];
     setup();
-    load();
+    var pref = 'dash';
+    try { pref = localStorage.getItem('sosView') || 'dash'; } catch (e) { /* fine */ }
+    // the dashboard is the main view; #list, or a link to one request, opens the list
+    setView(m || location.hash === '#list' ? 'list' : pref, true);
   });
   $('signOut').addEventListener('click', function () {
     fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = '/'; });
@@ -62,6 +66,150 @@
   // ticket and the import are on the Settings page.)
   function setup() {
     api('/api/scan-setup').then(function (s) { ZD = s.zendesk_url; }).catch(function () {});
+  }
+
+
+  // ---- views: Dashboard (the main one) and View Scans (the list) -------------------------
+  var VIEW = 'dash';
+  function setView(v, keepHash) {
+    VIEW = v === 'list' ? 'list' : 'dash';
+    $('dashView').hidden = VIEW !== 'dash';
+    $('listView').hidden = VIEW !== 'list';
+    $('tabDash').setAttribute('aria-selected', VIEW === 'dash');
+    $('tabList').setAttribute('aria-selected', VIEW === 'list');
+    if (!keepHash && !S.open) history.replaceState(null, '', VIEW === 'list' ? '#list' : location.pathname);
+    try { localStorage.setItem('sosView', VIEW); } catch (e) { /* private window: fine */ }
+    if (VIEW === 'dash') loadDash(); else load();
+  }
+  $('tabDash').addEventListener('click', function () { setView('dash'); });
+  $('tabList').addEventListener('click', function () { setView('list'); });
+  function showList(verdict) { S.verdict = verdict || ''; S.page = 0; lastSig = ''; setView('list'); }
+
+  // ---- the dashboard ------------------------------------------------------------------------
+  var DCOL = { verified: '#7cc79a', needs_review: '#f2a65a', high_risk: '#e05a4f', not_reviewed: '#cfd8e2' };
+  var dseqD = 0;
+  function loadDash(fresh) {
+    var my = ++dseqD;
+    spinOn();
+    api('/api/scans/dashboard?tz=' + new Date().getTimezoneOffset() + (fresh ? '&fresh=1' : '')).then(function (d) {
+      spinOff();
+      if (my !== dseqD) return;
+      drawKpis(d.kpis); drawChart(d.days); drawSpike(d.spikes); drawAttention(d.attention); drawWho(d.who); drawMix(d.mix, d.spend, d.lookalikes);
+      var t = new Date();
+      $('stamp').textContent = 'Updated ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+    }).catch(function (e) { spinOff(); if (e.message !== 'login') $('stamp').textContent = 'Could not load: ' + e.message; });
+  }
+  function ago(ms) {
+    if (!ms) return '';
+    var h = (Date.now() - ms) / 3600000;
+    return h < 24 ? Math.max(1, Math.round(h)) + ' h' : Math.round(h / 24) + ' d';
+  }
+  function trend(up, txt) { return '<span class="' + (up ? 'd-up' : 'd-dn') + '">' + (up ? '▲ ' : '▼ ') + esc(txt) + '</span>'; }
+
+  function drawKpis(k) {
+    var card = function (label, value, sub, cls, go) {
+      return '<button type="button" class="card dk" ' + (go != null ? 'data-go="' + go + '"' : '') + '>' +
+        '<span class="dk-l">' + label + '</span><span class="dk-v ' + (cls || '') + '">' + value + '</span><span class="dk-s">' + sub + '</span></button>';
+    };
+    var day = k.day, week = k.week, g = k.generic;
+    $('dKpis').innerHTML =
+      card('Last 24 h', day.n, day.ratio != null ? trend(day.ratio >= 1, '×' + day.ratio) + ' vs usual ~' + Math.round(day.usual) : 'no history yet', '', '') +
+      card('Last 7 days', week.n, week.pct != null ? trend(week.pct >= 0, Math.abs(week.pct) + '%') + ' vs ~' + Math.round(week.usual) : 'no history yet', '', '') +
+      card('Needs review · open', k.needs_review_open.n, k.needs_review_open.n ? 'oldest waiting ' + ago(k.needs_review_open.oldest_ms) : 'nothing waiting', 'dk-o', 'needs_review') +
+      card('High risk · open', k.high_risk_open.n, k.high_risk_open.first ? '#' + esc(k.high_risk_open.first) : 'none open', 'dk-r', 'suspicious') +
+      card('Generic emails · 7 d', g.pct != null ? g.pct + '%' : '—', g.before != null && g.pct != null ? trend(g.pct >= g.before, 'from ' + g.before + '%') + ' the 30 days before' : '', '', '');
+  }
+  $('dKpis').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-go]'); if (b) showList(b.getAttribute('data-go'));
+  });
+
+  // Stacked bars by verdict, and a dashed line for the usual on that weekday.
+  function drawChart(days) {
+    var W = 1000, H = 300, padL = 34, padB = 26, padT = 12, n = days.length, bw = (W - padL) / n;
+    var max = Math.max(4, Math.max.apply(null, days.map(function (d) { return Math.max(d.total, d.usual); })));
+    var y = function (v) { return H - padB - (v / max) * (H - padB - padT); };
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="dchart" role="img" aria-label="Requests per day for the last ' + n + ' days">';
+    [0, 0.5, 1].forEach(function (f) {
+      var v = Math.round(max * f), yy = y(v);
+      svg += '<line x1="' + padL + '" x2="' + W + '" y1="' + yy + '" y2="' + yy + '" class="dgrid"/><text x="' + (padL - 6) + '" y="' + (yy + 4) + '" class="dax" text-anchor="end">' + v + '</text>';
+    });
+    days.forEach(function (d, i) {
+      var x = padL + i * bw + bw * 0.18, w = bw * 0.64, base = H - padB;
+      var date = new Date(d.day_ms), lab = (date.getMonth() + 1) + '/' + date.getDate();
+      svg += '<g><title>' + lab + ': ' + d.total + ' requests (' + d.verified + ' verified, ' + d.needs_review + ' needs review, ' +
+        d.high_risk + ' high risk, ' + d.not_reviewed + ' not reviewed) · usual ~' + d.usual + '</title>';
+      ['verified', 'needs_review', 'high_risk', 'not_reviewed'].forEach(function (c) {
+        if (!d[c]) return;
+        var h = (d[c] / max) * (H - padB - padT);
+        base -= h;
+        svg += '<rect x="' + x + '" y="' + base + '" width="' + w + '" height="' + Math.max(h - 1, 1) + '" rx="2" fill="' + DCOL[c] + '"/>';
+      });
+      svg += '</g>';
+      if (i % 3 === (n - 1) % 3) svg += '<text x="' + (x + w / 2) + '" y="' + (H - 8) + '" class="dax" text-anchor="middle">' + lab + '</text>';
+    });
+    svg += '<polyline class="dusual" points="' + days.map(function (d, i) { return (padL + i * bw + bw / 2) + ',' + y(d.usual); }).join(' ') + '"/>';
+    $('dChart').innerHTML = svg + '</svg>';
+  }
+
+  function drawSpike(sp) {
+    var any = sp.day.alert || sp.week.alert;
+    var row = function (label, s) {
+      var pct = s.usual ? Math.min(100, Math.round(100 * s.n / Math.max(s.n, s.usual * 2))) : (s.n ? 100 : 0);
+      return '<span>' + label + '</span><div class="dmeter' + (s.alert ? ' hot' : '') + '"><i style="width:' + pct + '%"></i></div>' +
+        '<b class="' + (s.alert ? 'd-red' : '') + '">' + s.n + ' vs ~' + Math.round(s.usual) + '</b>';
+    };
+    var h = '<div class="dct ' + (any ? 'd-alert' : '') + '">' + (any ? '⚡ Spike alert' : 'Spike alert') + '<span>' +
+      (any ? 'more requests than usual' : 'nothing unusual') + '</span></div>' +
+      '<div class="dcmp">' + row('Last 24 h', sp.day) + row('Last 7 days', sp.week) + '</div>';
+    var s = sp.spark;
+    h += '<div class="dspark"><div class="dspark-h">Spark · what stands out</div>';
+    if (!any) h += '<div class="dmuted">When there is a spike, Spark says what the requests have in common.</div>';
+    else if (!s || s.off) h += '<div class="dmuted">Spark isn’t connected yet. Once it is, it explains spikes here.</div>';
+    else if (s.error) h += '<div class="dmuted">Spark couldn’t answer: ' + esc(s.error) + '</div>';
+    else h += '<ul>' + s.points.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>';
+    $('dSpike').classList.toggle('dcard-alert', any);
+    $('dSpike').innerHTML = h + '</div>';
+  }
+
+  function drawAttention(list) {
+    var h = '<div class="dct">Needs attention <span>flagged or not reviewed · ticket open</span></div>';
+    if (!list.length) h += '<div class="dmuted">Nothing waiting. 🎉</div>';
+    list.forEach(function (a) {
+      h += '<button type="button" class="drow" data-open="' + a.id + '"><span class="drow-t"><b>#' + a.ticket_id + '</b> ' + esc(a.why) +
+        ' <span class="dmuted">· ' + ago(a.requested_ms) + '</span></span>' + pill(state(a)) + '</button>';
+    });
+    $('dAttention').innerHTML = h;
+  }
+  $('dAttention').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-open]'); if (b) openPanel(+b.getAttribute('data-open'));
+  });
+
+  function bars(items, max) {
+    return items.map(function (it) {
+      return '<div class="dhb"><span title="' + esc(it.label) + '">' + esc(it.label) + '</span><div class="dhbt"><i class="' + (it.warn ? 'o' : '') +
+        '" style="width:' + Math.round(100 * it.n / Math.max(max, 1)) + '%"></i></div><span>' + esc(it.value != null ? it.value : it.n) + '</span></div>';
+    }).join('');
+  }
+  function drawWho(w) {
+    var max = Math.max.apply(null, [1].concat(w.domains.map(function (d) { return d.n; })));
+    $('dWho').innerHTML = '<div class="dct">Who’s asking <span>7 days · creator domains</span></div>' +
+      (w.domains.length ? bars(w.domains.map(function (d) { return { label: d.domain, n: d.n, warn: d.generic }; }), max) : '<div class="dmuted">No requests in the last 7 days.</div>') +
+      '<div class="dtags"><span class="dtag dtag-n">' + w.new + ' new ' + (w.new === 1 ? 'team' : 'teams') + '</span><span class="dtag">' + w.returning + ' returning</span>' +
+      (w.flagged_before ? '<span class="dtag dtag-r">' + w.flagged_before + ' flagged before</span>' : '') + '</div>';
+  }
+  function drawMix(mix, spend, look) {
+    var total = mix.reduce(function (t, m) { return t + m.n; }, 0);
+    var h = '<div class="dct">Package mix <span>7 days</span></div>' +
+      (total ? bars(mix.map(function (m) { return { label: m.type.charAt(0).toUpperCase() + m.type.slice(1), n: m.n, warn: m.type === 'trial', value: Math.round(100 * m.n / total) + '%' }; }), total)
+             : '<div class="dmuted">No requests in the last 7 days.</div>');
+    h += '<div class="dct dct-sub">Lookalike names <span>Spark</span></div>';
+    if (!look || look.off) h += '<div class="dmuted">Spark isn’t connected yet. Once it is, it lists package names that imitate a known brand.</div>';
+    else if (look.error) h += '<div class="dmuted">Spark couldn’t answer: ' + esc(look.error) + '</div>';
+    else if (!look.items.length) h += '<div class="dmuted">None this week.</div>';
+    else h += look.items.map(function (x) { return '<div class="drow drow-s"><span>“' + esc(x.name) + '”</span><span class="dmuted">' + esc(x.brand) + '</span></div>'; }).join('');
+    h += '<div class="dspend">AI spend 7 d: <b>' + formatUsd(spend.total) + '</b> · ' + spend.reviews + (spend.reviews === 1 ? ' review' : ' reviews') +
+      (spend.reviews ? ' · avg ' + formatUsd(spend.avg) : '') + '</div>';
+    $('dMix').innerHTML = h;
   }
 
   // ---- list ----------------------------------------------------------------------
@@ -78,7 +226,9 @@
   function spinOff() {
     setTimeout(function () { $('refresh').classList.remove('spin'); }, Math.max(0, 700 - (Date.now() - spinAt)));
   }
-  setInterval(function () { if (document.visibilityState === 'visible' && !$('page').hidden) load(); }, 60000);
+  setInterval(function () {
+    if (document.visibilityState === 'visible' && !$('page').hidden) { if (VIEW === 'dash') loadDash(); else load(); }
+  }, 60000);
 
   function load(fresh) {
     var my = ++seq;
@@ -452,7 +602,7 @@
   }
   function closePanel() {
     S.open = null; CUR = null; clearTimeout(dpoll);
-    if (location.hash) history.replaceState(null, '', location.pathname);
+    if (location.hash) history.replaceState(null, '', VIEW === 'list' ? '#list' : location.pathname);
     $('pnWrap').hidden = true;
     document.body.classList.remove('pn-lock');
     markOpen();
@@ -589,7 +739,7 @@
     var v = this.value.trim(); clearTimeout(typing);
     typing = setTimeout(function () { S.q = v; S.page = 0; load(); }, 250);
   });
-  $('refresh').addEventListener('click', function () { setup(); load(true); });
+  $('refresh').addEventListener('click', function () { setup(); if (VIEW === 'dash') loadDash(true); else load(true); });
   $('prev').addEventListener('click', function () { if (S.page > 0) { S.page--; load(); } });
   $('next').addEventListener('click', function () { S.page++; load(); });
 

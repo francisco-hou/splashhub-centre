@@ -32,6 +32,7 @@ sys.path.insert(0, APP)
 import store
 import feed
 import imagestore
+import sosdash
 import sosscan
 import ssocheck
 import zendesk
@@ -183,6 +184,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     page = 0
                 return self.json(store.runs(filters(qs), page, 100))
             # ---- SOS package scans ----
+            if u.path == "/api/scans/dashboard":
+                try:
+                    tz = int((qs.get("tz") or ["0"])[0])
+                except ValueError:
+                    tz = 0
+                return self.json(sosdash.build(max(-840, min(840, tz)), fresh=(qs.get("fresh") or [""])[0] == "1"))
             if u.path == "/api/scans":
                 one = lambda k: ((qs.get(k) or [""])[0]).strip()
                 try:

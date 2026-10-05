@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=0.7.5">
+  <link rel="stylesheet" href="app.css?v=0.8.0">
 </head>
 <body>
   <header class="topbar">
@@ -41,6 +41,28 @@
       </div>
     </div>
 
+    <!-- Two views of the same requests: the dashboard (the main one) and the
+         full list. /scans#list opens the list; /scans#123 opens a request. -->
+    <div class="viewsw" role="tablist" aria-label="View">
+      <button type="button" role="tab" id="tabDash" data-view="dash" aria-selected="true">Dashboard</button>
+      <button type="button" role="tab" id="tabList" data-view="list" aria-selected="false">View Scans</button>
+    </div>
+
+    <div id="dashView" class="dash">
+      <div class="dk5" id="dKpis"></div>
+      <div class="dg2">
+        <section class="card dcard"><div class="dct">Requests per day <span>21 days · by verdict</span></div><div id="dChart"></div>
+          <div class="dleg"><span><b class="c-v"></b>Verified</span><span><b class="c-n"></b>Needs review</span><span><b class="c-h"></b>High risk</span><span><b class="c-x"></b>Not reviewed</span><span class="dleg-u">- - usual for that weekday</span></div></section>
+        <section class="card dcard" id="dSpike"></section>
+      </div>
+      <div class="dg3">
+        <section class="card dcard" id="dAttention"></section>
+        <section class="card dcard" id="dWho"></section>
+        <section class="card dcard" id="dMix"></section>
+      </div>
+    </div>
+
+    <div id="listView" hidden>
     <section class="card filters" aria-label="Filters">
       <div class="frow">
         <div class="chips" id="verdicts" role="group" aria-label="Verdict"></div>
@@ -70,6 +92,7 @@
         <button type="button" class="btn" id="next">Older &rarr;</button>
       </div>
     </section>
+    </div>
   </main>
 
   <!-- One request, in full: a pop-up over the list. -->
@@ -91,6 +114,6 @@
     </aside>
   </div>
 
-  <script src="scans.js?v=0.7.7"></script>
+  <script src="scans.js?v=0.8.1"></script>
 </body>
 </html>
