@@ -153,6 +153,22 @@ SCANS_DDL = """CREATE TABLE IF NOT EXISTS sos_scans (
     cost {REAL} NOT NULL DEFAULT 0)"""
 
 
+# SSO method validation requests (ssocheck.py). One row per ticket.
+# status: needs_details (no domain / TXT value yet) | pending (never checked)
+# | not_found | verified | error (the DNS lookup itself failed).
+SSO_DDL = """CREATE TABLE IF NOT EXISTS sso_requests (
+    id {ID},
+    ticket_id {INT} NOT NULL UNIQUE,
+    requested_ms {INT} NOT NULL,
+    source TEXT NOT NULL DEFAULT 'webhook',
+    subject TEXT, description TEXT, requester_email TEXT, organization TEXT,
+    domain TEXT, txt_name TEXT, txt_value TEXT, parse_note TEXT,
+    status TEXT NOT NULL DEFAULT 'needs_details',
+    checks {INT} NOT NULL DEFAULT 0,
+    last_checked_ms {INT}, verified_ms {INT},
+    last_result_json TEXT, history_json TEXT, note_json TEXT)"""
+
+
 def ensure_schema():
     """Idempotent and additive only -- on Spluki the schema is whatever the
     previous release left, so every release must run against that."""
@@ -183,6 +199,8 @@ def ensure_schema():
                             .replace("{REAL}", "DOUBLE PRECISION"))
                 cur.execute("CREATE INDEX IF NOT EXISTS sos_scans_ts ON sos_scans (requested_ms DESC)")
                 cur.execute("CREATE INDEX IF NOT EXISTS sos_scans_ticket ON sos_scans (ticket_id)")
+                cur.execute(SSO_DDL.replace("{ID}", "BIGSERIAL PRIMARY KEY").replace("{INT}", "BIGINT"))
+                cur.execute("CREATE INDEX IF NOT EXISTS sso_requests_ts ON sso_requests (requested_ms DESC)")
                 cur.execute("SELECT pg_advisory_unlock(716572)")
             else:
                 cur.execute("""CREATE TABLE IF NOT EXISTS runs (
@@ -201,6 +219,8 @@ def ensure_schema():
                             .replace("{REAL}", "REAL"))
                 cur.execute("CREATE INDEX IF NOT EXISTS sos_scans_ts ON sos_scans (requested_ms)")
                 cur.execute("CREATE INDEX IF NOT EXISTS sos_scans_ticket ON sos_scans (ticket_id)")
+                cur.execute(SSO_DDL.replace("{ID}", "INTEGER PRIMARY KEY AUTOINCREMENT").replace("{INT}", "INTEGER"))
+                cur.execute("CREATE INDEX IF NOT EXISTS sso_requests_ts ON sso_requests (requested_ms)")
             _add_columns(cur)
             c.commit()
         finally:
@@ -458,6 +478,98 @@ def scans(q=None, verdict=None, page=0, per_page=50):
     counts = dict(_read("SELECT coalesce(verdict, status), count(*) FROM sos_scans GROUP BY coalesce(verdict, status)", []))
     return {"total": total, "page": page, "per_page": per_page,
             "rows": [dict(zip(SCAN_LIST_COLS, r)) for r in rows], "counts": counts}
+
+
+# ---- SSO method validation requests (ssocheck.py) ------------------------------------
+
+SSO_COLS = ("id", "ticket_id", "requested_ms", "source", "subject", "description", "requester_email", "organization",
+            "domain", "txt_name", "txt_value", "parse_note", "status", "checks", "last_checked_ms", "verified_ms",
+            "last_result_json", "history_json", "note_json")
+SSO_LIST_COLS = ("id", "ticket_id", "requested_ms", "source", "subject", "requester_email", "organization",
+                 "domain", "status", "checks", "last_checked_ms", "verified_ms", "note_json")
+
+
+def sso_upsert(ticket_id, source, requested_ms):
+    """The row for this ticket, made if it is new. Returns its id."""
+    ensure_schema()
+    rows = _read("SELECT id FROM sso_requests WHERE ticket_id = %s", [int(ticket_id)], fresh=True)
+    if rows:
+        return rows[0][0]
+    c = connect(True)
+    try:
+        cur = c.cursor()
+        sql = "INSERT INTO sso_requests (ticket_id, requested_ms, source) VALUES (%s,%s,%s)"
+        if backend() == "postgres":
+            cur.execute(sql + " ON CONFLICT (ticket_id) DO NOTHING RETURNING id", (int(ticket_id), int(requested_ms), source))
+            got = cur.fetchone()
+        else:
+            cur.execute(_q(sql.replace("INSERT", "INSERT OR IGNORE")), (int(ticket_id), int(requested_ms), source))
+            got = (cur.lastrowid,) if cur.rowcount else None
+        c.commit()
+    finally:
+        c.close()
+    if got:
+        return got[0]
+    return _read("SELECT id FROM sso_requests WHERE ticket_id = %s", [int(ticket_id)], fresh=True)[0][0]
+
+
+def sso_update(sso_id, **fields):
+    ensure_schema()
+    cols = [k for k in fields if k in SSO_COLS and k != "id"]
+    if not cols:
+        return
+    c = connect(True)
+    try:
+        c.cursor().execute(_q("UPDATE sso_requests SET " + ", ".join(k + " = %s" for k in cols) + " WHERE id = %s"),
+                           [fields[k] for k in cols] + [int(sso_id)])
+        c.commit()
+    finally:
+        c.close()
+
+
+def sso_get(sso_id, fresh=False):
+    ensure_schema()
+    rows = _read("SELECT " + ", ".join(SSO_COLS) + " FROM sso_requests WHERE id = %s", [int(sso_id)], fresh)
+    return dict(zip(SSO_COLS, rows[0])) if rows else None
+
+
+def sso_ticket_ids(ticket_ids):
+    ids = [int(t) for t in ticket_ids if str(t).isdigit()]
+    if not ids:
+        return set()
+    ensure_schema()
+    return {r[0] for r in _read("SELECT ticket_id FROM sso_requests WHERE ticket_id IN (" + ",".join(["%s"] * len(ids)) + ")",
+                                ids, fresh=True)}
+
+
+def sso_waiting_ids():
+    """Requests 'Check all waiting' looks at: a domain, and not verified yet."""
+    ensure_schema()
+    return [r[0] for r in _read("SELECT id FROM sso_requests WHERE domain IS NOT NULL AND status <> 'verified' "
+                                "ORDER BY requested_ms DESC", [], fresh=True)]
+
+
+def sso_list(q=None, status=None, page=0, per_page=50):
+    ensure_schema()
+    where, args = [], []
+    if status in ("needs_details", "pending", "not_found", "verified", "error"):
+        where.append("status = %s"); args.append(status)
+    elif status == "waiting":
+        where.append("status IN ('pending', 'not_found', 'error')")
+    if q:
+        like = "%" + q.lower().lstrip("#") + "%"
+        where.append("(CAST(ticket_id AS TEXT) LIKE %s OR lower(coalesce(domain,'')) LIKE %s OR "
+                     "lower(coalesce(requester_email,'')) LIKE %s OR lower(coalesce(organization,'')) LIKE %s)")
+        args += [like] * 4
+    w = (" WHERE " + " AND ".join(where)) if where else ""
+    total = _read("SELECT count(*) FROM sso_requests" + w, args)[0][0]
+    per_page = max(1, min(int(per_page), 200))
+    page = max(0, int(page))
+    rows = _read("SELECT " + ", ".join(SSO_LIST_COLS) + " FROM sso_requests" + w +
+                 " ORDER BY requested_ms DESC, id DESC LIMIT %d OFFSET %d" % (per_page, page * per_page), args)
+    counts = dict(_read("SELECT status, count(*) FROM sso_requests GROUP BY status", []))
+    return {"total": total, "page": page, "per_page": per_page,
+            "rows": [dict(zip(SSO_LIST_COLS, r)) for r in rows], "counts": counts}
 
 
 # ---- settings (small team-wide switches set from the pages) ---------------------------

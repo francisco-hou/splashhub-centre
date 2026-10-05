@@ -410,6 +410,9 @@ def note_text(row, style="summary"):
     when = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime((row.get("reviewed_ms") or row.get("finished_ms") or _now()) / 1000))
     lines = ["SplashHub Centre \u2014 AI brand review: %s" % VERDICT_WORDS.get(row.get("verdict"), row.get("verdict") or "?"),
              "", (res.get("overall_summary") or "").strip()]
+    if res.get("generic_email") or res.get("creator_domain_is_generic_email"):
+        lines += ["", "Generic email detected (%s) -- not accepted unless the customer gives a reason." % (
+            row.get("creator_email") or "creator")]
     if res.get("text_only"):
         lines += ["", "Text-only review: %d image(s) could not be downloaded, so the AI did not see them." % res["text_only"]]
     if style == "details":
@@ -603,6 +606,12 @@ def run_scan(scan_id, ticket_id, force=False, manual=False, was=None):
         parsed, usage, model = call_claude(images, b64s, creator_text(who), fields_text(fields))
         cost = cost_of(usage, model)
         verdict = overall(parsed)
+        # Team rule: a package from a generic / free email is not accepted
+        # unless the customer gives a reason -- so it is never "normal".
+        if (who or {}).get("is_free") or parsed.get("creator_domain_is_generic_email"):
+            parsed["generic_email"] = (who or {}).get("email") or True
+            if verdict == "normal":
+                verdict = "needs_review"
         if manual and left_out:
             parsed["text_only"] = left_out     # images the review could not see
         store.scan_update(scan_id, status="done", verdict=verdict, finished_ms=_now(), attach_key=key,

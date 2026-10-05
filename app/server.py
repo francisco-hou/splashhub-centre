@@ -33,6 +33,7 @@ import store
 import feed
 import imagestore
 import sosscan
+import ssocheck
 import zendesk
 
 STATIC = os.path.join(APP, "static")
@@ -146,7 +147,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("index.html", "text/html; charset=utf-8")
             if u.path in ("/scans", "/scans.html"):
                 return self.static("scans.html", "text/html; charset=utf-8")
-            if u.path in ("/app.css", "/app.js", "/scans.js", "/splashtop-icon.png"):
+            if u.path in ("/sso", "/sso.html"):
+                return self.static("sso.html", "text/html; charset=utf-8")
+            if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -223,10 +226,47 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         row[k[:-5]] = None
                 # The ticket's first message, organised; the raw text stays for "Show original text".
                 row["request"] = sosscan.parse_request(row.get("description") or "")
+                # SplashHub's FREE_EMAIL_DOMAINS (the AI's own broader call is in the result)
+                row["creator_is_free_email"] = (row.get("creator_domain") or "").lower() in sosscan.FREE_EMAIL_DOMAINS
                 row["zendesk_url"] = zendesk.base_url()
                 return self.json(row)
             if u.path == "/api/import-past":
                 return self.json(sosscan.import_status())
+            # ---- SSO method validation requests ----
+            if u.path == "/api/sso":
+                one = lambda k: ((qs.get(k) or [""])[0]).strip()
+                try:
+                    page = int(one("page") or 0)
+                except ValueError:
+                    page = 0
+                return self.json(store.sso_list(one("q")[:80] or None, one("status") or None, page, 50))
+            m = re.match(r"^/api/sso/(\d+)/note$", u.path)
+            if m:
+                row = store.sso_get(int(m.group(1)))
+                if not row:
+                    return self.json({"error": "not found"}, 404)
+                try:
+                    return self.json({"text": ssocheck.note_text(row)})
+                except sosscan.ScanError as e:
+                    return self.json({"error": str(e)}, 400)
+            m = re.match(r"^/api/sso/(\d+)$", u.path)
+            if m:
+                row = store.sso_get(int(m.group(1)))
+                if not row:
+                    return self.json({"error": "not found"}, 404)
+                for k in ("last_result_json", "history_json", "note_json"):
+                    try:
+                        row[k[:-5]] = json.loads(row.pop(k) or "null")
+                    except ValueError:
+                        row[k[:-5]] = None
+                row["fields"] = sosscan.parse_request(row.get("description") or "")["fields"]
+                row["parse"] = ssocheck.parse(row.get("description") or "")["note"]
+                row["zendesk_url"] = zendesk.base_url()
+                return self.json(row)
+            if u.path == "/api/sso-import":
+                return self.json(ssocheck.import_status())
+            if u.path == "/api/sso-check-all":
+                return self.json(ssocheck.check_all_status())
             if u.path == "/api/scan-setup":
                 missing = sosscan.missing_config()
                 if not (os.environ.get("ZENDESK_WEBHOOK_SECRET") or "").strip():
@@ -295,6 +335,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             store.set_setting("ai_review", "on" if on else "off", "Centre admin")
             sys.stderr.write("[scan] AI review switched %s\n" % ("on" if on else "off"))
             return self.json({"ok": True, "ai_review": "on" if on else "off"})
+        if u.path.startswith("/api/sso"):
+            return self.sso_post(u, raw)
         m = re.match(r"^/api/scans/(\d+)/note$", u.path)
         if m:
             # "Add as internal note": the one thing SplashHub Centre writes to
@@ -343,6 +385,46 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self.json({"error": "not found"}, 404)
 
 
+def _sso_post(self, u, raw):
+    """The SSO Requests page's actions. All need the admin session."""
+    if not self.authed():
+        return self.json({"error": "login required"}, 401)
+    try:
+        data = json.loads(raw or b"{}")
+    except ValueError:
+        return self.json({"error": "bad request"}, 400)
+    try:
+        if u.path == "/api/sso":                        # "Add a ticket"
+            try:
+                tid = int(str(data.get("ticket_id") or "").strip().lstrip("#"))
+            except ValueError:
+                return self.json({"error": "Give a ticket number."}, 400)
+            return self.json({"ok": True, "id": ssocheck.request(tid, "manual")})
+        if u.path == "/api/sso-import":
+            return self.json(dict(ssocheck.import_status(), started=ssocheck.start_import()))
+        if u.path == "/api/sso-import/stop":
+            return self.json({"ok": ssocheck.stop("import")})
+        if u.path == "/api/sso-check-all":
+            return self.json(dict(ssocheck.check_all_status(), started=ssocheck.start_check_all()))
+        if u.path == "/api/sso-check-all/stop":
+            return self.json({"ok": ssocheck.stop("check")})
+        m = re.match(r"^/api/sso/(\d+)/(check|details|note)$", u.path)
+        if m:
+            sid, what = int(m.group(1)), m.group(2)
+            if what == "check":
+                return self.json({"ok": True, "result": ssocheck.check(sid)})
+            if what == "details":
+                ssocheck.set_details(sid, data.get("domain"), data.get("txt_name"), data.get("txt_value"))
+                return self.json({"ok": True})
+            return self.json({"ok": True, "note": ssocheck.add_note(sid)})
+    except (sosscan.ScanError, zendesk.ZendeskError) as e:
+        return self.json({"error": str(e)}, 400)
+    return self.json({"error": "not found"}, 404)
+
+
+Handler.sso_post = _sso_post
+
+
 def main():
     store.ensure_schema()
     if SAMPLE and store.count() == 0:
@@ -353,6 +435,7 @@ def main():
     sosscan.requeue_unfinished()      # scans a previous container left half-done
     sosscan.start_retries()           # and waiting ones, every 10 minutes
     sosscan.resume_import()           # an import a restart interrupted carries on
+    ssocheck.resume_import()
     srv = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print("SplashHub Centre on http://%s:%d  (backend: %s%s)" % (HOST, PORT, store.backend(), ", sample data" if SAMPLE else ""))
     srv.serve_forever()

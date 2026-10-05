@@ -152,6 +152,13 @@ def handle_zendesk(ev):
         tid = int(str(data.get("ticket_id") or (data.get("ticket") or {}).get("id") or "").strip())
     except (TypeError, ValueError, AttributeError):
         return -1, "the Zendesk body has no ticket_id"
+    # SSO validation requests use the same webhook: told apart by kind=sso in
+    # the trigger's body, or by their subject.
+    import ssocheck
+    if str(data.get("kind") or "").lower() == "sso" or ssocheck.is_sso(data.get("subject")):
+        ssocheck.request(tid, "webhook", data)
+        _log("SSO request listed for #%d" % tid)
+        return 0, ""
     import sosscan
     sosscan.request(tid, "webhook", "Zendesk trigger", pushed=sosscan.pushed_details(data))
     _log("SOS scan queued for #%d" % tid)

@@ -297,33 +297,46 @@
       return h + '<div class="pn-ai-msg" aria-live="polite"></div></section>';
     }
     var res = s.result;
-    h += '<p class="sc-sum"><b>' + esc(LABEL[s.verdict] || s.verdict) + '.</b> ' + esc(res.overall_summary || '') + '</p>';
+    // The same layout as SplashHub's sidebar scan (scan.js renderResults):
+    // the generic-email warning, then ONE card -- the overall verdict with the
+    // average confidence, the Splashtop-credit lines, one summary (package
+    // details first, then each image) and one list of everything flagged.
+    // Each image's own verdict is under its thumbnail in Images.
+    // Team rule (stricter than the sidebar): a generic email is not accepted
+    // unless the customer gives a reason -- never green, at most "Needs review".
+    var generic = !!(s.creator_is_free_email || res.creator_domain_is_generic_email || res.generic_email);
+    if (generic) {
+      h += '<div class="sh-generic">Generic email detected' + (s.creator_email ? ' (' + esc(s.creator_email) + ')' : '') +
+        '<span class="sh-generic-sub">Not accepted unless the customer gives a reason.</span></div>';
+    }
     if (res.text_only) {
       h += '<div class="pn-ai-warn">Text-only review: ' + res.text_only + (res.text_only === 1 ? ' image' : ' images') +
         ' couldn&rsquo;t be downloaded, so the AI didn&rsquo;t see ' + (res.text_only === 1 ? 'it' : 'them') + '.</div>';
     }
-    // Text only, one short entry per image: verdict, file name (opens the
-    // image), one sentence; the Splashtop reference, brands and flags only
-    // when there are any. The thumbnails are in Images, each with its verdict.
-    (res.findings || []).forEach(function (f) {
-      var it = items.filter(function (x) { return x.reviewed === f.image_index; })[0] || {};
-      var name = esc(it.name || ('Image ' + (f.image_index + 1)));
-      var extra = [f.splashtop_reference && f.splashtop_reference !== 'none' ? esc(REF[f.splashtop_reference] || f.splashtop_reference) : '',
-                   (f.detected_brand_references || []).length ? 'Brands: ' + esc(f.detected_brand_references.join(', ')) : ''].filter(Boolean);
-      h += '<div class="air-row"><div class="air-body"><div class="air-head">' + pill(f.verdict) +
-          (it.src ? '<button type="button" class="link-btn air-file" data-lbsrc="' + esc(it.src) + '" title="Open ' + name + '">' + name + '</button>'
-                  : '<span class="air-file">' + name + '</span>') +
-          (f.confidence != null ? '<span class="sc-conf">' + Math.round(f.confidence * 100) + '%</span>' : '') + '</div>' +
-          (f.summary ? '<div class="air-sum">' + esc(f.summary) + '</div>' : '') +
-          (extra.length ? '<div class="sc-meta">' + extra.join(' · ') + '</div>' : '') +
-          ((f.flagged_elements || []).length ? '<ul class="sc-flags">' + f.flagged_elements.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') +
-        '</div></div>';
+    var tr = res.ticket_review && res.ticket_review.verdict !== 'not_applicable' ? res.ticket_review : null;
+    var fs = res.findings || [];
+    var SEV = { normal: 0, needs_review: 1, suspicious: 2 };
+    var worst = fs.map(function (f) { return f.verdict; }).concat(tr ? [tr.verdict] : [])
+      .reduce(function (w, v) { return SEV[v] > SEV[w] ? v : w; }, 'normal');
+    if (generic && worst === 'normal') worst = 'needs_review';
+    var conf = fs.length ? Math.round(fs.reduce(function (t, f) { return t + (f.confidence || 0); }, 0) / fs.length * 100) : null;
+    h += '<div class="sh-card"><span class="vpill v-' + esc(worst) + '">' + esc(LABEL[worst] || worst) +
+      (conf != null ? ' (' + conf + '%)' : '') + '</span>';
+    var shown = {};
+    fs.forEach(function (f) {
+      var r = f.splashtop_reference;
+      if (shown[r] || (r !== 'powered_by_attribution' && r !== 'other_reference')) return;
+      shown[r] = 1;
+      h += r === 'other_reference'
+        ? '<div class="sh-warn">Contains a Splashtop name/logo/attribution beyond &ldquo;Powered by&rdquo; &mdash; not acceptable for a white-label build.</div>'
+        : '<div class="sh-sum">Contains a &ldquo;Powered by Splashtop&rdquo; attribution &mdash; acceptable for a white-label build.</div>';
     });
-    var tr = res.ticket_review || {};
-    h += '<div class="air-row"><div class="air-body"><div class="air-head">' + pill(tr.verdict || 'not_applicable') +
-      '<span class="air-file">Package details</span></div>' + (tr.summary ? '<div class="air-sum">' + esc(tr.summary) + '</div>' : '') +
-      ((tr.flagged_fields || []).length ? '<ul class="sc-flags">' + tr.flagged_fields.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') +
-      '</div></div>';
+    var parts = (tr ? [tr.summary] : []).concat(fs.map(function (f) { return f.summary; })).filter(Boolean);
+    if (!fs.length && !tr && res.overall_summary) parts = [res.overall_summary];
+    if (parts.length) h += '<div class="sh-sum">' + esc(parts.join(' ')) + '</div>';
+    var flags = [].concat.apply(tr ? (tr.flagged_fields || []).slice() : [], fs.map(function (f) { return f.flagged_elements || []; }));
+    if (flags.length) h += '<ul class="sh-flags">' + flags.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
+    h += '</div>';
     h += '<div class="pn-ai-by">' + (s.ai_review === 'manual' ? 'Reviewed with the AI review button' : 'Reviewed automatically on arrival') +
       (s.reviewed_ms || s.finished_ms ? ' · ' + esc(fullWhen(s.reviewed_ms || s.finished_ms)) : '') +
       (s.model ? ' · ' + esc(s.model) + ' · ' + esc(formatUsd(s.cost)) : '') + '</div>';
