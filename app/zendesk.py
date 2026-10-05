@@ -71,7 +71,10 @@ def _open(url, auth=True, accept="application/json", limit=None):
         req.add_unredirected_header("Authorization", _auth())
     try:
         with _OPENER.open(req, timeout=TIMEOUT) as r:
-            data = r.read(limit + 1 if limit else -1)
+            # read() with no argument for the whole body. NOT read(-1): on a
+            # chunked reply (Zendesk's) that returns the raw stream, chunk-size
+            # lines and all, so valid JSON arrives corrupted.
+            data = r.read(limit + 1) if limit else r.read()
             LAST.update(status=r.status, final=r.geturl(), ctype=r.headers.get("Content-Type") or "",
                         redirected=r.geturl() != url)
             return data, (r.headers.get("Content-Type") or "")
