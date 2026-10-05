@@ -16,7 +16,7 @@ app:
   port: 8795
   health_check_path: /health
   stage: in_development
-  version: "0.3.6"
+  version: "0.3.7"
 
 deployment:
   environment: dev
@@ -52,10 +52,9 @@ permissions:
     reason: Copies of the images on Custom SOS package tickets, so the SOS Scans page always shows them -- without a Zendesk session and after they are removed from Zendesk
   - service: SPLUKI_WEBHOOK
     reason: Zendesk SplashHub Logs -- SplashHub (inside Zendesk) cannot reach a Spluki app directly; it posts each run to the platform's public intake and this app picks them up
-  # Re-enable both once a Spluki admin approves them (perm_79cebce395e1, perm_84e51ae0b991):
-  # a release that declares an unapproved grant is refused. Until then, SOS scan
-  # requests from Zendesk are kept as "waiting" and run on the first release that has them.
-  # - service: OUTBOUND_HTTP
-  #   reason: Read-only Zendesk API for the automatic Custom SOS package scan (ticket, comments, thumbnail downloads from zdusercontent.com). Nothing is written back to Zendesk.
-  # - service: CUSTOM_AI
-  #   reason: Team Anthropic key for the SOS package scan (Claude vision, same policy and model as SplashHub's sidebar scan)
+  - service: OUTBOUND_HTTP
+    reason: Read-only Zendesk API for the automatic Custom SOS package scan (ticket, comments, thumbnail downloads from zdusercontent.com). Nothing is written back to Zendesk.
+  # The AI review itself stays off until someone turns on the switch on the SOS
+  # Scans page; declaring the grant only means no release is needed then.
+  - service: CUSTOM_AI
+    reason: Team Anthropic key for the SOS package scan (Claude vision, same policy and model as SplashHub's sidebar scan)
