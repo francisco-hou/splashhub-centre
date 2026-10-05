@@ -370,7 +370,7 @@ def _translate_spark(texts):
         raise ScanError("Spark isn't connected yet -- pick Claude in Settings, or wait for the next release.")
     try:
         text = spark.chat(TRANSLATE_PROMPT + ' Answer with JSON only: {"items": [{"key": ..., "english": ...}]}.',
-                          json.dumps([{"key": k, "text": v} for k, v in texts.items()], ensure_ascii=False), max_tokens=1500)
+                          json.dumps([{"key": k, "text": v} for k, v in texts.items()], ensure_ascii=False), max_tokens=4000)
     except spark.SparkError as e:
         raise ScanError("Spark couldn't translate: %s" % e)
     start, end = text.find("{"), text.rfind("}")

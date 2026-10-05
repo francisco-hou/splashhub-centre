@@ -59,7 +59,7 @@ def model():
     return _MODELS["list"][0]
 
 
-def chat(system, user, max_tokens=400):
+def chat(system, user, max_tokens=2000):     # room for a model that thinks first
     """One short answer as plain text."""
     d = _call("/chat/completions", {"model": model(), "max_tokens": max_tokens, "temperature": 0.2,
                                      "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]})
