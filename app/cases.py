@@ -125,12 +125,23 @@ def scrub(text):
     return t[:BODY_CHARS]
 
 
+# NUL and the other control characters (tab and newline aside): PostgreSQL
+# refuses a NUL in text outright (DataError), and some tickets carry them.
+_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def _txt(v, n):
+    v = _CTRL.sub("", str(v or ""))[:n]
+    return v or None
+
+
 def _row(t):
     via = ((t.get("via") or {}).get("channel") or "")
-    return (int(t["id"]), _ms(t.get("created_at")) or _now(), _ms(t.get("updated_at")), t.get("status") or None,
-            t.get("type") or None, t.get("priority") or None, via or None,
-            _EMAIL.sub("[email]", (t.get("subject") or "")[:300]), scrub(t.get("description") or ""),
-            " ".join(t.get("tags") or [])[:1000] or None)
+    return (int(t["id"]), _ms(t.get("created_at")) or _now(), _ms(t.get("updated_at")), _txt(t.get("status"), 20),
+            _txt(t.get("type"), 20), _txt(t.get("priority"), 20), _txt(via, 40),
+            _txt(_EMAIL.sub("[email]", _CTRL.sub("", t.get("subject") or "")), 300),
+            _txt(scrub(_CTRL.sub("", t.get("description") or "")), BODY_CHARS),
+            _txt(" ".join(str(x) for x in t.get("tags") or []), 1000))
 
 
 def _wanted(t):
@@ -138,12 +149,7 @@ def _wanted(t):
     return t.get("id") and not any(subj.startswith(s) for s in SKIP_SUBJECTS) and (_ms(t.get("created_at")) or 0) >= _ms(START + "T00:00:00")
 
 
-def save(tickets):
-    rows = [_row(t) for t in tickets if _wanted(t)]
-    if not rows:
-        return 0
-    ensure()
-    now = _now()
+def _insert(rows, now):
     c = store.connect(True)
     try:
         cur = c.cursor()
@@ -158,7 +164,37 @@ def save(tickets):
         c.commit()
     finally:
         c.close()
-    return len(rows)
+
+
+def save(tickets):
+    rows = []
+    for t in tickets:
+        try:
+            if _wanted(t):
+                rows.append(_row(t))
+        except (ValueError, TypeError, KeyError):
+            JOB["skipped"] = JOB.get("skipped", 0) + 1
+    if not rows:
+        return 0
+    ensure()
+    now = _now()
+    try:
+        _insert(rows, now)
+        return len(rows)
+    except Exception:
+        pass
+    # One ticket the database won't take must not stop the week: one at a time, skipping it.
+    saved = 0
+    for r in rows:
+        try:
+            _insert([r], now)
+            saved += 1
+        except Exception as e:
+            JOB["skipped"] = JOB.get("skipped", 0) + 1
+            # the database's own reason (no ticket text, no connection details)
+            why = (getattr(getattr(e, "diag", None), "message_primary", None) or "")[:120]
+            sys.stderr.write("[cases] #%s not saved: %s%s\n" % (r[0], type(e).__name__, (" -- " + why) if why else ""))
+    return saved
 
 
 # ---- download / update jobs (background, one at a time) ----------------------------------
@@ -220,7 +256,8 @@ def _run(kind):
         JOB["error"] = str(e)[:300]
     except Exception as e:
         JOB["error"] = "internal error (%s) -- see the app log" % type(e).__name__
-        sys.stderr.write("[cases] %s failed: %s\n" % (kind, type(e).__name__))
+        why = (getattr(getattr(e, "diag", None), "message_primary", None) or "")[:120]     # a database error's own reason
+        sys.stderr.write("[cases] %s failed: %s%s\n" % (kind, type(e).__name__, (" -- " + why) if why else ""))
     finally:
         JOB.update(running=False, finished_ms=_now(), stopped=JOB["stop"])
         if kind == "download":
@@ -235,7 +272,7 @@ def start(kind):
     with _lock:
         if JOB["running"]:
             return False
-        JOB.update(running=True, kind=kind, saved=0, week=None, error=None, finished_ms=None, stop=False, stopped=False)
+        JOB.update(running=True, kind=kind, saved=0, skipped=0, week=None, error=None, finished_ms=None, stop=False, stopped=False)
     if kind == "download":
         store.set_setting("cases_running", "yes", "cases")
     threading.Thread(target=_run, args=(kind,), name="cases-" + kind, daemon=True).start()

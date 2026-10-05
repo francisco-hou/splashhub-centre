@@ -192,14 +192,14 @@
     var msg = $('caseMsg');
     if (st.running) {
       msg.textContent = (st.kind === 'download' ? (st.week ? 'Downloading the week of ' + day(st.week) + '… ' : 'Starting… ') : 'Updating… ') +
-        (st.saved ? st.saved.toLocaleString() + ' saved so far.' : '');
+        (st.saved ? st.saved.toLocaleString() + ' saved so far.' : '') + (st.skipped ? ' ' + st.skipped + ' skipped (unreadable).' : '');
       clearTimeout(casePoll); casePoll = setTimeout(pollCases, 2500);
     } else if (st.error) {
       msg.textContent = 'Stopped: ' + st.error;
     } else if (st.stopped) {
       msg.textContent = 'Stopped. Press the button again to carry on from the same week.';
     } else if (st.finished_ms) {
-      msg.textContent = 'Done: ' + (st.saved || 0).toLocaleString() + ' saved.';
+      msg.textContent = 'Done: ' + (st.saved || 0).toLocaleString() + ' saved' + (st.skipped ? ', ' + st.skipped + ' skipped (unreadable)' : '') + '.';
     } else {
       msg.textContent = '';
     }
