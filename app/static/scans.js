@@ -69,10 +69,23 @@
   // changed -- an automatic check while a request is processing should be
   // invisible unless it has news.
   var seq = 0, poll = null, lastSig = '';
+  // The refresh icon (top right) turns while the list is being checked: on a
+  // click, on the automatic check every minute, and while a request is being
+  // processed. At least a moment, so a quick check is still visible. The
+  // list itself never dims or flashes -- it only changes when there is news.
+  var spinAt = 0;
+  function spinOn() { spinAt = Date.now(); $('refresh').classList.add('spin'); }
+  function spinOff() {
+    setTimeout(function () { $('refresh').classList.remove('spin'); }, Math.max(0, 700 - (Date.now() - spinAt)));
+  }
+  setInterval(function () { if (document.visibilityState === 'visible' && !$('page').hidden) load(); }, 60000);
+
   function load() {
     var my = ++seq;
+    spinOn();
     var p = 'page=' + S.page + (S.verdict ? '&verdict=' + encodeURIComponent(S.verdict) : '') + (S.q ? '&q=' + encodeURIComponent(S.q) : '');
     api('/api/scans?' + p).then(function (res) {
+      spinOff();
       if (my !== seq) return;
       var sig = JSON.stringify([p, res.total, res.counts, res.rows.map(function (r) { return [r.id, r.status, r.verdict, r.subject, r.creator_email, r.cost, r.ticket_status]; })]);
       if (sig !== lastSig) {
@@ -84,7 +97,7 @@
       $('stamp').textContent = 'Updated ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
       clearTimeout(poll);
       if (res.rows.some(function (r) { return r.status === 'queued' || r.status === 'running'; })) poll = setTimeout(load, 4000);
-    }).catch(function (e) { if (e.message !== 'login') $('stamp').textContent = 'Could not load: ' + e.message; });
+    }).catch(function (e) { spinOff(); if (e.message !== 'login') $('stamp').textContent = 'Could not load: ' + e.message; });
   }
 
   function drawChips(counts) {

@@ -31,17 +31,32 @@ a:hover { color: #004a87; text-decoration: underline; }
 }
 .topnav-item:hover { color: #1d242c; text-decoration: none; }
 .topnav-item.active { color: #0071ce; border-bottom-color: #0071ce; font-weight: 600; }
-.topbar-right { margin-left: auto; }
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.topbar-right .btn-icon { padding: 6px 8px; }
+.brand-name, .topnav-item, .stamp { white-space: nowrap; }
+/* Narrow windows: the page links scroll sideways instead of pushing the
+   time and the refresh button off the edge; the time hides on a phone. */
+@media (max-width: 900px) {
+  .topbar { gap: 14px; padding: 0 12px; }
+  .topnav { min-width: 0; flex: 1 1 auto; overflow-x: auto; scrollbar-width: none; }
+  .topnav::-webkit-scrollbar { display: none; }
+  .topnav-item { padding: 0 9px; }
+  .topbar-right { margin-left: 0; flex: none; }
+}
+@media (max-width: 560px) { .topbar .stamp, .brand-sub { display: none; } }
 .link-btn { border: 0; background: none; padding: 0; font-size: 12.5px; font-weight: 500; color: #0071ce; cursor: pointer; }
 .link-btn:hover { text-decoration: underline; }
 
 /* ---- page ---- */
 .page { max-width: 1280px; margin: 0 auto; padding: 24px 24px 48px; display: flex; flex-direction: column; gap: 16px; }
-.hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+/* The title and description on the left; the time and refresh stay on the
+   title's line at the right, at any width (no wrapping under the text). */
+.hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.hdr-left { min-width: 0; flex: 1 1 auto; }
 .hdr-left { display: flex; flex-direction: column; gap: 6px; }
 .hdr-title { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
 .hdr-sub { font-size: 13px; color: #55606b; }
-.hdr-right { display: flex; align-items: center; gap: 10px; }
+.hdr-right { display: flex; align-items: center; gap: 10px; flex: none; margin-top: 2px; }
 .stamp { font-size: 12px; color: #78838f; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* Feed status: always a word beside the dot, never colour alone. */
 .feed { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: #55606b;
