@@ -221,7 +221,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if not row:
                     return self.json({"error": "not found"}, 404)
                 try:
-                    return self.json({"html": sosscan.note_html(row, "details" if (qs.get("style") or [""])[0] == "details" else "summary")})
+                    return self.json({"html": sosscan.note_html(row)})
                 except sosscan.ScanError as e:
                     return self.json({"error": str(e)}, 400)
             if u.path.startswith("/api/scans/") and u.path.rsplit("/", 1)[1].isdigit():
@@ -284,8 +284,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(ssocheck.check_all_status())
             if u.path == "/api/settings":
                 return self.json({"ai_review": "on" if sosscan.ai_review_on() else "off",
-                                  "auto_note": "on" if sosscan.auto_note() else "off",
-                                  "auto_note_style": store.get_setting("auto_note_style", "summary")})
+                                  "auto_note": "on" if sosscan.auto_note() else "off"})
             if u.path == "/api/scan-setup":
                 missing = sosscan.missing_config()
                 if not (os.environ.get("ZENDESK_WEBHOOK_SECRET") or "").strip():
@@ -343,7 +342,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             started = sosscan.start_import()
             return self.json(dict(sosscan.import_status(), started=started))
         if u.path == "/api/settings":
-            # Settings page: "Auto add internal note" (on/off, summary/details).
+            # Settings page: "Auto add internal note" (on/off).
             if not self.authed():
                 return self.json({"error": "login required"}, 401)
             try:
@@ -353,10 +352,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if "auto_note" in data:
                 store.set_setting("auto_note", "on" if data["auto_note"] else "off", "Centre admin")
                 sys.stderr.write("[note] automatic internal notes switched %s\n" % ("on" if data["auto_note"] else "off"))
-            if data.get("auto_note_style") in ("summary", "details"):
-                store.set_setting("auto_note_style", data["auto_note_style"], "Centre admin")
-            return self.json({"ok": True, "auto_note": "on" if sosscan.auto_note() else "off",
-                              "auto_note_style": store.get_setting("auto_note_style", "summary")})
+            return self.json({"ok": True, "auto_note": "on" if sosscan.auto_note() else "off"})
         if u.path == "/api/ai-review":
             # The AI review switch. Applies only to requests that arrive from now
             # on; anything already listed keeps the decision it arrived with.
@@ -378,8 +374,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not self.authed():
                 return self.json({"error": "login required"}, 401)
             try:
-                style = "details" if (json.loads(raw or b"{}").get("style") == "details") else "summary"
-                return self.json({"ok": True, "note": sosscan.add_note(int(m.group(1)), style)})
+                return self.json({"ok": True, "note": sosscan.add_note(int(m.group(1)))})
             except ValueError:
                 return self.json({"error": "bad request"}, 400)
             except (sosscan.ScanError, zendesk.ZendeskError) as e:

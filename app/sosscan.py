@@ -454,13 +454,14 @@ def review_reasons(row, res=None):
     return reasons
 
 
-def note_html(row, style="summary"):
+def note_html(row):
     """The internal note for this request's AI review, as the HTML Zendesk
     shows (bold, dividers, links). Everything from the ticket or the AI is
     escaped; links are only the http(s) ones parse_request found.
 
-    SplashHub AI Review / Status / Reason / Review (with style="details": Image
-    and Package details) / Quick links / package and creator / one divider / when."""
+    SplashHub AI Review / Status / Reason / Review, with Image details and
+    Package details as bullets / Quick links / package and creator / one
+    divider / when. One version only (there used to be a shorter "summary")."""
     res = json.loads(row.get("result_json") or "null")
     if not res:
         raise ScanError("This request has no AI review yet.")
@@ -483,25 +484,24 @@ def note_html(row, style="summary"):
     else:
         h.append("<p><strong>Reason:</strong></p><ul>%s</ul>" % "".join("<li>%s</li>" % _e(r) for r in reasons))
     h += ["<p><strong>Review</strong></p>", "<p>%s</p>" % _e((res.get("overall_summary") or "").strip())]
-    if style == "details":
-        bullets = []             # Image details / Package details, as bullet points under the review
-        if fs:
-            # One line for all the images, like Package details: the worst
-            # verdict, the average confidence, and the summaries together.
-            sev = {"normal": 0, "needs_review": 1, "suspicious": 2}
-            worst = max((f.get("verdict") for f in fs), key=lambda v: sev.get(v, 0))
-            confs = [f["confidence"] for f in fs if f.get("confidence") is not None]
-            summ = " ".join(s_.strip().rstrip(".") + "." for s_ in (f.get("summary") or "" for f in fs) if s_.strip())
-            bullets.append("<li><strong>Image details:</strong> %s%s%s</li>" % (
-                _e(VERDICT_WORDS.get(worst, worst)),
-                (" (%d%%)" % round(sum(confs) / len(confs) * 100)) if confs else "",
-                (". " + _e(summ)) if summ else ""))
-        if tr:
-            bullets.append("<li><strong>Package details:</strong> %s%s</li>" % (
-                _e(VERDICT_WORDS.get(tr.get("verdict"), tr.get("verdict") or "?")),
-                (". " + _e(tr["summary"].strip())) if tr.get("summary") else ""))
-        if bullets:
-            h.append("<ul>%s</ul>" % "".join(bullets))
+    # Image details and Package details: a bold label with the verdict, then
+    # the findings as bullet points underneath.
+    def section(label, verdict, conf, points):
+        h.append("<p><strong>%s:</strong> %s%s</p>" % (label, _e(VERDICT_WORDS.get(verdict, verdict or "?")),
+                                                      (" (%d%%)" % conf) if conf is not None else ""))
+        points = [x.strip() for x in points if x and x.strip()]
+        if points:
+            h.append("<ul>%s</ul>" % "".join("<li>%s</li>" % _e(x) for x in points))
+
+    if fs:
+        sev = {"normal": 0, "needs_review": 1, "suspicious": 2}
+        worst = max((f.get("verdict") for f in fs), key=lambda v: sev.get(v, 0))
+        confs = [f["confidence"] for f in fs if f.get("confidence") is not None]
+        section("Image details", worst, round(sum(confs) / len(confs) * 100) if confs else None,
+                [f.get("summary") for f in fs])
+    if tr:
+        section("Package details", tr.get("verdict"), None,
+                [tr.get("summary")] + ["Flagged: " + x for x in (tr.get("flagged_fields") or [])])
     req = parse_request(row.get("description") or "")
     # Quick links, right under the review
     links = [(LINK_WORDS.get(l["label"].lower(), l["label"]), l["url"]) for l in req["links"]
@@ -526,17 +526,17 @@ def note_html(row, style="summary"):
     return "\n".join(h)
 
 
-def add_note(scan_id, style="summary"):
+def add_note(scan_id):
     """Add the review to the ticket as an internal note; records when."""
     row = store.scan_get(scan_id, fresh=True)
     if not row:
         raise ScanError("That request is gone.")
     if zendesk.configured():
         raise ScanError("SplashHub Centre has no Zendesk login yet.")
-    zendesk.add_internal_note(row["ticket_id"], note_html(row, style), html=True)
-    info = {"ms": _now(), "style": style}
+    zendesk.add_internal_note(row["ticket_id"], note_html(row), html=True)
+    info = {"ms": _now()}
     store.scan_update(scan_id, note_json=json.dumps(info))
-    sys.stderr.write("[note] #%s internal note added (%s)\n" % (row["ticket_id"], style))
+    sys.stderr.write("[note] #%s internal note added\n" % row["ticket_id"])
     return info
 
 
@@ -583,21 +583,17 @@ def save_gallery(ticket_id, comments, reviewed, strict=True):
 
 
 def auto_note():
-    """The Settings page's "Auto add internal note": None when off, else the
-    style ("summary" / "details") every finished AI review is added in."""
-    if store.get_setting("auto_note", "off") != "on":
-        return None
-    return "details" if store.get_setting("auto_note_style", "summary") == "details" else "summary"
+    """The Settings page's "Auto add internal note": add every finished AI review?"""
+    return store.get_setting("auto_note", "off") == "on"
 
 
 def _auto_note(scan_id, ticket_id):
     """After a review: add it to the ticket when the setting is on. A failure
     is noted on the request (the page shows it) and never undoes the review."""
-    style = auto_note()
-    if not style:
+    if not auto_note():
         return
     try:
-        info = add_note(scan_id, style)
+        info = add_note(scan_id)
         info["auto"] = True
         store.scan_update(scan_id, note_json=json.dumps(info))
     except Exception as e:     # never let the note undo the review

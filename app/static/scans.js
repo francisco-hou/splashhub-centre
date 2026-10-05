@@ -296,25 +296,20 @@
 
   // "Add as internal note": preview the note (summary or full details), then
   // add it to the Zendesk ticket. Manual: nothing is added without the press.
-  var NOTE = { open: null, style: 'summary', text: '', busy: false };
+  var NOTE = { open: null, text: '', busy: false };
   function noteBlock(s) {
     var h = '<div class="pn-note">';
     if (s.note && s.note.error) {
       h += '<div class="pn-ai-warn">The automatic internal note failed: ' + esc(s.note.error) + '</div>';
     } else if (s.note && s.note.ms) {
-      h += '<div class="pn-note-done">&#10003; Added to Zendesk as an internal note (' + (s.note.style === 'details' ? 'details' : 'summary') +
-        (s.note.auto ? ', automatically' : '') + ') · ' + esc(fullWhen(s.note.ms)) + '</div>';
+      h += '<div class="pn-note-done">&#10003; Added to Zendesk as an internal note' + (s.note.auto ? ' automatically' : '') +
+        ' · ' + esc(fullWhen(s.note.ms)) + '</div>';
     }
     if (NOTE.open !== s.id) {
       return h + '<button type="button" class="btn pn-note-btn" data-note="1">' + (s.note ? 'Add another internal note' : 'Add as internal note') + '</button></div>';
     }
     return h + '<div class="pn-note-box">' +
-      '<div class="pn-note-top"><span class="pn-note-lbl">Internal note on #' + s.ticket_id + '</span>' +
-        '<div class="seg" role="group" aria-label="Note length">' +
-          ['summary', 'details'].map(function (k) {
-            return '<button type="button" data-nstyle="' + k + '" class="' + (NOTE.style === k ? 'on' : '') + '" aria-pressed="' + (NOTE.style === k) + '">' +
-              (k === 'summary' ? 'Summary' : 'Details') + '</button>';
-          }).join('') + '</div></div>' +
+      '<div class="pn-note-top"><span class="pn-note-lbl">Internal note on #' + s.ticket_id + '</span></div>' +
       // The server builds the note's HTML and escapes everything in it from the ticket or the AI.
       '<div class="pn-note-pre zd-note">' + (NOTE.text || 'Loading&hellip;') + '</div>' +
       '<div class="pn-note-hint">Only agents see internal notes; the customer is not notified.</div>' +
@@ -325,9 +320,9 @@
   }
   function notePreview(s) {
     NOTE.text = '';
-    var want = NOTE.style;
-    api('/api/scans/' + s.id + '/note?style=' + want).then(function (r) {
-      if (NOTE.open === s.id && NOTE.style === want) { NOTE.text = r.html; redraw(); }
+
+    api('/api/scans/' + s.id + '/note').then(function (r) {
+      if (NOTE.open === s.id) { NOTE.text = r.html; redraw(); }
     }).catch(function (e) { if (e.message !== 'login') { NOTE.text = ''; noteMsg(e.message); } });
   }
   function redraw() { if (CUR) $('detail').innerHTML = render(CUR); }
@@ -516,19 +511,14 @@
       return;
     }
     if (CUR && ev.target.closest('[data-note]')) {
-      NOTE.open = CUR.id; NOTE.style = 'summary'; NOTE.busy = false; redraw(); notePreview(CUR);
-      return;
-    }
-    var ns = ev.target.closest('[data-nstyle]');
-    if (CUR && ns) {
-      NOTE.style = ns.getAttribute('data-nstyle'); redraw(); notePreview(CUR);
+      NOTE.open = CUR.id; NOTE.busy = false; redraw(); notePreview(CUR);
       return;
     }
     if (CUR && ev.target.closest('[data-notecancel]')) { NOTE.open = null; redraw(); return; }
     if (CUR && ev.target.closest('[data-notepost]')) {
       var ns_s = CUR;
       NOTE.busy = true; redraw();
-      api('/api/scans/' + ns_s.id + '/note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ style: NOTE.style }) })
+      api('/api/scans/' + ns_s.id + '/note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
         .then(function (r) { ns_s.note = r.note; NOTE.open = null; NOTE.busy = false; if (CUR === ns_s) redraw(); })
         .catch(function (e) { NOTE.busy = false; redraw(); if (e.message !== 'login') noteMsg(e.message); });
       return;

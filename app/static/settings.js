@@ -1,7 +1,7 @@
 // SplashHub Centre -- Settings page.
 //
 // The SOS Scans controls that change how the team works: the AI review
-// switch, "Auto add internal note" (and its length), Scan a ticket, and the
+// switch, "Auto add internal note", Scan a ticket, and the
 // past-request import. Every switch is team-wide and stored on the server.
 (function () {
   'use strict';
@@ -51,17 +51,10 @@
     $(state).textContent = on ? 'On' : 'Off';
     $(box).classList.toggle('on', on);
   }
-  function drawStyle(style) {
-    [].forEach.call($('noteStyle').querySelectorAll('button'), function (b) {
-      var on = b.getAttribute('data-style') === style;
-      b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
-    });
-  }
   function settings() {
     api('/api/settings').then(function (s) {
       drawSwitch('aiSwitch', 'aiToggle', 'aiState', s.ai_review === 'on');
       drawSwitch('noteSwitch', 'noteToggle', 'noteState', s.auto_note === 'on');
-      drawStyle(s.auto_note_style === 'details' ? 'details' : 'summary');
     }).catch(function () {});
   }
 
@@ -86,12 +79,6 @@
     post('/api/settings', { auto_note: on })
       .then(function (r) { drawSwitch('noteSwitch', 'noteToggle', 'noteState', r.auto_note === 'on'); })
       .catch(function () { drawSwitch('noteSwitch', 'noteToggle', 'noteState', !on); });
-  });
-  $('noteStyle').addEventListener('click', function (ev) {
-    var b = ev.target.closest('[data-style]'); if (!b) return;
-    var style = b.getAttribute('data-style');
-    drawStyle(style);
-    post('/api/settings', { auto_note_style: style }).then(function (r) { drawStyle(r.auto_note_style); }).catch(settings);
   });
 
   // ---- scan a ticket now ---------------------------------------------------------------
