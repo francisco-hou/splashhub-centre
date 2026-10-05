@@ -460,8 +460,8 @@ def note_html(row):
     escaped; links are only the http(s) ones parse_request found.
 
     SplashHub AI Review / Status / Reason / Review, with Image details and
-    Package details as bullets / Quick links / package and creator / one
-    divider / when. One version only (there used to be a shorter "summary")."""
+    Package details as bullets / Quick links / one divider / package and
+    creator / when. One version only (there used to be a shorter "summary")."""
     res = json.loads(row.get("result_json") or "null")
     if not res:
         raise ScanError("This request has no AI review yet.")
@@ -483,15 +483,16 @@ def note_html(row):
         h.append("<p><strong>Reason:</strong> %s</p>" % _e(reasons[0]))
     else:
         h.append("<p><strong>Reason:</strong></p><ul>%s</ul>" % "".join("<li>%s</li>" % _e(r) for r in reasons))
-    h += ["<p><strong>Review</strong></p>", "<p>%s</p>" % _e((res.get("overall_summary") or "").strip())]
-    # Image details and Package details: a bold label with the verdict, then
-    # the findings as bullet points underneath.
+    summary = (res.get("overall_summary") or "").strip()
+    h.append("<p><strong>Review</strong></p>")
+    if summary:
+        h.append("<ul><li>%s</li></ul>" % _e(summary))
+    # Review, Image details and Package details: a bold label on its own,
+    # and everything under it as bullet points -- the verdict first.
     def section(label, verdict, conf, points):
-        h.append("<p><strong>%s:</strong> %s%s</p>" % (label, _e(VERDICT_WORDS.get(verdict, verdict or "?")),
-                                                      (" (%d%%)" % conf) if conf is not None else ""))
-        points = [x.strip() for x in points if x and x.strip()]
-        if points:
-            h.append("<ul>%s</ul>" % "".join("<li>%s</li>" % _e(x) for x in points))
+        first = "Verdict: %s%s" % (VERDICT_WORDS.get(verdict, verdict or "?"), (" (%d%%)" % conf) if conf is not None else "")
+        points = [first] + [x.strip() for x in points if x and x.strip()]
+        h.append("<p><strong>%s</strong></p><ul>%s</ul>" % (label, "".join("<li>%s</li>" % _e(x) for x in points)))
 
     if fs:
         sev = {"normal": 0, "needs_review": 1, "suspicious": 2}
@@ -511,7 +512,8 @@ def note_html(row):
     if links:
         h.append("<p><strong>Quick links:</strong> %s</p>" % " \u00b7 ".join(
             '<a href="%s">%s</a>' % (_e(u), _e(t)) for t, u in links))
-    # who; then the note's only divider; then when
+    # the note's only divider, under the quick links; then who and when
+    h.append("<hr>")
     labels = {f["label"].lower(): f["value"] for f in req["fields"]}
     meta = []
     if labels.get("package name"):
@@ -520,7 +522,6 @@ def note_html(row):
         meta.append("Creator: " + row["creator_email"])
     if meta:
         h.append("<p><small>%s</small></p>" % _e(" \u00b7 ".join(meta)))
-    h.append("<hr>")
     h.append("<p><small>Reviewed %s \u00b7 %s \u00b7 AI-generated; check before acting on it.</small></p>" % (
         _e(when), _e(row.get("model") or "Claude")))
     return "\n".join(h)
