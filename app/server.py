@@ -148,11 +148,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("index.html", "text/html; charset=utf-8")
             if u.path in ("/scans", "/scans.html"):
                 return self.static("scans.html", "text/html; charset=utf-8")
+            if u.path in ("/ask", "/ask.html"):
+                return self.static("ask.html", "text/html; charset=utf-8")
             if u.path in ("/settings", "/settings.html"):
                 return self.static("settings.html", "text/html; charset=utf-8")
             if u.path in ("/sso", "/sso.html"):
                 return self.static("sso.html", "text/html; charset=utf-8")
-            if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js", "/splashtop-icon.png"):
+            if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js", "/ask.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -379,6 +381,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.json({"ok": True, "ai_review": "on" if on else "off"})
         if u.path.startswith("/api/sso"):
             return self.sso_post(u, raw)
+        if u.path == "/api/ask":
+            # Ask AI: a question about SplashHub Centre's own data, answered by
+            # Spark with read-only lookups (askai.py).
+            if not self.authed():
+                return self.json({"error": "login required"}, 401)
+            import askai, spark
+            try:
+                msgs = (json.loads(raw or b"{}").get("messages") or [])[-10:]
+            except ValueError:
+                return self.json({"error": "bad request"}, 400)
+            if not msgs or not isinstance(msgs[-1], dict) or not str(msgs[-1].get("content") or "").strip():
+                return self.json({"error": "Ask a question."}, 400)
+            try:
+                out = askai.ask(msgs)
+            except spark.SparkError as e:
+                return self.json({"error": str(e)}, 400)
+            store.insert_many([{"when": int(time.time() * 1000), "agent": "SplashHub Centre", "kind": "ask (Centre AI)",
+                                "model": "spark:" + spark.model(), "topic": str(msgs[-1].get("content"))[:120], "tickets": 0,
+                                "input_tokens": 0, "output_tokens": 0, "cost": 0, "source": "centre"}])
+            return self.json(out)
         m = re.match(r"^/api/scans/(\d+)/note$", u.path)
         if m:
             # "Add as internal note": the one thing SplashHub Centre writes to

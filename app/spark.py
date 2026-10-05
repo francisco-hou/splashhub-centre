@@ -59,19 +59,32 @@ def model():
     return _MODELS["list"][0]
 
 
-def chat(system, user, max_tokens=2000):     # room for a model that thinks first
-    """One short answer as plain text."""
-    d = _call("/chat/completions", {"model": model(), "max_tokens": max_tokens, "temperature": 0.2,
-                                     "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]})
-    try:
-        text = d["choices"][0]["message"]["content"] or ""
-    except (KeyError, IndexError, TypeError):
-        raise SparkError("Spark's answer had no text")
-    # Reasoning models (Qwen3 on Spark) may think out loud first, in a
-    # <think> block; only what comes after it is the answer.
+def clean(text):
+    """The answer without a reasoning model's <think> block (Qwen3 on Spark
+    may think out loud first; only what follows is the answer)."""
+    text = text or ""
     if "</think>" in text:
         text = text.split("</think>")[-1]
-    text = re.sub(r"<think>.*", "", text, flags=re.S)
-    if not text.strip():
+    return re.sub(r"<think>.*", "", text, flags=re.S).strip()
+
+
+def chat_raw(messages, tools=None, max_tokens=2000):
+    """One Chat Completions call; the reply message as Spark sends it
+    (content and, when tools are given, any tool_calls)."""
+    body = {"model": model(), "max_tokens": max_tokens, "temperature": 0.2, "messages": messages}
+    if tools:
+        body["tools"] = tools
+    d = _call("/chat/completions", body)
+    try:
+        return d["choices"][0]["message"] or {}
+    except (KeyError, IndexError, TypeError):
+        raise SparkError("Spark's answer had no message")
+
+
+def chat(system, user, max_tokens=2000):     # room for a model that thinks first
+    """One short answer as plain text."""
+    text = clean(chat_raw([{"role": "system", "content": system}, {"role": "user", "content": user}],
+                          max_tokens=max_tokens).get("content"))
+    if not text:
         raise SparkError("Spark's answer had no text")
-    return text.strip()
+    return text
