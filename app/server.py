@@ -47,9 +47,9 @@ COOKIE = "shcadmin"
 # What needs the admin session: the Logs page's data and the Settings page's.
 # Everything else (SOS Scans, SSO Requests, PriceBook, AI) is open to the team.
 ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases",
-             "/api/kb"}
+             "/api/kb", "/api/po"}
 ADMIN_POST = {"/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
-              "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop"}
+              "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop", "/api/po/import", "/api/po/update", "/api/po/stop"}
 # Local preview fills an empty database with sample runs. Never on Spluki.
 SAMPLE = store.backend() == "sqlite" and os.environ.get("SAMPLE_DATA", "1") != "0"
 
@@ -188,10 +188,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("sso.html", "text/html; charset=utf-8")
             if u.path in ("/kb", "/kb.html"):
                 return self.static("kb.html", "text/html; charset=utf-8")
+            if u.path in ("/po", "/po.html"):
+                return self.static("po.html", "text/html; charset=utf-8")
             if u.path in ("/customers", "/customers.html"):
                 return self.static("customers.html", "text/html; charset=utf-8")
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/splashtop-icon.png"):
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -297,6 +299,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(row)
             if u.path == "/api/import-past":
                 return self.json(sosscan.import_status())
+            # ---- PO Requests (po.py): the list is open to the team; the import is admin ----
+            if u.path == "/api/po":
+                import po
+                return self.json(po.status())
+            if u.path == "/api/po/overview":
+                import po
+                return self.json(po.overview())
+            if u.path == "/api/po/search":
+                import po
+                one = lambda k: ((qs.get(k) or [""])[0]).strip()
+                try:
+                    page = max(0, int(one("page") or 0))
+                except ValueError:
+                    page = 0
+                return self.json(po.search(one("q")[:120] or None, one("status") or None, one("region") or None,
+                                           one("when") or None, one("year") or None, page))
+            m = re.match(r"^/api/po/(\d+)$", u.path)
+            if m:
+                import po
+                r = po.get(int(m.group(1)))
+                return self.json(r) if r else self.json({"error": "not found"}, 404)
             # ---- Customers (customers.py): open to the team; reads what is already here ----
             if u.path == "/api/customers/find":
                 import customers
@@ -484,6 +507,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # "Import past SOS requests": runs in the background on the server.
             started = sosscan.start_import()
             return self.json(dict(sosscan.import_status(), started=started))
+        if u.path in ("/api/po/import", "/api/po/update", "/api/po/stop"):
+            # Settings > Database > PO Requests (reads Zendesk only).
+            import po
+            what = u.path.rsplit("/", 1)[1]
+            if what == "stop":
+                return self.json({"ok": po.stop()})
+            started = po.start(what)
+            return self.json(dict(po.status(), started=started))
         if u.path in ("/api/kb/sync", "/api/kb/stop"):
             # Settings > Database > Zendesk Knowledge Base (reads Zendesk only).
             import kb
@@ -709,6 +740,8 @@ def main():
     cases.boot()                      # a download a restart interrupted carries on; hourly updates
     import kb
     kb.boot()                         # the Knowledge Base again every 6 hours, once downloaded
+    import po
+    po.boot()                         # new and changed PO requests every hour, once imported
     _spark_hello()
     srv = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print("SplashHub Centre on http://%s:%d  (backend: %s%s)" % (HOST, PORT, store.backend(), ", sample data" if SAMPLE else ""))

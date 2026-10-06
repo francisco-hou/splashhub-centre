@@ -324,6 +324,21 @@ TOOLS["customer"] = (customer, "ONE CUSTOMER, everything SplashHub Centre has: b
                      {"query": {"type": "string", "description": "a domain, an e-mail address or a company name"}})
 
 
+def po_requests(query=None, status=None, when=None, year=None):
+    import po
+    r = po.search(query, status, None, when, year, 0, 15)
+    return {"matching": r["total"], "po_requests": r["rows"],
+            "note": "status 'open' = new/open/pending/hold; when 'upcoming' or 'overdue' is by Expected Provision Date"}
+
+
+TOOLS["po_requests"] = (po_requests, "PO REQUESTS: purchase / provisioning orders (tickets with a Provision Details block), all "
+                        "years -- SPID, company, order type, expected provision date, region, products and quantities, "
+                        "ticket status. Filters: query (SPID, company, product, ticket #), status ('open' or a Zendesk "
+                        "status), when ('upcoming' / 'overdue'), year.",
+                        {"query": {"type": "string"}, "status": {"type": "string"}, "when": {"type": "string"},
+                         "year": {"type": "string"}})
+
+
 def centre_help(topic=None):
     import centrehelp
     return centrehelp.guide(topic)
@@ -374,6 +389,7 @@ SYSTEM = ("You are the assistant inside SplashHub Centre, Splashtop support's in
           "guess. Pick the lookup by the question:\n"
           "- is there a Help Center / knowledge base article about X, which article explains Y -> kb_search.\n"
           "- one customer (a company, domain or e-mail): everything about them -> customer.\n"
+          "- PO / purchase / provisioning orders (how many, which are overdue or due soon, a company's orders) -> po_requests.\n"
           "- how many / how often / per month / by country, region or language -> case_search. Give 2-5 short "
           "alternative phrasings in query, comma-separated. Report matching_cases and the breakdown asked for.\n"
           "- the most common or trending problems, overall or within a topic ('windows 7', '2fa') -> case_themes; read "

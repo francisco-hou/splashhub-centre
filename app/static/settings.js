@@ -26,7 +26,7 @@
     if (s.required && !s.authed) { location.href = '/logs?next=/settings'; return; }
     $('signOut').hidden = !s.required;
     $('page').hidden = false;
-    setup(); settings(); pollImport(); pollCases(); pollKb();
+    setup(); settings(); pollImport(); pollCases(); pollKb(); pollPo();
     // The Price Book's feed settings: SplashHub's own pbsettings.js.
     if (window.PricebookSettingsPage) PricebookSettingsPage.boot(window.CentrePriceClient);
     showSect();
@@ -226,6 +226,42 @@
   $('caseStop').addEventListener('click', function () {
     this.disabled = true; $('caseMsg').textContent = 'Stopping after the current week…';
     post('/api/cases/stop').then(function () { setTimeout(pollCases, 800); });
+  });
+
+  // ---- PO Requests: every "Provision Details" ticket, all years (po.py; reads Zendesk only) ----
+  var poPoll = null;
+  function drawPo(st) {
+    $('poState').innerHTML = st.count
+      ? '<b>' + st.count.toLocaleString() + '</b> PO requests, ' + esc(day(st.first_ms ? new Date(st.first_ms).toISOString().slice(0, 10) : '')) + ' &ndash; ' +
+        esc(day(st.last_ms ? new Date(st.last_ms).toISOString().slice(0, 10) : '')) + '.' + (st.synced_ms ? ' Last updated ' + esc(new Date(st.synced_ms).toLocaleString()) + '.' : '')
+      : 'Nothing imported yet.';
+    $('poImport').hidden = !!st.synced_ms;
+    $('poUpdate').hidden = !st.synced_ms;
+    $('poImport').disabled = $('poUpdate').disabled = !!st.running;
+    $('poStop').hidden = !st.running;
+    var msg = $('poMsg');
+    if (st.running) {
+      msg.textContent = (st.kind === 'update' ? 'Updating' : 'Importing') + '\u2026 ' + (st.seen || 0).toLocaleString() + ' tickets read, ' + (st.saved || 0).toLocaleString() + ' PO requests saved.';
+      clearTimeout(poPoll); poPoll = setTimeout(pollPo, 2000);
+    } else if (st.error) {
+      msg.textContent = 'Stopped: ' + st.error;
+    } else if (st.finished_ms) {
+      msg.textContent = 'Done: ' + (st.saved || 0).toLocaleString() + ' PO requests saved.';
+    } else {
+      msg.textContent = '';
+    }
+  }
+  function pollPo() { api('/api/po').then(drawPo).catch(function () {}); }
+  $('poImport').addEventListener('click', function () {
+    this.disabled = true; $('poMsg').textContent = 'Starting\u2026';
+    post('/api/po/import').then(drawPo).catch(function (e) { $('poImport').disabled = false; if (e.message !== 'login') $('poMsg').textContent = e.message; });
+  });
+  $('poUpdate').addEventListener('click', function () {
+    post('/api/po/update').then(drawPo).catch(function (e) { if (e.message !== 'login') $('poMsg').textContent = e.message; });
+  });
+  $('poStop').addEventListener('click', function () {
+    this.disabled = true;
+    post('/api/po/stop').then(function () { setTimeout(pollPo, 800); });
   });
 
   // ---- Zendesk Knowledge Base: the Help Center's articles (kb.py; reads Zendesk only) ----

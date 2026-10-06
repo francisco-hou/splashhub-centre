@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Logs · SplashHub Centre</title>
+  <title>PO Requests · SplashHub Centre</title>
   <link rel="icon" href="splashtop-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,13 +20,13 @@
     <div class="snav-scroll">
       <a class="snav-item" href="/scans" title="SOS Scans"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg><span class="snav-label">SOS Scans</span></a>
       <a class="snav-item" href="/sso" title="SSO Requests"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2"/><path d="M16 7l3 3"/><path d="M19 4l2 2"/></svg><span class="snav-label">SSO Requests</span></a>
-      <a class="snav-item" href="/po" title="PO Requests"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg><span class="snav-label">PO Requests</span></a>
+      <a class="snav-item active" href="/po" aria-current="page" title="PO Requests"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg><span class="snav-label">PO Requests</span></a>
       <a class="snav-item" href="/customers" title="Customers"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="snav-label">Customers</span></a>
       <a class="snav-item" href="/prices" title="PriceBook"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/></svg><span class="snav-label">PriceBook</span></a>
       <a class="snav-item" href="/kb" title="Knowledge Base"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg><span class="snav-label">Knowledge Base</span></a>
       <a class="snav-item" href="/ask" title="AI"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg><span class="snav-label">AI</span><span class="snav-ai">Spark</span></a>
-      <div class="snav-adm-h">Admin</div>
-      <a class="snav-item snav-adm active" href="/logs" aria-current="page" title="Logs"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg><span class="snav-label">Logs</span></a>
+      <div class="snav-adm-h" hidden>Admin</div>
+      <a class="snav-item snav-adm" href="/logs" title="Logs" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg><span class="snav-label">Logs</span></a>
       <a class="snav-item snav-adm" href="/settings" title="Settings" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="snav-label">Settings</span></a>
     </div>
   </nav>
@@ -35,84 +35,56 @@
   <main class="page" id="page" hidden>
     <div class="hdr">
       <div class="hdr-left">
-        <h1 class="hdr-title">Logs</h1>
-        <div class="hdr-sub">Every SplashHub run across the team &mdash; who ran it, when, which model, tokens and estimated cost.</div>
+        <h1 class="hdr-title">PO Requests</h1>
+        <div class="hdr-sub">Every Zendesk ticket with a &ldquo;Provision Details&rdquo; order, from all years &mdash; read the way SplashHub&rsquo;s PO tool reads it: the customer, order type, expected provision date, region and products.</div>
       </div>
       <div class="hdr-right">
         <span class="stamp" id="stamp"></span>
         <button type="button" class="btn btn-icon" id="refresh" title="Refresh" aria-label="Refresh">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
         </button>
-        <span class="feed" id="feed" hidden><span class="feed-dot"></span><span id="feedTxt"></span></span>
-        <a class="btn" id="csv" href="#" download>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-          Export CSV
-        </a>
       </div>
     </div>
 
-    <div class="note" id="sampleNote" hidden>
-      <b>Sample data.</b> This preview isn&rsquo;t connected to SplashHub yet &mdash; the runs below are generated
-      so the page can be reviewed. Real runs will arrive through the Spluki webhook once it&rsquo;s switched on;
-      until then SplashHub keeps logging to Zendesk as it does today.
-    </div>
+    <div class="note" id="empty" hidden>No PO requests yet. An admin can import them all in <b>Settings &rsaquo; Database &rsaquo; PO Requests</b>.</div>
 
-    <!-- One row of filters above everything they scope: period first. -->
-    <section class="filters card" aria-label="Filters">
+    <div class="stats" id="stats"></div>
+
+    <section class="card filters" aria-label="Filters">
       <div class="frow">
-        <div class="seg" id="period" role="group" aria-label="Period">
-          <button type="button" class="seg-btn" data-days="7">7 days</button>
-          <button type="button" class="seg-btn active" data-days="30">30 days</button>
-          <button type="button" class="seg-btn" data-days="90">90 days</button>
-          <button type="button" class="seg-btn" data-days="0">All time</button>
-        </div>
-        <select class="sel" id="agent" aria-label="Agent"><option value="">All agents</option></select>
-        <select class="sel" id="model" aria-label="Model"><option value="">All models</option></select>
-        <div class="search">
+        <div class="search kb-search">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <input type="search" id="q" placeholder="Search topic, ticket # or agent" autocomplete="off" spellcheck="false">
+          <input type="search" id="q" placeholder="SPID, company, product, or ticket number" autocomplete="off" spellcheck="false">
         </div>
-        <button type="button" class="link-btn" id="clearFilters" hidden>Clear filters</button>
+        <select class="sel" id="region" aria-label="Region">
+          <option value="">All regions</option><option>US</option><option>EMEA</option><option>JP</option><option>On-Prem</option>
+        </select>
+        <select class="sel" id="year" aria-label="Year"><option value="">All years</option></select>
       </div>
-      <div class="chips" id="tools" role="group" aria-label="Tool"></div>
+      <div class="frow">
+        <div class="chips" id="statusChips" role="group" aria-label="Status">
+          <button type="button" class="chip active" data-v="">All</button>
+          <button type="button" class="chip" data-v="open">Open</button>
+          <button type="button" class="chip" data-v="solved">Solved</button>
+          <button type="button" class="chip" data-v="closed">Closed</button>
+        </div>
+        <div class="chips" id="whenChips" role="group" aria-label="Provision date">
+          <button type="button" class="chip active" data-v="">Any date</button>
+          <button type="button" class="chip" data-v="upcoming">Upcoming</button>
+          <button type="button" class="chip" data-v="overdue">Overdue</button>
+        </div>
+      </div>
     </section>
-
-    <div class="stats" id="stats">
-      <div class="stat"><div class="stat-label">Runs</div><div class="stat-value" id="sRuns">&nbsp;</div><div class="stat-sub" id="sRunsSub">&nbsp;</div></div>
-      <div class="stat"><div class="stat-label">Estimated cost</div><div class="stat-value" id="sCost">&nbsp;</div><div class="stat-sub" id="sCostSub">&nbsp;</div></div>
-      <div class="stat"><div class="stat-label">Tokens</div><div class="stat-value" id="sTok">&nbsp;</div><div class="stat-sub" id="sTokSub">&nbsp;</div></div>
-      <div class="stat"><div class="stat-label">Agents</div><div class="stat-value" id="sAgents">&nbsp;</div><div class="stat-sub" id="sAgentsSub">&nbsp;</div></div>
-    </div>
-
-    <div class="charts">
-      <section class="card chart-card">
-        <div class="card-head">
-          <h2 class="card-title" id="dayTitle">Runs per day</h2>
-          <div class="seg seg-sm" id="measure" role="group" aria-label="Measure">
-            <button type="button" class="seg-btn active" data-m="runs">Runs</button>
-            <button type="button" class="seg-btn" data-m="cost">Cost</button>
-          </div>
-        </div>
-        <div class="chart" id="dayChart"></div>
-      </section>
-      <section class="card chart-card">
-        <div class="card-head">
-          <h2 class="card-title" id="toolTitle">Runs by tool</h2>
-        </div>
-        <div class="tool-bars" id="toolChart"></div>
-      </section>
-    </div>
 
     <section class="card">
       <div class="card-head">
-        <h2 class="card-title">Run log</h2>
+        <h2 class="card-title">Orders</h2>
         <span class="count" id="count"></span>
       </div>
-      <div class="table-wrap table-cap">
-        <table class="runs">
+      <div class="table-wrap">
+        <table class="runs po-table">
           <thead><tr>
-            <th>When</th><th>Agent</th><th>Type</th><th>Model</th><th>Topic</th>
-            <th class="r">Tickets</th><th class="r" title="Tokens in / out">Tokens</th><th class="r">Est. cost</th>
+            <th>Created</th><th>Ticket</th><th>Customer</th><th>Products</th><th>Order type</th><th>Expected</th><th>Region</th><th>Status</th>
           </tr></thead>
           <tbody id="rows"></tbody>
         </table>
@@ -125,19 +97,25 @@
     </section>
   </main>
 
-  <!-- Sign-in: Logs and Settings (Admin in the menu) are for admins only; the other pages are open. -->
-  <div class="login" id="login" hidden>
-    <form class="login-card card" id="loginForm">
-      <img src="splashtop-icon.png" alt="" width="32" height="32">
-      <h1>SplashHub Centre</h1>
-      <p>Logs and Settings are for SplashHub admins.</p>
-      <input type="password" id="pw" placeholder="Admin password" autocomplete="current-password" required>
-      <div class="login-err" id="loginErr" hidden></div>
-      <button type="submit" class="btn btn-primary">Sign in</button>
-    </form>
+  <!-- One order in full, in a pop-up over the list. -->
+  <div class="pn-overlay" id="pnWrap" hidden>
+    <aside class="pn" id="panel" role="dialog" aria-modal="true" aria-label="PO request" tabindex="-1">
+      <div class="pn-bar">
+        <span class="pn-pos" id="pnPos"></span>
+        <button type="button" class="btn btn-icon btn-sm" id="pnPrev" title="Previous (&uarr;)" aria-label="Previous">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>
+        </button>
+        <button type="button" class="btn btn-icon btn-sm" id="pnNext" title="Next (&darr;)" aria-label="Next">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button type="button" class="btn btn-icon btn-sm" id="pnClose" title="Close (Esc)" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="pn-body" id="detail"></div>
+    </aside>
   </div>
 
-  <div class="tip" id="tip" role="tooltip" hidden></div>
-  <script src="app.js?v=1.1.0"></script>
+  <script src="po.js?v=1.0.1"></script>
 </body>
 </html>

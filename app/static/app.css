@@ -792,3 +792,27 @@ main.page:not([hidden]) { animation: shcIn .28s cubic-bezier(.2, .7, .2, 1); }
 .cu-type { font-weight: 500; color: #78838f; font-size: 12px; }
 @media (max-width: 860px) { .cu-tix { grid-template-columns: minmax(0, 1fr); } }
 .cu-ai .snav-ai { margin-left: 0; }
+
+/* ---- PO Requests page ---- */
+.po-row { cursor: pointer; }
+.po-row:focus-visible { outline: 2px solid #0071ce; outline-offset: -2px; }
+.po-row-over td:first-child { box-shadow: inset 3px 0 0 #e05a4f; }
+.po-who { display: flex; flex-direction: column; line-height: 1.3; }
+.po-who b { font-weight: 600; color: #1d242c; }
+.po-who .muted { font-size: 11.5px; }
+.po-table td.po-prod-c { max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.po-prod b { font-weight: 600; }
+.po-over { color: #c0504a; font-weight: 600; }
+.po-soon { color: #0071ce; font-weight: 500; }
+.po-reg { font-size: 11px; font-weight: 600; border-radius: 4px; padding: 1px 6px; background: #eef1f4; color: #55606b; }
+.po-reg-us { background: #e6f1fc; color: #0b4f8f; }
+.po-reg-emea { background: #efe8fb; color: #5b3a96; }
+.po-reg-jp { background: #fdebeb; color: #a33a3a; }
+.po-reg-onprem { background: #e8f5ee; color: #2e7a4f; }
+.po-fact { font-size: 15px !important; }
+.po-prods td, .po-prods th { padding: 7px 10px; }
+.po-dl { display: grid; grid-template-columns: minmax(140px, 220px) minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 13px; }
+.po-dl dt { color: #78838f; }
+.po-dl dd { margin: 0; overflow-wrap: anywhere; }
+#statusChips + #whenChips { margin-left: 12px; padding-left: 12px; border-left: 1px solid #e3edf7; }
+.kb-stat b span { font-size: inherit; letter-spacing: normal; text-transform: none; }

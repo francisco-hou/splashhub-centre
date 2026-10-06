@@ -138,6 +138,23 @@ def profile(key, brief=False):
             continue
         seen_p.add(t["ticket_id"])
         provisioning.append(dict({k: t[k] for k in ("ticket_id", "created_ms", "status", "subject")}, **provision_of(t)))
+    # ...and the PO Requests list (po.py: every PO, all years, read like SplashHub's PO tool)
+    try:
+        import po
+        for r in po.for_customer(dom if kind == "domain" else None, val if kind == "email" else None,
+                                 [o for o in names if not o.startswith("@") and "." not in o]):
+            if r["ticket_id"] in seen_p:
+                continue
+            seen_p.add(r["ticket_id"])
+            first = (r["products"] or [{}])[0]
+            provisioning.append({"ticket_id": r["ticket_id"], "created_ms": r["created_ms"], "status": r["status"],
+                                 "subject": r["subject"], "product": first.get("name") or "",
+                                 "quantity": int(re.sub(r"[^0-9]", "", str(first.get("qty") or "")) or 0) or None,
+                                 "order_type": r["order_type"] or "", "expected": r["expected"] or "",
+                                 "more": max(0, len(r["products"]) - 1)})
+        provisioning.sort(key=lambda x: -(x["created_ms"] or 0))
+    except Exception:
+        pass
     tickets = [t for t in tickets if t["ticket_id"] not in seen_p]      # the box below has them
 
     # ---- SOS packages

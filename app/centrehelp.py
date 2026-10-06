@@ -9,7 +9,7 @@ how SplashHub Centre works.
 
 GUIDE = {
     "overview": """SplashHub Centre is the Splashtop support team's web app on Spluki, next to SplashHub (the Zendesk
-sidebar app). Pages in the left menu: SOS Scans, SSO Requests, Customers, PriceBook, Knowledge Base, AI -- and, for an admin, Logs and Settings
+sidebar app). Pages in the left menu: SOS Scans, SSO Requests, PO Requests, Customers, PriceBook, Knowledge Base, AI -- and, for an admin, Logs and Settings
 (under an "Admin" heading). Top right: "Splashtop Support" with the role under it -- Member for everybody, Admin once the
 admin password is entered (its menu: Admin login / Log out; SSO sign-in with real names comes later). The left menu
 collapses to icons with the button next to the logo. SplashHub Centre only READS Zendesk, with one exception: adding an
@@ -91,6 +91,14 @@ organization, a country guess, the first message and the whole conversation (Cus
 removed; Help Center article links kept as article numbers). Settings > Database > Zendesk Tickets (admin) downloads
 them: ticket details first (fast), then each conversation (a few hours for a year); an hourly update keeps them current.
 A ticket not downloaded yet is read live from Zendesk when the AI needs it.""",
+
+    "po requests": """PO Requests (left menu): every Zendesk ticket with a "Provision Details" order -- purchase /
+provisioning orders -- from all years. Each is read the way SplashHub's PO tool reads it: SPID, company, order type,
+expected provision date, region (US, EMEA, JP, On-Prem), and the products with their quantities and start / end dates.
+Top: open orders, due in the next 7 days, overdue (expected date passed, ticket still open), the last 30 days. Filter by
+status (open / solved / closed), region, upcoming or overdue, and year; search an SPID, company, product or ticket
+number. Click one for the whole order. Settings > Database > PO Requests (admin) imports them all once, then new and
+changed ones come in every hour. The Customers page shows a customer's PO requests too.""",
 
     "customers": """Customers (left menu): everything SplashHub Centre has about one customer, on one page. Search an
 e-mail domain (datamaas.com), an e-mail address, or a company name. A customer is a domain -- or, for a free e-mail
