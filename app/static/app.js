@@ -46,7 +46,13 @@
     m = String(m || '');
     if (!m || m === '—') return '';
     var c = m.match(/^claude-(\w+)-([\d-]+)$/);
-    return c ? c[1].charAt(0).toUpperCase() + c[1].slice(1) + ' ' + c[2].replace(/-/g, '.') : m;
+    if (c) return c[1].charAt(0).toUpperCase() + c[1].slice(1) + ' ' + c[2].replace(/-/g, '.');
+    // 'spark:qwen3.6-35b-a3b' -> 'Spark Qwen 3.6'; 'gpt-5.6-sol' -> 'GPT-5.6 Sol' (full name on hover)
+    var sp = m.match(/^spark:([a-z]+)([\d.]+)/i);
+    if (sp) return 'Spark ' + sp[1].charAt(0).toUpperCase() + sp[1].slice(1) + ' ' + sp[2];
+    var g = m.match(/^gpt-([\d.]+)(?:-(\w+))?/i);
+    if (g) return 'GPT-' + g[1] + (g[2] ? ' ' + g[2].charAt(0).toUpperCase() + g[2].slice(1) : '');
+    return m;
   }
   function dayIdx(ms) { return Math.floor((ms - TZ * 60000) / DAY); }
   function dayStart(idx) { return idx * DAY + TZ * 60000; }
@@ -392,7 +398,7 @@
     var from = res.page * res.per_page;
     $('count').textContent = res.total ? 'newest first · ' + int(res.total) + (res.total === 1 ? ' run' : ' runs') : '';
     if (!res.rows.length) {
-      tb.innerHTML = '<tr class="empty-row"><td colspan="9">' +
+      tb.innerHTML = '<tr class="empty-row"><td colspan="8">' +
         (S.tool || S.agent || S.model || S.q ? 'No runs match these filters.' : 'No runs in this period.') + '</td></tr>';
     } else {
       tb.innerHTML = res.rows.map(function (r) {
@@ -402,11 +408,12 @@
           '<td class="when">' + esc(whenTxt(r.ts_ms)) + '</td>' +
           '<td>' + esc(r.agent || '—') + '</td>' +
           '<td>' + esc(r.kind) + '</td>' +
-          '<td' + (model ? '' : ' class="muted"') + '>' + esc(model || '—') + '</td>' +
+          '<td' + (model ? ' title="' + esc(r.model) + '"' : ' class="muted"') + '>' + esc(model || '—') + '</td>' +
           '<td class="topic" title="' + esc(r.topic || '') + '">' + esc(r.topic || '—') + '</td>' +
           '<td class="n">' + int(r.tickets) + '</td>' +
-          '<td class="n">' + zero(r.input_tokens) + '</td>' +
-          '<td class="n">' + zero(r.output_tokens) + '</td>' +
+          '<td class="n" title="' + int(r.input_tokens || 0) + ' in, ' + int(r.output_tokens || 0) + ' out">' +
+            (r.input_tokens || r.output_tokens ? compact(r.input_tokens || 0) + ' <span class="muted">/</span> ' + compact(r.output_tokens || 0)
+                                                : '<span class="muted">0</span>') + '</td>' +
           '<td class="n">' + esc(formatUsd(r.cost)) + '</td>' +
           '</tr>';
       }).join('');
