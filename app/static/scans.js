@@ -375,6 +375,23 @@
 
   // The package's links as buttons: the ACP pages (download=false) or the
   // download (download=true).
+  // Who pressed Scan in SplashHub's sidebar for this request (newest first).
+  var PRESS = { viewed: 'saw this review', started: 'started the AI review', again: 'pressed Review again' };
+  function sidebarBlock(s) {
+    var hist = [];
+    try { hist = JSON.parse(s.sidebar_json || '[]'); } catch (e) {}
+    if (!hist.length) return '';
+    hist = hist.slice().reverse();
+    var row = function (p) {
+      var d = new Date(p.ms);
+      return '<li><b>' + esc(p.by) + '</b> ' + esc(PRESS[p.action] || p.action) + ' <span class="sb-when">' +
+        esc(d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })) + '</span></li>';
+    };
+    return '<section class="pn-sec sb-press"><div class="pn-h">Scan in SplashHub</div><ul>' + hist.slice(0, 5).map(row).join('') + '</ul>' +
+      (hist.length > 5 ? '<details><summary>' + (hist.length - 5) + ' earlier</summary><ul>' + hist.slice(5).map(row).join('') + '</ul></details>' : '') +
+      '</section>';
+  }
+
   function linkBtns(req, download) {
     return (req.links || []).filter(function (l) {
       return /^https?:\/\//i.test(l.url) && (l.label.toLowerCase() === 'download package') === download;
@@ -558,6 +575,7 @@
       h += '<section class="pn-sec"><button type="button" class="link-btn rq-raw-btn" data-raw="1" aria-expanded="false">Show original text</button>' +
         '<pre class="rq-raw" hidden>' + esc(s.description) + '</pre></section>';
     }
+    h += sidebarBlock(s);
     h += '<div class="pn-foot">' + ['Scan ' + s.id, s.creator_source ? 'Creator from ' + esc(s.creator_source) : '',
                                      s.requested_by ? 'Started by ' + esc(s.requested_by) : ''].filter(Boolean).join(' · ') + '</div>';
     // Right: the ACP pages, then the download, as full-width buttons; then the AI review card.

@@ -120,6 +120,7 @@ ADDED_COLUMNS = [
     ("sos_scans", "note_json", "TEXT"),       # the internal note added to Zendesk: when, which style
     ("sos_scans", "ticket_status", "TEXT"),   # the Zendesk ticket's own status (new/open/pending/hold/solved/closed)
     ("sos_scans", "ticket_status_ms", "BIGINT"),  # when that was last read
+    ("sos_scans", "sidebar_json", "TEXT"),    # who pressed Scan in SplashHub's sidebar, when, and what it did
 ]
 
 
@@ -405,7 +406,8 @@ def facets():
 SCAN_COLS = ("id", "ticket_id", "requested_ms", "finished_ms", "source", "requested_by", "status", "verdict",
              "subject", "creator_email", "creator_domain", "creator_source", "organization", "attach_key",
              "images_json", "fields_json", "result_json", "error", "model", "input_tokens", "output_tokens", "cost",
-             "description", "gallery_json", "ai_review", "reviewed_ms", "translation_json", "note_json", "ticket_status", "ticket_status_ms")
+             "description", "gallery_json", "ai_review", "reviewed_ms", "translation_json", "note_json", "ticket_status", "ticket_status_ms",
+             "sidebar_json")
 SCAN_LIST_COLS = ("id", "ticket_id", "requested_ms", "finished_ms", "source", "requested_by", "status", "verdict",
                   "subject", "creator_email", "creator_domain", "organization", "error", "cost",
                   "ticket_status", "ticket_status_ms")

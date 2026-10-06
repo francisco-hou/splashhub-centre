@@ -385,7 +385,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json({"error": "Give a ticket number."}, 400)
             try:
                 return self.json(sosscan.sidebar_review(tid, start=data.get("start", True) is not False,
-                                                        again=bool(data.get("again"))))
+                                                        again=bool(data.get("again")), by=data.get("by"),
+                                                        press=bool(data.get("press"))))
             except Exception as e:
                 sys.stderr.write("[sidebar] #%s lookup failed: %s\n" % (tid, type(e).__name__))
                 return self.json({"state": "error", "error": "SplashHub Centre could not look this up (%s)" % type(e).__name__}, 500)

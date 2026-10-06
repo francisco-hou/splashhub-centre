@@ -1157,7 +1157,28 @@ def start_rules_fix():
 
 # ---- SplashHub's sidebar: show the review made here instead of a second AI call ----
 
-def sidebar_review(ticket_id, start=True, again=False):
+def _who(by):
+    """The agent's name as the sidebar sent it: one plain line, short."""
+    by = re.sub(r"[\x00-\x1f\x7f]+", " ", str(by or "")).strip()
+    return by[:80]
+
+
+def _press(scan_id, by, action):
+    """Who pressed Scan in SplashHub's sidebar for this request, and what it
+    did: "viewed" (showed this review), "started" (asked for the review) or
+    "again" (Review again). The newest 30, oldest first."""
+    if not scan_id:
+        return
+    row = store.scan_get(scan_id, fresh=True) or {}
+    try:
+        hist = json.loads(row.get("sidebar_json") or "[]")
+    except ValueError:
+        hist = []
+    hist.append({"by": _who(by) or "Someone", "ms": _now(), "action": action})
+    store.scan_update(scan_id, sidebar_json=json.dumps(hist[-30:]))
+
+
+def sidebar_review(ticket_id, start=True, again=False, by=None, press=False):
     """What SplashHub's sidebar shows for a ticket, so one ticket gets one AI
     review: the latest one made here, as the AI returned it (the sidebar draws
     it in its own format). Nothing yet: with start, ask for one and say
@@ -1165,12 +1186,21 @@ def sidebar_review(ticket_id, start=True, again=False):
 
     {"state": "done", "result": {...}, "images": [file names, in the order the
      AI saw them], "verdict", "reviewed_ms", "model", "scan_id"}
-    {"state": "pending"} / {"state": "none"} / {"state": "error", "error": "..."}"""
+    {"state": "pending"} / {"state": "none"} / {"state": "error", "error": "..."}
+
+    by: the agent who pressed Scan (their Zendesk name); press: True on the
+    first ask of a press (not on the checks that follow), so each press is
+    written down once, on the request it showed or started."""
     rows = store.scans_for_ticket(ticket_id)
-    if any(r.get("status") in ("queued", "running") for r in rows):
+    busy = next((r for r in rows if r.get("status") in ("queued", "running")), None)
+    if busy:
+        if press:
+            _press(busy["id"], by, "again" if again else "viewed")
         return {"state": "pending"}
     done = next((r for r in rows if r.get("status") == "done" and r.get("result_json")), None)
     if done and not again:
+        if press:
+            _press(done["id"], by, "viewed")
         full = store.scan_get(done["id"], fresh=True) or done
         try:
             res = json.loads(full.get("result_json") or "null") or {}
@@ -1194,6 +1224,12 @@ def sidebar_review(ticket_id, start=True, again=False):
     # Otherwise list the ticket and review it.
     if rows and not again:
         err = review_now(rows[0]["id"])
+        if not err and press:
+            _press(rows[0]["id"], by, "started")
         return {"state": "error", "error": err} if err else {"state": "pending"}
-    request(int(ticket_id), "sidebar", "SplashHub sidebar", force=bool(again), review=True)
+    who = _who(by)
+    sid = request(int(ticket_id), "sidebar", (who + " \u00b7 SplashHub sidebar") if who else "SplashHub sidebar",
+                  force=bool(again), review=True)
+    if press:
+        _press(sid, by, "again" if again else "started")
     return {"state": "pending"}
