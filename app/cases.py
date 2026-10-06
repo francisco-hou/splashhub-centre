@@ -9,8 +9,9 @@ What is kept per ticket:
                (the e-mail's country domain, else the requester's time zone)
   the words    the first message, and the whole conversation: every public
                reply and internal note, each marked Customer / Support /
-               Support (internal note), in order -- up to CONVO_CHARS, keeping
-               the start and the end when a long ticket must be cut.
+               Support (internal note), in order -- the whole ticket. Only a
+               runaway one (pasted logs, hundreds of replies) is cut at
+               CONVO_CHARS, keeping the start and the end.
 The wall (askai.py): nothing about individual SUPPORT AGENTS. So: replies are
 marked "Support", never with a name; the names of the agents on a ticket are
 replaced by "[agent]" in its text; Splashtop addresses and signature blocks
@@ -39,12 +40,13 @@ import zendesk
 START = "2026-01-01"
 BEFORE = "2025-12-31"          # Zendesk search has > and <, not >=
 BODY_CHARS = 2000
-CONVO_CHARS = 9000
-TURN_CHARS = 1500
+CONVO_CHARS = 200000           # the whole ticket; only a runaway one is cut (start and end kept)
+TURN_CHARS = 20000             # one reply; only pasted logs and the like are cut
+COMMENT_PAGES = 20             # 100 replies a page
 WEEK = 7 * 86400
 SYNC_EVERY = 3600
 RATE = 3.0                     # comment reads per second, at most (Zendesk's limit is shared with every other app)
-SCHEMA = "2"
+SCHEMA = "3"
 SKIP_SUBJECTS = ("New SOS package created by", "Here comes a new request to validate SSO method")
 
 COLS = ("ticket_id", "created_ms", "updated_ms", "status", "type", "priority", "channel", "subject", "body", "tags",
@@ -114,11 +116,23 @@ def ensure():
         c.commit()
     finally:
         c.close()
-    if store.get_setting("cases_schema", "") != SCHEMA:
+    was = store.get_setting("cases_schema", "")
+    if was and was < "3":
+        # Schema 3 keeps whole tickets: conversations saved under the old
+        # 9,000-character limit are read again (newest first, in the background;
+        # the old text stays searchable until each is replaced).
+        c = store.connect(True)
+        try:
+            c.cursor().execute("UPDATE cases SET convo_ms = NULL WHERE convo_turns IS NOT NULL")
+            c.commit()
+        finally:
+            c.close()
+    if was != SCHEMA and was < "2":
         # Tickets saved before schema 2 have no requester: the next download starts over (it only upserts).
         if store.get_setting("cases_next", ""):
             store.set_setting("cases_next", START, "cases")
             store.set_setting("cases_downloaded", "", "cases")
+    if was != SCHEMA:
         store.set_setting("cases_schema", SCHEMA, "cases")
     _ready = True
 
@@ -343,7 +357,7 @@ def _get(path):
 def conversation(ticket_id):
     """(text, turns) for one ticket: every public reply and internal note, in order."""
     out, users, url, pages = [], {}, "/api/v2/tickets/%d/comments.json?include=users&page[size]=100" % int(ticket_id), 0
-    while url and pages < 3:
+    while url and pages < COMMENT_PAGES:
         d = _get(url)
         for u in d.get("users") or []:
             users[u.get("id")] = u
@@ -776,7 +790,16 @@ def solutions(query=None, ticket_id=None, from_date=None, to_date=None, limit=6)
                                   "cases share a fix, say so"}
 
 
-def read(ticket_id, chars=6000):
+def _head_tail(text, chars):
+    """At most `chars` of a long conversation: its start (the problem) and its
+    end (where it got to), which is what an answer or a reply needs."""
+    if not text or len(text) <= chars:
+        return text
+    head = chars // 3
+    return text[:head] + "\n\n[... middle of a long ticket left out ...]\n\n" + text[-(chars - head):]
+
+
+def read(ticket_id, chars=14000):
     ensure()
     try:
         tid = int(str(ticket_id).lstrip("#"))
@@ -793,8 +816,32 @@ def read(ticket_id, chars=6000):
             "status": d["status"], "type": d["type"], "priority": d["priority"], "channel": d["channel"],
             "subject": d["subject"], "requester": d["requester_email"], "organization": d["organization"],
             "country": d["country"], "tags": (d["tags"] or "").split(), "first_message": d["body"],
-            "conversation": (convo[:chars] + ("…" if len(convo) > chars else "")) if chars else None,
+            "conversation": _head_tail(convo, chars) if chars else None,
             "replies": d["convo_turns"], "conversation_saved": d["convo_turns"] is not None}
+
+
+def read_live(ticket_id, chars=14000):
+    """One ticket straight from Zendesk -- for a reply draft, or a ticket not
+    downloaded yet. Reads only. A 2026 ticket is also kept here (as the
+    download would); an older one, or an SOS / SSO request, is only shown."""
+    try:
+        tid = int(str(ticket_id).lstrip("#"))
+    except (TypeError, ValueError):
+        return None
+    if zendesk.configured():
+        return {"error": "SplashHub Centre can't read Zendesk yet"}
+    t = (_get("/api/v2/tickets/%d.json" % tid) or {}).get("ticket")
+    if not t:
+        return None
+    convo, turns = conversation(tid)
+    if _wanted(t):
+        ensure()
+        save([t])
+        _save_convo(tid, convo, turns)
+        return read(tid, chars)
+    return {"ticket": tid, "created": (t.get("created_at") or "")[:10], "status": t.get("status"),
+            "subject": t.get("subject"), "first_message": scrub(t.get("description") or ""),
+            "conversation": _head_tail(convo, chars), "replies": turns, "kept": False}
 
 
 def similar(ticket_id, limit=8):

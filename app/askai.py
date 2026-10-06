@@ -255,8 +255,18 @@ def case_similar(ticket_id, limit=8):
     return _cases().similar(ticket_id, limit)
 
 
-def case_read(ticket_id):
-    return _cases().read(ticket_id) or {"error": "ticket #%s isn't among the downloaded 2026 cases" % ticket_id}
+def case_read(ticket_id, fresh=False):
+    import zendesk
+    c = _cases()
+    got = None if fresh else c.read(ticket_id)
+    if not got:
+        try:
+            got = c.read_live(ticket_id)          # the latest, straight from Zendesk (read only)
+        except zendesk.ZendeskError as e:
+            if "HTTP 404" in str(e):
+                return {"error": "ticket #%s wasn't found in Zendesk" % ticket_id}
+            return {"error": "couldn't read #%s from Zendesk: %s" % (ticket_id, e)}
+    return got or {"error": "ticket #%s wasn't found" % ticket_id}
 
 
 _DATES = {"from_date": {"type": "string", "description": "YYYY-MM-DD, optional"},
@@ -284,9 +294,10 @@ TOOLS["case_overview"] = (case_overview, "Totals for a period: cases per month, 
                           "follow up with case_themes.", dict(_DATES))
 TOOLS["case_similar"] = (case_similar, "Cases most similar to one ticket, by ticket number.",
                          {"ticket_id": {"type": "integer"}, "limit": {"type": "integer"}})
-TOOLS["case_read"] = (case_read, "One 2026 case in full by ticket number: subject, requester, organization, country, "
-                      "tags, status, the first message and the whole conversation (Customer / Support turns).",
-                      {"ticket_id": {"type": "integer"}})
+TOOLS["case_read"] = (case_read, "One case in full by ticket number: subject, requester, organization, country, "
+                      "tags, status, the first message and the whole conversation (Customer / Support turns). "
+                      "fresh=true reads the latest straight from Zendesk -- ALWAYS use it to draft a reply.",
+                      {"ticket_id": {"type": "integer"}, "fresh": {"type": "boolean"}})
 
 # The wall, in code. Only about Splashtop's own support staff -- customers,
 # companies and countries are fine. A Splashtop address in the question, or a
@@ -334,7 +345,15 @@ SYSTEM = ("You are the assistant inside SplashHub Centre, Splashtop support's in
           "word such as 'chat' is never a problem.\n"
           "- how was it fixed / the solution / how do we answer this -> case_solutions (query for a topic, ticket_id "
           "for one case); say what support did, and which fixes recur, citing tickets.\n"
-          "- similar to #123 -> case_similar. One case in detail -> case_read.\n"
+          "- similar to #123 -> case_similar. One case in detail -> case_read.\n\n"
+          "DRAFT A REPLY (\"draft a reply for #123\", \"how should I answer #123\", \"write a response\"): 1) case_read "
+          "with fresh=true. 2) case_solutions with a short query for the customer's actual problem (case_similar too if "
+          "useful) to see how support fixed it before. 3) Write the reply TO THE CUSTOMER, in the language they wrote "
+          "in, answering their LATEST message: thank them, then clear numbered steps taken from the fixes you found; if "
+          "something is missing to help (version, OS, logs, screenshots), ask for it. Friendly and short. Sign off as "
+          "'Splashtop Support' -- never an agent's name. Never promise refunds, dates or fixes, and never invent "
+          "settings, links or steps the cases don't show. Answer as: '**Draft reply**', the reply text, then '**Based "
+          "on**' with one line naming the tickets you used. If the ticket is solved or closed, say so first.\n"
           "Countries are a guess (the e-mail's country domain, else the profile time zone): say so when you give them.\n\n"
           "FOLLOW-UPS: when the user pushes back or asks again in other words, your last answer missed. Use a "
           "DIFFERENT lookup (case_themes rather than case_overview, case_solutions for fixes, case_search for counts) "
@@ -411,7 +430,7 @@ def ask(messages, focus=None, on_event=None):
             else:
                 result = {"error": "no such lookup"}
             steps.append({"tool": name, "args": args})
-            convo.append({"role": "tool", "tool_call_id": c.get("id") or name, "content": json.dumps(result, default=str)[:18000]})
+            convo.append({"role": "tool", "tool_call_id": c.get("id") or name, "content": json.dumps(result, default=str)[:24000]})
     # out of steps: ask for an answer with what it has
     tell({"phase": "think", "round": MAX_STEPS})
     msg = spark.chat_raw(convo + [{"role": "user", "content": "Answer now with what you found."}])

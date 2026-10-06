@@ -57,8 +57,25 @@ window.AiChat = (function () {
     calc: '<rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="11" x2="8.01" y2="11"/><line x1="12" y1="11" x2="12.01" y2="11"/><line x1="16" y1="11" x2="16.01" y2="11"/><line x1="8" y1="15" x2="8.01" y2="15"/><line x1="12" y1="15" x2="12.01" y2="15"/><line x1="16" y1="15" x2="16.01" y2="15"/>',
     pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
     check: '<polyline points="20 6 9 17 4 12"/>',
-    clock: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>'
+    clock: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>',
+    copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'
   };
+  // A reply draft (between "Draft reply" and "Based on"), as text to paste into Zendesk.
+  function draftOf(text) {
+    var m = /\*\*Draft reply\*\*\s*([\s\S]*?)(?:\n\s*\*\*Based on\*\*[\s\S]*)?$/i.exec(text || '');
+    return m && m[1].trim() ? m[1].trim() : '';
+  }
+  function plain(text) { return String(text || '').replace(/\*\*([^*]+)\*\*/g, '$1'); }
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).catch(function () { return fallbackCopy(text); });
+    return Promise.resolve(fallbackCopy(text));
+  }
+  function fallbackCopy(text) {
+    var t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
+    document.body.appendChild(t); t.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    t.remove();
+  }
   function icon(k) { return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + IC[k] + '</svg>'; }
   var DOING = {
     sos_overview: ['chart', 'Counting SOS requests…'], sos_search: ['search', 'Searching SOS requests…'],
@@ -182,8 +199,17 @@ window.AiChat = (function () {
           });
           wait.classList.remove('pending');
           wait.innerHTML = format(r.answer || 'No answer.') +
-            '<div class="ask-steps"><span class="ask-took" title="From asking to the answer">' + icon('clock') + 'Answered in ' + secs(took) + '</span>' +
+            '<div class="ask-steps"><button type="button" class="ask-copy" title="Copy this answer">' + icon('copy') + '<span>Copy' +
+              (draftOf(r.answer) ? ' draft' : '') + '</span></button>' +
+            '<span class="ask-took" title="From asking to the answer">' + icon('clock') + 'Answered in ' + secs(took) + '</span>' +
             (steps.length ? '<span class="ask-sep">·</span>Looked at: ' + steps.join('') : '<span class="ask-sep">·</span>No lookups needed') + '</div>';
+          var cp = wait.querySelector('.ask-copy');
+          cp.addEventListener('click', function () {
+            copyText(plain(draftOf(r.answer) || r.answer || '')).then(function () {
+              cp.lastChild.textContent = 'Copied'; cp.classList.add('done');
+              setTimeout(function () { cp.lastChild.textContent = draftOf(r.answer) ? 'Copy draft' : 'Copy'; cp.classList.remove('done'); }, 1600);
+            });
+          });
           log.scrollTop = log.scrollHeight;
         })
         .catch(function (e) {
