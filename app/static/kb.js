@@ -144,11 +144,12 @@
     if (n) openPanel(n.id);
   }
 
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function bars(months) {
     if (!months.length) return '';
     var max = Math.max.apply(null, months.map(function (m) { return m.n; }));
     return '<div class="kb-months">' + months.map(function (m) {
-      return '<div class="kb-month" title="' + esc(m.month) + ': ' + m.n + '"><i style="height:' + Math.max(6, Math.round(100 * m.n / max)) + '%"></i><span>' + esc(m.month.slice(5)) + '</span></div>';
+      return '<div class="kb-month" title="' + esc(m.month) + ': ' + m.n + '"><i style="height:' + Math.max(6, Math.round(100 * m.n / max)) + '%"></i><span>' + esc(MON[+m.month.slice(5) - 1] || m.month.slice(5)) + '</span></div>';
     }).join('') + '</div>';
   }
   function body(text) {
