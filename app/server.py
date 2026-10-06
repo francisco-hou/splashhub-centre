@@ -264,6 +264,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     row["status_verdict"] = sosscan.effective_verdict(full, row["result"])
                     row["reasons"] = sosscan.review_reasons(full, row["result"])
                     row["generic"] = sosscan.is_generic(full, row["result"])
+                    # branding vs the creator's email (team rule): the reason line and which images
+                    mm = sosscan.brand_mismatch(full, row["result"])
+                    row["mismatch"] = {"text": next((r for r in row["reasons"] if r.startswith("Branding ")), ""),
+                                       "images": [i for i, _b, _h in mm]} if mm else None
                 row["zendesk_url"] = zendesk.base_url()
                 return self.json(row)
             if u.path == "/api/import-past":

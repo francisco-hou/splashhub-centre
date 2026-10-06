@@ -449,9 +449,13 @@
     var worst = fs.map(function (f) { return f.verdict; }).concat(tr ? [tr.verdict] : [])
       .reduce(function (w, v) { return SEV[v] > SEV[w] ? v : w; }, 'normal');
     if (generic && worst === 'normal') worst = 'needs_review';
+    // The team rules (generic email, branding vs email) as the server applies
+    // them: the card never shows a better verdict than the request's status.
+    if (s.status_verdict && SEV[s.status_verdict] > SEV[worst]) worst = s.status_verdict;
     var conf = fs.length ? Math.round(fs.reduce(function (t, f) { return t + (f.confidence || 0); }, 0) / fs.length * 100) : null;
     h += '<div class="sh-card"><span class="vpill v-' + esc(worst) + '">' + esc(LABEL[worst] || worst) +
       (conf != null ? ' (' + conf + '%)' : '') + '</span>';
+    if (s.mismatch && s.mismatch.text) h += '<div class="sh-warn">' + esc(s.mismatch.text) + '.</div>';
     var shown = {};
     fs.forEach(function (f) {
       var r = f.splashtop_reference;
@@ -554,7 +558,7 @@
                 '<img src="' + esc(it.src) + '" alt="' + esc(it.name) + '" loading="lazy" referrerpolicy="no-referrer"></button>'
             : '<div class="gal-img gal-missing" title="' + esc(it.error || '') + '">Couldn&rsquo;t download</div>') +
           '<figcaption><span class="gal-name" title="' + esc(it.name) + '">' + esc(it.name) + '</span>' +
-            '<span class="gal-meta">' + (f ? pill(f.verdict) : '') +
+            '<span class="gal-meta">' + (f ? pill(f.verdict === 'normal' && s.mismatch && s.mismatch.images.indexOf(it.reviewed) >= 0 ? 'needs_review' : f.verdict) : '') +
             (it.bytes ? ' <span class="muted">' + kb(it.bytes) + '</span>' : '') + '</span></figcaption></figure>';
       }).join('') + '</div></section>';
   }

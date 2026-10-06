@@ -455,6 +455,18 @@ def is_generic(row, res):
                 (row.get("creator_domain") or "").lower() in FREE_EMAIL_DOMAINS)
 
 
+# Names that are on every SOS package page by design -- the platform download
+# buttons (Windows / Mac / Android ...) and Splashtop itself -- never count as
+# "another company's branding". Whole names only: "Apple Support Desk" still counts.
+PLATFORM_NAMES = re.compile(
+    r"^\s*(microsoft\s+)?windows(\s+\d+)?|(apple\s*)?(mac(\s*os)?|macos|os\s*x|macintosh)|apple|ios|ipad\s*os|ipados|iphone|ipad"
+    r"|(google\s*)?android|linux|ubuntu|chrome\s*os|chromeos|chromebook|google\s+chrome|splashtop(\s+\w+)?\s*$", re.I)
+
+
+def is_platform(name):
+    return bool(PLATFORM_NAMES.fullmatch(str(name or "").strip()))
+
+
 def brand_mismatch(row, res):
     """Images whose branding does not match the creator's email domain (the
     AI's own domain_consistency call): [(image index, [brands], how)]. Empty for a
@@ -463,7 +475,10 @@ def brand_mismatch(row, res):
         return []
     out = []
     for f in res.get("findings") or []:
-        brands = [b for b in f.get("detected_brand_references") or [] if b]
+        named = [b for b in f.get("detected_brand_references") or [] if b]
+        brands = [b for b in named if not is_platform(b)]
+        if named and not brands:
+            continue            # only platform / Splashtop names: expected on every package
         # "inconsistent": the AI sees another company; "unclear": a company name
         # it can't tie to the email's domain -- both are for a person to check.
         if f.get("domain_consistency") == "inconsistent" or (f.get("domain_consistency") == "unclear" and brands):
