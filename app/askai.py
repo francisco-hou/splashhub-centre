@@ -312,6 +312,18 @@ TOOLS["kb_search"] = (kb_search, "KNOWLEDGE BASE: Splashtop's Zendesk Help Cente
                        "limit": {"type": "integer"}})
 
 
+def customer(query):
+    import customers
+    return customers.ai_profile(query)
+
+
+TOOLS["customer"] = (customer, "ONE CUSTOMER, everything SplashHub Centre has: by e-mail domain (datamaas.com), one e-mail "
+                     "address, or a company name -- their 2026 tickets (count, open, per month, topics, latest), Custom SOS "
+                     "packages and verdicts, SSO requests, the people who wrote in, country. Use for 'tell me about X', "
+                     "'what has X asked us', 'does X have SOS packages'.",
+                     {"query": {"type": "string", "description": "a domain, an e-mail address or a company name"}})
+
+
 def centre_help(topic=None):
     import centrehelp
     return centrehelp.guide(topic)
@@ -361,6 +373,7 @@ SYSTEM = ("You are the assistant inside SplashHub Centre, Splashtop support's in
           "conversation (turns marked Customer / Support), the requester's e-mail and organization, and a country "
           "guess. Pick the lookup by the question:\n"
           "- is there a Help Center / knowledge base article about X, which article explains Y -> kb_search.\n"
+          "- one customer (a company, domain or e-mail): everything about them -> customer.\n"
           "- how many / how often / per month / by country, region or language -> case_search. Give 2-5 short "
           "alternative phrasings in query, comma-separated. Report matching_cases and the breakdown asked for.\n"
           "- the most common or trending problems, overall or within a topic ('windows 7', '2fa') -> case_themes; read "

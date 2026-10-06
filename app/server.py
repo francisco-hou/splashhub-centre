@@ -188,8 +188,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("sso.html", "text/html; charset=utf-8")
             if u.path in ("/kb", "/kb.html"):
                 return self.static("kb.html", "text/html; charset=utf-8")
+            if u.path in ("/customers", "/customers.html"):
+                return self.static("customers.html", "text/html; charset=utf-8")
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/splashtop-icon.png"):
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -295,6 +297,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(row)
             if u.path == "/api/import-past":
                 return self.json(sosscan.import_status())
+            # ---- Customers (customers.py): open to the team; reads what is already here ----
+            if u.path == "/api/customers/find":
+                import customers
+                return self.json(customers.find(((qs.get("q") or [""])[0])[:120]))
+            if u.path == "/api/customers/profile":
+                import customers
+                p = customers.profile(((qs.get("key") or [""])[0])[:200])
+                return self.json(p) if p.get("found") else self.json(dict(p, error="Nothing about this customer yet."), 404)
+            if u.path == "/api/customers/top":
+                import customers
+                return self.json(customers.top())
             # ---- Knowledge Base (kb.py): the page is open to the team; the sync is admin ----
             if u.path == "/api/kb":
                 import kb

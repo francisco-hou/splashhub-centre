@@ -719,3 +719,58 @@ main.page:not([hidden]) { animation: shcIn .28s cubic-bezier(.2, .7, .2, 1); }
 .kb-body p { margin: 0 0 8px; }
 .kb-body ul { margin: 0 0 8px; padding-left: 20px; }
 @media (max-width: 760px) { .kb-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---- Customers page ---- */
+.cu-searchcard { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.cu-search { display: flex; align-items: center; gap: 10px; border: 1px solid #d5dde6; border-radius: 10px; padding: 4px 4px 4px 14px; background: #fff; }
+.cu-search:focus-within { border-color: #0071ce; box-shadow: 0 0 0 3px rgba(0, 113, 206, .12); }
+.cu-search svg { color: #98a3ae; flex: none; }
+.cu-search input { flex: 1; min-width: 0; border: 0; outline: 0; font: inherit; font-size: 14px; padding: 8px 0; background: transparent; }
+.cu-msg { font-size: 12.5px; color: #55606b; }
+.cu-msg:empty { display: none; }
+.cu-matches:empty { display: none; }
+.cu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.cu-section .cu-grid { padding: 4px 16px 16px; }
+.cu-card { display: flex; flex-direction: column; gap: 6px; border: 1px solid #e3edf7; border-radius: 10px; padding: 12px 14px; color: #1d242c; background: #fff; transition: border-color .15s, box-shadow .15s; }
+.cu-card:hover { border-color: #9bb4ce; box-shadow: 0 2px 8px rgba(20, 30, 45, .06); text-decoration: none; }
+.cu-card-h { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.cu-card-h b { font-size: 14px; overflow-wrap: anywhere; }
+.cu-card-h .muted { font-size: 11.5px; white-space: nowrap; }
+.cu-orgs { font-size: 12px; color: #55606b; }
+.cu-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.cu-chip { font-size: 11.5px; background: #f2f6fa; border-radius: 999px; padding: 2px 8px; color: #3d4650; }
+.cu-chip.warn { background: #fff1e0; color: #9a5b00; }
+.cu-empty { padding: 18px 16px; font-size: 13px; color: #78838f; }
+.cu-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 18px 20px; flex-wrap: wrap; }
+.cu-head-l { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cu-title { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.cu-sub { font-size: 12.5px; color: #55606b; }
+.cu-generic { font-size: 12px; color: #9a5b00; background: #fff4dc; border-radius: 6px; padding: 5px 8px; margin-top: 4px; }
+.cu-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.cu-links .btn { display: inline-flex; align-items: center; gap: 5px; }
+.stat-value.cu-warn { color: #c0504a; }
+.cu-cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.cu-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cu-pad { padding: 4px 16px 16px; }
+.cu-h { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #78838f; margin: 14px 0 6px; }
+.cu-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.cu-tags span { font-size: 12px; background: #eef1f4; color: #3d4650; border-radius: 4px; padding: 1px 7px; }
+.cu-tags i { font-style: normal; color: #98a3ae; margin-left: 2px; }
+.cu-months { height: 80px; }
+.cu-table td { padding: 7px 8px; }
+.cu-table td.cu-subj { max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.cu-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid #eef3f8; color: #1d242c; }
+.cu-row:first-child { border-top: 0; }
+.cu-row:hover { text-decoration: none; background: #f7fbff; }
+.cu-row-t { display: flex; flex-direction: column; min-width: 0; font-size: 13px; }
+.cu-row-t b { font-weight: 600; overflow-wrap: anywhere; }
+.cu-row-s { font-size: 11.5px; }
+.cu-trial { color: #c0504a; font-weight: 600; font-size: 12px; }
+.cu-people { display: flex; flex-wrap: wrap; gap: 6px; }
+.cu-people a { font-size: 12.5px; border: 1px solid #dce7f2; border-radius: 999px; padding: 2px 10px; }
+.cu-people i { font-style: normal; color: #98a3ae; }
+@media (max-width: 980px) { .cu-cols { grid-template-columns: minmax(0, 1fr); } }
+
+/* the customer view: its blocks spaced like the rest of the page */
+#view { display: flex; flex-direction: column; gap: 16px; }
+#view:empty { display: none; }

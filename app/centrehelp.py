@@ -9,7 +9,7 @@ how SplashHub Centre works.
 
 GUIDE = {
     "overview": """SplashHub Centre is the Splashtop support team's web app on Spluki, next to SplashHub (the Zendesk
-sidebar app). Pages in the left menu: SOS Scans, SSO Requests, PriceBook, Knowledge Base, AI -- and, for an admin, Logs and Settings
+sidebar app). Pages in the left menu: SOS Scans, SSO Requests, Customers, PriceBook, Knowledge Base, AI -- and, for an admin, Logs and Settings
 (under an "Admin" heading). Top right: "Splashtop Support" with the role under it -- Member for everybody, Admin once the
 admin password is entered (its menu: Admin login / Log out; SSO sign-in with real names comes later). The left menu
 collapses to icons with the button next to the logo. SplashHub Centre only READS Zendesk, with one exception: adding an
@@ -91,6 +91,15 @@ organization, a country guess, the first message and the whole conversation (Cus
 removed; Help Center article links kept as article numbers). Settings > Database > Zendesk Tickets (admin) downloads
 them: ticket details first (fast), then each conversation (a few hours for a year); an hourly update keeps them current.
 A ticket not downloaded yet is read live from Zendesk when the AI needs it.""",
+
+    "customers": """Customers (left menu): everything SplashHub Centre has about one customer, on one page. Search an
+e-mail domain (datamaas.com), an e-mail address, or a company name. A customer is a domain -- or, for a free e-mail
+provider (gmail.com, outlook.com...), one address. The page shows: the organizations and country seen, first and last
+contact, quick links (ACP from their SOS requests, Zendesk search for the domain); 2026 tickets (how many, how many still
+open, per month, top tags and topics, the latest ones); their Custom SOS packages with verdicts; their SSO requests;
+and the people who wrote in. With no search, it lists the most active customers of the last 30 days. Splashtop's own
+domain is not a customer. Nothing new is read from Zendesk: it shows what is already downloaded (Zendesk Tickets in
+Settings > Database).""",
 
     "knowledge base": """Knowledge Base (left menu): Splashtop's Zendesk Help Center articles, in every language. Search by
 words, a title or an article number; filter by language, category, and Promoted / Outdated translation / Agents only /
