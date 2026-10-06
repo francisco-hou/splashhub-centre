@@ -210,9 +210,16 @@ def check(sso_id, by="Centre admin"):
     hist = ([{k: res.get(k) for k in ("ms", "found", "error", "by")}] + hist)[:20]
     upd = dict(status=status, last_checked_ms=res["ms"], last_result_json=json.dumps(res), history_json=json.dumps(hist),
                checks=(row.get("checks") or 0) + 1)
-    if res.get("found") and not row.get("verified_ms"):
+    newly = res.get("found") and not row.get("verified_ms")
+    if newly:
         upd["verified_ms"] = res["ms"]
     store.sso_update(sso_id, **upd)
+    if newly:                                             # Teams, when that's switched on (notify.py)
+        try:
+            import notify
+            notify.sso_verified(sso_id, row["ticket_id"], row.get("domain") or name)
+        except Exception as e:
+            sys.stderr.write("[notify] sso card skipped: %s\n" % type(e).__name__)
     sys.stderr.write("[sso] #%s %s: %s\n" % (row["ticket_id"], name, status))
     return res
 

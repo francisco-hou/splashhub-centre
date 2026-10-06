@@ -54,6 +54,8 @@
         <a class="set-nav-item" href="#cases" data-sect="cases"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Zendesk Tickets</a>
         <a class="set-nav-item" href="#kb" data-sect="kb"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg>Zendesk Knowledge Base</a>
         <a class="set-nav-item" href="#po" data-sect="po"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>PO Requests</a>
+        <div class="set-nav-group">Notifications</div>
+        <a class="set-nav-item" href="#notify" data-sect="notify"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Teams</a>
         <div class="set-nav-group">PriceBook</div>
         <a class="set-nav-item" href="#pricebook" data-sect="pricebook"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/></svg>Price feed</a>
       </nav>
@@ -167,6 +169,22 @@
         </div>
       </div>
         </section>
+        <section class="card set-card set-sect" id="setSect-notify" aria-labelledby="h-notify">
+          <h2 class="set-h" id="h-notify">Teams notifications</h2>
+          <div class="set-sub">Cards posted to a Teams channel when something needs a person. Each event is posted once; a card carries the ticket number, the package / domain / company and a button to open it here &mdash; never an agent&rsquo;s name.</div>
+      <div class="set-row">
+        <div class="set-txt">
+          <div class="set-t">Connection</div>
+          <div class="set-d" id="ntState">&hellip;</div>
+          <div class="set-d">The channel&rsquo;s <b>Send webhook alerts to a channel</b> workflow link is stored on Spluki as the sealed secret <code>TEAMS_WEBHOOK_URL</code>, and its host must be approved for SplashHub Centre&rsquo;s outbound calls.</div>
+          <div class="frow set-form">
+            <button type="button" class="btn" id="ntTest">Send test message</button>
+            <span class="sc-msg" id="ntMsg" aria-live="polite"></span>
+          </div>
+        </div>
+      </div>
+      <div id="ntKinds"></div>
+        </section>
         <section class="card set-card set-sect" id="setSect-spark" aria-labelledby="h-spark">
           <h2 class="set-h" id="h-spark">Spark</h2>
           <div class="set-sub"><span id="spState"></span></div>
@@ -218,7 +236,7 @@
   <link rel="stylesheet" href="prices.css?v=0.9.4">
   <script src="prices.js?v=1.1.0"></script>
   <script src="pricebook.js?v=0.9.2"></script>
-  <script src="pbsettings.js?v=1.2.2"></script>
-  <script src="settings.js?v=1.2.2"></script>
+  <script src="pbsettings.js?v=1.3.0"></script>
+  <script src="settings.js?v=1.3.0"></script>
 </body>
 </html>

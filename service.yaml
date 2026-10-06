@@ -54,6 +54,11 @@ secrets:
   ZENDESK_WEBHOOK_SECRET:
     name: ZENDESK_WEBHOOK_SECRET
     required: false
+  # Teams notifications (notify.py): the channel's "Send webhook alerts to a channel"
+  # workflow link. Anyone with it can post to the channel, so it lives only here.
+  TEAMS_WEBHOOK_URL:
+    name: TEAMS_WEBHOOK_URL
+    required: false
 
 permissions:
   - service: SPLUKI_POSTGRES

@@ -47,9 +47,10 @@ COOKIE = "shcadmin"
 # What needs the admin session: the Logs page's data and the Settings page's.
 # Everything else (SOS Scans, SSO Requests, PriceBook, AI) is open to the team.
 ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases",
-             "/api/kb", "/api/po"}
+             "/api/kb", "/api/po", "/api/notify"}
 ADMIN_POST = {"/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
-              "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop", "/api/po/import", "/api/po/update", "/api/po/stop"}
+              "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop", "/api/po/import", "/api/po/update", "/api/po/stop", "/api/notify",
+              "/api/notify/test"}
 # Local preview fills an empty database with sample runs. Never on Spluki.
 SAMPLE = store.backend() == "sqlite" and os.environ.get("SAMPLE_DATA", "1") != "0"
 
@@ -300,6 +301,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path == "/api/import-past":
                 return self.json(sosscan.import_status())
             # ---- PO Requests (po.py): the list is open to the team; the import is admin ----
+            if u.path == "/api/notify":
+                import notify
+                return self.json(notify.settings())
             if u.path == "/api/po":
                 import po
                 return self.json(po.status())
@@ -507,6 +511,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # "Import past SOS requests": runs in the background on the server.
             started = sosscan.start_import()
             return self.json(dict(sosscan.import_status(), started=started))
+        if u.path == "/api/notify/test":
+            # Settings > Notifications > Send test message (admin).
+            import notify
+            err = notify.test()
+            return self.json({"error": err}, 400) if err else self.json({"ok": True, "settings": notify.settings()})
+        if u.path == "/api/notify":
+            import notify
+            try:
+                data = json.loads(raw or b"{}")
+                notify.set_kind(str(data.get("kind") or ""), bool(data.get("on")))
+            except (ValueError, TypeError) as e:
+                return self.json({"error": "bad request"}, 400)
+            return self.json(notify.settings())
         if u.path in ("/api/po/import", "/api/po/update", "/api/po/stop"):
             # Settings > Database > PO Requests (reads Zendesk only).
             import po
@@ -742,6 +759,8 @@ def main():
     kb.boot()                         # the Knowledge Base again every 6 hours, once downloaded
     import po
     po.boot()                         # new and changed PO requests every hour, once imported
+    import notify
+    notify.boot()                     # Teams: spike and overdue-PO checks (only what's switched on)
     _spark_hello()
     srv = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print("SplashHub Centre on http://%s:%d  (backend: %s%s)" % (HOST, PORT, store.backend(), ", sample data" if SAMPLE else ""))

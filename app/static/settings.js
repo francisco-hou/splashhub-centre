@@ -26,7 +26,7 @@
     if (s.required && !s.authed) { location.href = '/logs?next=/settings'; return; }
     $('signOut').hidden = !s.required;
     $('page').hidden = false;
-    setup(); settings(); pollImport(); pollCases(); pollKb(); pollPo();
+    setup(); settings(); pollImport(); pollCases(); pollKb(); pollPo(); loadNotify();
     // The Price Book's feed settings: SplashHub's own pbsettings.js.
     if (window.PricebookSettingsPage) PricebookSettingsPage.boot(window.CentrePriceClient);
     showSect();
@@ -226,6 +226,33 @@
   $('caseStop').addEventListener('click', function () {
     this.disabled = true; $('caseMsg').textContent = 'Stopping after the current week…';
     post('/api/cases/stop').then(function () { setTimeout(pollCases, 800); });
+  });
+
+  // ---- Notifications: Teams cards (notify.py) ----------------------------------------------
+  function drawNotify(n) {
+    var last = n.last;
+    $('ntState').innerHTML = (n.configured
+      ? '<span class="set-ok">&#10003; A Teams workflow link is set.</span>'
+      : 'Not connected yet: <code>TEAMS_WEBHOOK_URL</code> isn&rsquo;t set on Spluki.') +
+      (last ? ' Last ' + esc(last.what) + ' ' + esc(new Date(last.ms).toLocaleString()) + ': ' + (last.error ? '<span class="sc-err-i">' + esc(last.error) + '</span>' : 'posted.') : '');
+    $('ntTest').disabled = !n.configured;
+    $('ntKinds').innerHTML = n.kinds.map(function (k) {
+      return '<div class="set-row"><div class="set-txt"><div class="set-t">' + esc(k.label) + '</div></div>' +
+        '<label class="aisw"><span class="aisw-sw"><input type="checkbox" data-kind="' + esc(k.key) + '"' + (k.on ? ' checked' : '') +
+        ' aria-label="' + esc(k.label) + '"><span class="aisw-track"></span></span><span class="aisw-state">' + (k.on ? 'On' : 'Off') + '</span></label></div>';
+    }).join('');
+  }
+  function loadNotify() { api('/api/notify').then(drawNotify).catch(function () {}); }
+  $('ntKinds').addEventListener('change', function (ev) {
+    var c = ev.target.closest('[data-kind]'); if (!c) return;
+    c.disabled = true;
+    post('/api/notify', { kind: c.getAttribute('data-kind'), on: c.checked }).then(drawNotify)
+      .catch(function (e) { c.checked = !c.checked; c.disabled = false; if (e.message !== 'login') $('ntMsg').textContent = e.message; });
+  });
+  $('ntTest').addEventListener('click', function () {
+    var b = this; b.disabled = true; $('ntMsg').textContent = 'Sending\u2026';
+    post('/api/notify/test').then(function (r) { b.disabled = false; $('ntMsg').textContent = 'Sent \u2014 check the channel.'; drawNotify(r.settings); })
+      .catch(function (e) { b.disabled = false; if (e.message !== 'login') $('ntMsg').textContent = e.message; });
   });
 
   // ---- PO Requests: every "Provision Details" ticket, all years (po.py; reads Zendesk only) ----
