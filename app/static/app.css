@@ -837,3 +837,10 @@ main.page:not([hidden]) { animation: shcIn .28s cubic-bezier(.2, .7, .2, 1); }
 .nt-table .sc-input { width: 100%; box-sizing: border-box; height: 30px; font-size: 12.5px; }
 .nt-table td:nth-child(2) { width: 18%; } .nt-table td:nth-child(3) { width: 30%; }
 .nt-spark { margin: 8px 0 2px; font-size: 12.5px; }
+
+/* Settings > Notifications > Ask from Teams */
+.ta-word { width: 140px; }
+.ta-flow { margin-top: 10px; padding: 10px 12px; background: #f7fafd; border: 1px solid #e3edf7; border-radius: 8px; }
+.ta-h { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #78838f; margin-bottom: 6px; }
+.ta-copy { user-select: all; overflow-wrap: anywhere; }
+.ta-key { background: #fff4dc; padding: 1px 4px; border-radius: 4px; }

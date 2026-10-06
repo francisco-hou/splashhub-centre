@@ -167,6 +167,15 @@ def handle_zendesk(ev):
 
 def handle(ev, secret):
     """One event -> (runs stored, '') or (-1, why it was rejected)."""
+    ck = _header(ev.get("headers"), "x-centre-key")
+    if ck:                                          # a question from Teams (teamsask.py)
+        try:
+            data = json.loads(_body(ev).decode("utf-8"))
+        except Exception:
+            return -1, "the Teams message is not JSON"
+        import teamsask
+        n, why = teamsask.handle(ck, data)
+        return (0, "") if n >= 0 else (n, why)
     if _header(ev.get("headers"), ZD_SIG):
         return handle_zendesk(ev)
     why = check_key(_header(ev.get("headers"), HEADER), secret)

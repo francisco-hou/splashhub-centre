@@ -47,10 +47,10 @@ COOKIE = "shcadmin"
 # What needs the admin session: the Logs page's data and the Settings page's.
 # Everything else (SOS Scans, SSO Requests, PriceBook, AI) is open to the team.
 ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases",
-             "/api/kb", "/api/po", "/api/notify"}
+             "/api/kb", "/api/po", "/api/notify", "/api/teams-ask"}
 ADMIN_POST = {"/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
               "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop", "/api/po/import", "/api/po/update", "/api/po/stop", "/api/notify",
-              "/api/notify/test", "/api/notify/run", "/api/notify/languages"}
+              "/api/notify/test", "/api/notify/run", "/api/notify/languages", "/api/teams-ask", "/api/teams-ask/key"}
 # Local preview fills an empty database with sample runs. Never on Spluki.
 SAMPLE = store.backend() == "sqlite" and os.environ.get("SAMPLE_DATA", "1") != "0"
 
@@ -304,6 +304,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path == "/api/notify":
                 import notify
                 return self.json(notify.settings())
+            if u.path == "/api/teams-ask":
+                import teamsask
+                return self.json(dict(teamsask.settings(), flow=teamsask.flow_setup()))
             if u.path == "/api/po":
                 import po
                 return self.json(po.status())
@@ -516,6 +519,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import notify
             err = notify.test()
             return self.json({"error": err}, 400) if err else self.json({"ok": True, "settings": notify.settings()})
+        if u.path in ("/api/teams-ask", "/api/teams-ask/key"):
+            # Settings > Notifications > Ask from Teams: on/off, the trigger word, a new key (shown once).
+            import teamsask
+            if u.path.endswith("/key"):
+                return self.json(dict(teamsask.settings(), key=teamsask.new_key(), flow=teamsask.flow_setup()))
+            try:
+                data = json.loads(raw or b"{}")
+                st = teamsask.save(data.get("on") if "on" in data else None, data.get("word"))
+            except (ValueError, TypeError) as e:
+                return self.json({"error": str(e) or "bad request"}, 400)
+            return self.json(dict(st, flow=teamsask.flow_setup()))
         if u.path == "/api/notify/run":
             # Settings > Notifications > Run now: this alert, now, from real data (admin).
             import notify, zendesk

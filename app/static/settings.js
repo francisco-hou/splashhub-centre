@@ -26,7 +26,7 @@
     if (s.required && !s.authed) { location.href = '/logs?next=/settings'; return; }
     $('signOut').hidden = !s.required;
     $('page').hidden = false;
-    setup(); settings(); pollImport(); pollCases(); pollKb(); pollPo(); loadNotify();
+    setup(); settings(); pollImport(); pollCases(); pollKb(); pollPo(); loadNotify(); loadAsk();
     // The Price Book's feed settings: SplashHub's own pbsettings.js.
     if (window.PricebookSettingsPage) PricebookSettingsPage.boot(window.CentrePriceClient);
     showSect();
@@ -308,6 +308,33 @@
     var b = this; b.disabled = true; $('ntMsg').textContent = 'Sending\u2026';
     post('/api/notify/test').then(function (r) { b.disabled = false; $('ntMsg').textContent = 'Sent \u2014 check the channel.'; drawNotify(r.settings); })
       .catch(function (e) { b.disabled = false; if (e.message !== 'login') $('ntMsg').textContent = e.message; });
+  });
+
+  // ---- Ask from Teams (teamsask.py) ---------------------------------------------------------------
+  function drawAsk(a) {
+    $('taOn').checked = !!a.on; $('taState').textContent = a.on ? 'On' : 'Off';
+    if (document.activeElement !== $('taWord')) $('taWord').value = a.word || 'centre';
+    var f = a.flow || {};
+    $('taFlow').innerHTML = '<div class="ta-h">The flow&rsquo;s HTTP step</div><dl class="po-dl">' +
+      '<dt>Method</dt><dd><code>POST</code></dd>' +
+      '<dt>URI</dt><dd>' + (f.url ? '<code class="ta-copy">' + esc(f.url) + '</code>' : '<span class="muted">this release has no webhook intake</span>') + '</dd>' +
+      '<dt>Headers</dt><dd><code>Content-Type</code>: <code>application/json</code><br><code>X-Centre-Key</code>: ' +
+        (a.key ? '<code class="ta-copy ta-key">' + esc(a.key) + '</code> <span class="sc-err-i">copy it now \u2014 it isn&rsquo;t shown again</span>'
+               : (a.has_key ? '<span class="muted">the key you created (press Create a key for a new one; the old one stops working)</span>' : '<span class="muted">press Create a key</span>')) + '</dd>' +
+      '<dt>Body</dt><dd><code>' + esc(f.body || '@{triggerBody()}') + '</code> <span class="muted">(Expression tab)</span></dd></dl>';
+  }
+  function loadAsk() { api('/api/teams-ask').then(drawAsk).catch(function () {}); }
+  $('taOn').addEventListener('change', function () {
+    post('/api/teams-ask', { on: this.checked }).then(drawAsk).catch(function (e) { if (e.message !== 'login') $('taMsg').textContent = e.message; });
+  });
+  $('taSave').addEventListener('click', function () {
+    post('/api/teams-ask', { word: $('taWord').value }).then(function (a) { drawAsk(a); $('taMsg').textContent = 'Saved.'; })
+      .catch(function (e) { if (e.message !== 'login') $('taMsg').textContent = e.message; });
+  });
+  $('taKey').addEventListener('click', function () {
+    if (!confirm('Create a new key? The flow must then use the new one; an older key stops working.')) return;
+    post('/api/teams-ask/key').then(function (a) { drawAsk(a); $('taMsg').textContent = 'New key created: copy it into the flow now.'; })
+      .catch(function (e) { if (e.message !== 'login') $('taMsg').textContent = e.message; });
   });
 
   // ---- PO Requests: every "Provision Details" ticket, all years (po.py; reads Zendesk only) ----
