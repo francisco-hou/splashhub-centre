@@ -486,6 +486,14 @@ def scan_get(scan_id, fresh=False):
     return dict(zip(SCAN_COLS, rows[0])) if rows else None
 
 
+def scans_for_ticket(ticket_id):
+    """Every request for one ticket, newest first (the sidebar's lookup)."""
+    ensure_schema()
+    rows = _read("SELECT " + ", ".join(SCAN_COLS) + " FROM sos_scans WHERE ticket_id = %s ORDER BY id DESC LIMIT 20",
+                 [int(ticket_id)], fresh=True)
+    return [dict(zip(SCAN_COLS, r)) for r in rows]
+
+
 def scan_done_for(ticket_id, attach_key):
     """A finished scan of exactly these images on this ticket, if one exists."""
     ensure_schema()

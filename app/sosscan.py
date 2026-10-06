@@ -878,16 +878,17 @@ def _apply_pushed(scan_id, p):
                       gallery_json=json.dumps(p["gallery"]))
 
 
-def request(ticket_id, source, requested_by=None, force=False, pushed=None):
+def request(ticket_id, source, requested_by=None, force=False, pushed=None, review=None):
     """Queue a scan; returns the new row's id. `pushed`: what the trigger sent
-    about the ticket (pushed_details), shown until the full scan replaces it."""
+    about the ticket (pushed_details), shown until the full scan replaces it.
+    review=True: give it an AI review whatever the switch says (the sidebar)."""
     global _started
     with _lock:
         if not _started:
             threading.Thread(target=_worker, name="sos-scan", daemon=True).start()
             _started = True
     scan_id = store.scan_create(ticket_id, source, requested_by)
-    store.scan_update(scan_id, ai_review="on" if (source != "import" and ai_review_on()) else "off")
+    store.scan_update(scan_id, ai_review="on" if (source != "import" and (review or ai_review_on())) else "off")
     if pushed:
         _apply_pushed(scan_id, pushed)
     _Q.put((scan_id, int(ticket_id), force))
@@ -1152,3 +1153,47 @@ def start_rules_fix():
         except Exception as e:
             sys.stderr.write("[scan] team-rule pass failed: %s\n" % type(e).__name__)
     threading.Thread(target=run, name="team-rules", daemon=True).start()
+
+
+# ---- SplashHub's sidebar: show the review made here instead of a second AI call ----
+
+def sidebar_review(ticket_id, start=True, again=False):
+    """What SplashHub's sidebar shows for a ticket, so one ticket gets one AI
+    review: the latest one made here, as the AI returned it (the sidebar draws
+    it in its own format). Nothing yet: with start, ask for one and say
+    "pending"; the sidebar asks again a few seconds later.
+
+    {"state": "done", "result": {...}, "images": [file names, in the order the
+     AI saw them], "verdict", "reviewed_ms", "model", "scan_id"}
+    {"state": "pending"} / {"state": "none"} / {"state": "error", "error": "..."}"""
+    rows = store.scans_for_ticket(ticket_id)
+    if any(r.get("status") in ("queued", "running") for r in rows):
+        return {"state": "pending"}
+    done = next((r for r in rows if r.get("status") == "done" and r.get("result_json")), None)
+    if done and not again:
+        full = store.scan_get(done["id"], fresh=True) or done
+        try:
+            res = json.loads(full.get("result_json") or "null") or {}
+        except ValueError:
+            res = {}
+        gal = [g for g in json.loads(full.get("gallery_json") or "[]") if g.get("reviewed_index") is not None]
+        gal.sort(key=lambda g: g["reviewed_index"])
+        return {"state": "done", "result": res, "images": [g.get("filename") or "" for g in gal],
+                "verdict": effective_verdict(full, res), "reviewed_ms": full.get("reviewed_ms") or full.get("finished_ms"),
+                "model": full.get("model"), "scan_id": full["id"]}
+    if not start:
+        return {"state": "none"}
+    miss = missing_config()
+    if miss:
+        return {"state": "error", "error": "SplashHub Centre's AI review isn't set up (missing %s)" % ", ".join(miss)}
+    # Can't be read right now (Zendesk access, setup): say why -- Centre retries
+    # those by itself every few minutes, so asking again would only repeat it.
+    if rows and not again and rows[0].get("status") in ("waiting", "error"):
+        return {"state": "error", "error": (rows[0].get("error") or "SplashHub Centre couldn't read this ticket yet.").strip()}
+    # Listed here already (e.g. while the switch was off): review that request.
+    # Otherwise list the ticket and review it.
+    if rows and not again:
+        err = review_now(rows[0]["id"])
+        return {"state": "error", "error": err} if err else {"state": "pending"}
+    request(int(ticket_id), "sidebar", "SplashHub sidebar", force=bool(again), review=True)
+    return {"state": "pending"}

@@ -368,6 +368,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         # 64 KB is plenty for every form here; the Price Book's cached prices are the one bigger save.
         raw = self.rfile.read(min(n, (2 * 1024 * 1024) if u.path == "/api/pricebook/store" else 64 * 1024)) if n else b""
+        if u.path == "/api/sidebar/review":
+            # SplashHub's sidebar (through Zendesk's proxy): the review made
+            # here for a ticket, or one started now -- never a second AI call.
+            # Same shared key as the run-log feed (RUNLOG_SECRET).
+            import feed
+            key, given = feed._secret(), (self.headers.get("X-SplashHub-Key") or "").strip()
+            if not key or not hmac.compare_digest(given.encode("utf-8"), key.encode("utf-8")):
+                return self.json({"error": "key refused"}, 403)
+            try:
+                data = json.loads(raw or b"{}")
+                tid = int(str(data.get("ticket_id") or "").strip().lstrip("#"))
+            except (ValueError, TypeError):
+                return self.json({"error": "Give a ticket number."}, 400)
+            if tid <= 0:
+                return self.json({"error": "Give a ticket number."}, 400)
+            try:
+                return self.json(sosscan.sidebar_review(tid, start=data.get("start", True) is not False,
+                                                        again=bool(data.get("again"))))
+            except Exception as e:
+                sys.stderr.write("[sidebar] #%s lookup failed: %s\n" % (tid, type(e).__name__))
+                return self.json({"state": "error", "error": "SplashHub Centre could not look this up (%s)" % type(e).__name__}, 500)
         if u.path == "/login":
             try:
                 given = (json.loads(raw or b"{}").get("password") or "")
