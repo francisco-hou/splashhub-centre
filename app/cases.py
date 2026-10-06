@@ -46,7 +46,7 @@ COMMENT_PAGES = 20             # 100 replies a page
 WEEK = 7 * 86400
 SYNC_EVERY = 3600
 RATE = 3.0                     # comment reads per second, at most (Zendesk's limit is shared with every other app)
-SCHEMA = "3"
+SCHEMA = "4"
 SKIP_SUBJECTS = ("New SOS package created by", "Here comes a new request to validate SSO method")
 
 COLS = ("ticket_id", "created_ms", "updated_ms", "status", "type", "priority", "channel", "subject", "body", "tags",
@@ -117,10 +117,10 @@ def ensure():
     finally:
         c.close()
     was = store.get_setting("cases_schema", "")
-    if was and was < "3":
-        # Schema 3 keeps whole tickets: conversations saved under the old
-        # 9,000-character limit are read again (newest first, in the background;
-        # the old text stays searchable until each is replaced).
+    if was and was < "4":
+        # Schema 3 keeps whole tickets, schema 4 keeps Help Center article links:
+        # conversations saved before are read again (newest first, in the
+        # background; the old text stays searchable until each is replaced).
         c = store.connect(True)
         try:
             c.cursor().execute("UPDATE cases SET convo_ms = NULL WHERE convo_turns IS NOT NULL")
@@ -187,7 +187,10 @@ def scrub(text, limit=BODY_CHARS, agents=()):
     t = _CHAT.sub(lambda m: ("Support: " if "[agent]" in m.group(1) else "Customer: "), t)
     t = _AGENT_EMAIL.sub("[agent email]", t)
     t = _PHONE.sub("[phone]", t)
-    t = _URL.sub(lambda m: "[link: %s]" % m.group(1), t)
+    # a link keeps its site; a Help Center article link also keeps the article's
+    # number, so the Knowledge Base can count the tickets that link each article
+    t = _URL.sub(lambda m: "[link: %s%s]" % (m.group(1), "".join(
+        ", article " + a for a in re.findall(r"/articles/(\d{6,})", m.group(0))[:1])), t)
     t = re.sub(r"[ \t]+", " ", t)
     t = re.sub(r"\n\s*\n+", "\n", t).strip()
     return t[:limit]

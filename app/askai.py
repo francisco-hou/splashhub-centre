@@ -299,6 +299,19 @@ TOOLS["case_read"] = (case_read, "One case in full by ticket number: subject, re
                       "fresh=true reads the latest straight from Zendesk -- ALWAYS use it to draft a reply.",
                       {"ticket_id": {"type": "integer"}, "fresh": {"type": "boolean"}})
 
+def kb_search(query, locale=None, limit=6):
+    import kb
+    return kb.ai_search(query, locale, limit)
+
+
+TOOLS["kb_search"] = (kb_search, "KNOWLEDGE BASE: Splashtop's Zendesk Help Center articles matching some words -- title, "
+                      "link, section, an excerpt, helpful votes and how many 2026 tickets link it. Use to point a customer "
+                      "to an article, to answer 'is there an article about X', and in every reply draft.",
+                      {"query": {"type": "string", "description": "a few words, e.g. 'black screen mac'"},
+                       "locale": {"type": "string", "description": "Help Center language, default en-us (ja, de, fr, zh-tw...)"},
+                       "limit": {"type": "integer"}})
+
+
 def centre_help(topic=None):
     import centrehelp
     return centrehelp.guide(topic)
@@ -347,6 +360,7 @@ SYSTEM = ("You are the assistant inside SplashHub Centre, Splashtop support's in
           "CASES -- every ticket since 2026-01-01 with its subject, the customer's first message, the whole "
           "conversation (turns marked Customer / Support), the requester's e-mail and organization, and a country "
           "guess. Pick the lookup by the question:\n"
+          "- is there a Help Center / knowledge base article about X, which article explains Y -> kb_search.\n"
           "- how many / how often / per month / by country, region or language -> case_search. Give 2-5 short "
           "alternative phrasings in query, comma-separated. Report matching_cases and the breakdown asked for.\n"
           "- the most common or trending problems, overall or within a topic ('windows 7', '2fa') -> case_themes; read "
@@ -363,7 +377,9 @@ SYSTEM = ("You are the assistant inside SplashHub Centre, Splashtop support's in
           "something is missing to help (version, OS, logs, screenshots), ask for it. Friendly and short. Sign off as "
           "'Splashtop Support' -- never an agent's name. Never promise refunds, dates or fixes, and never invent "
           "settings, links or steps the cases don't show. Answer as: '**Draft reply**', the reply text, then '**Based "
-          "on**' with one line naming the tickets you used. If the ticket is solved or closed, say so first.\n"
+          "on**' with one line naming the tickets you used. If the ticket is solved or closed, say so first. Also call "
+          "kb_search for the problem (in the customer's language when the Help Center has it) and, when an article fits, "
+          "link it in the reply -- only links kb_search returned, never an agents_only article.\n"
           "Countries are a guess (the e-mail's country domain, else the profile time zone): say so when you give them.\n\n"
           "FOLLOW-UPS: when the user pushes back or asks again in other words, your last answer missed. Use a "
           "DIFFERENT lookup (case_themes rather than case_overview, case_solutions for fixes, case_search for counts) "

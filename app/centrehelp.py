@@ -9,7 +9,7 @@ how SplashHub Centre works.
 
 GUIDE = {
     "overview": """SplashHub Centre is the Splashtop support team's web app on Spluki, next to SplashHub (the Zendesk
-sidebar app). Pages in the left menu: SOS Scans, SSO Requests, PriceBook, AI -- and, for an admin, Logs and Settings
+sidebar app). Pages in the left menu: SOS Scans, SSO Requests, PriceBook, Knowledge Base, AI -- and, for an admin, Logs and Settings
 (under an "Admin" heading). Top right: "Splashtop Support" with the role under it -- Member for everybody, Admin once the
 admin password is entered (its menu: Admin login / Log out; SSO sign-in with real names comes later). The left menu
 collapses to icons with the button next to the logo. SplashHub Centre only READS Zendesk, with one exception: adding an
@@ -85,11 +85,21 @@ fixed, and writes a reply to the customer; Copy draft copies just the reply. Eac
 how long it took. It never answers questions about individual support agents. Nothing asked there changes anything or
 reaches Zendesk.""",
 
-    "cases": """Cases (the AI's support-ticket data): every Zendesk ticket created since 1 January 2026 (not the SOS
-package or SSO validation tickets), with subject, tags, status, requester, organization, a country guess, the first
-message and the whole conversation (Customer / Support turns; agents' names removed). Settings > Cases (admin) downloads
-them: ticket details first (fast), then each conversation (a few hours for a year); an hourly update keeps them
-current. A ticket not downloaded yet is read live from Zendesk when the AI needs it.""",
+    "zendesk tickets": """Zendesk Tickets (the AI's support-ticket data, once called Cases): every Zendesk ticket created
+since 1 January 2026 (not the SOS package or SSO validation tickets), with subject, tags, status, requester,
+organization, a country guess, the first message and the whole conversation (Customer / Support turns; agents' names
+removed; Help Center article links kept as article numbers). Settings > Database > Zendesk Tickets (admin) downloads
+them: ticket details first (fast), then each conversation (a few hours for a year); an hourly update keeps them current.
+A ticket not downloaded yet is read live from Zendesk when the AI needs it.""",
+
+    "knowledge base": """Knowledge Base (left menu): Splashtop's Zendesk Help Center articles, in every language. Search by
+words, a title or an article number; filter by language, category, and Promoted / Outdated translation / Agents only /
+Drafts; sort by most linked in tickets, most helpful votes, most "not helpful" votes, recently or least recently
+updated. Top: articles, updated in the last 30 days, articles linked in 2026 tickets, outdated translations. Click an
+article for its stats -- helpful % (yes / no votes), how many 2026 tickets link it (by month, and the latest tickets),
+updated and created dates, its languages (source, outdated ones marked), labels -- and its text, with Open in the Help
+Center. Zendesk doesn't give page views. Settings > Database > Zendesk Knowledge Base (admin) downloads the articles; it
+syncs again every 6 hours. The AI page searches it too and links articles in reply drafts.""",
 
     "logs": """Logs (admin): every SplashHub run across the team -- who ran it, when, which tool, model, tokens and
 estimated cost -- from the SplashHub sidebar and from SplashHub Centre (brand scans, AI page questions at $0). Filters:
@@ -100,7 +110,8 @@ Export CSV.""",
 - Reviews & notes: AI review (review new SOS requests on arrival), Auto add internal note.
 - Translation: Translate with Claude (best, a cent or two) or Spark (free); a translation is made once and kept.
 - Import: Past requests -- import every past SOS package ticket (no AI review); it carries on after a restart.
-- Cases: download 2026's tickets for the AI, and their progress.
+- Database > Zendesk Tickets: download 2026's tickets for the AI, and their progress.
+- Database > Zendesk Knowledge Base: download / sync the Help Center articles (every 6 hours once downloaded).
 - Spark: the model, Test speed, and "Let the model think first" (slower; off by default).
 - Price feed: where the PriceBook reads its prices.""",
 

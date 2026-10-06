@@ -26,7 +26,7 @@
     if (s.required && !s.authed) { location.href = '/logs?next=/settings'; return; }
     $('signOut').hidden = !s.required;
     $('page').hidden = false;
-    setup(); settings(); pollImport(); pollCases();
+    setup(); settings(); pollImport(); pollCases(); pollKb();
     // The Price Book's feed settings: SplashHub's own pbsettings.js.
     if (window.PricebookSettingsPage) PricebookSettingsPage.boot(window.CentrePriceClient);
     showSect();
@@ -226,6 +226,38 @@
   $('caseStop').addEventListener('click', function () {
     this.disabled = true; $('caseMsg').textContent = 'Stopping after the current week…';
     post('/api/cases/stop').then(function () { setTimeout(pollCases, 800); });
+  });
+
+  // ---- Zendesk Knowledge Base: the Help Center's articles (kb.py; reads Zendesk only) ----
+  var kbPoll = null;
+  function drawKb(st) {
+    $('kbState').innerHTML = st.articles
+      ? '<b>' + st.articles.toLocaleString() + '</b> articles in <b>' + st.languages + '</b> language' + (st.languages === 1 ? '' : 's') +
+        (st.rows > st.articles ? ' (' + st.rows.toLocaleString() + ' counting translations).' : '.') + (st.synced_ms ? ' Last synced ' + esc(new Date(st.synced_ms).toLocaleString()) + '.' : '')
+      : 'Nothing downloaded yet.';
+    $('kbSync').textContent = st.synced_ms ? 'Sync now' : 'Download the Knowledge Base';
+    $('kbSync').disabled = !!st.running;
+    $('kbStop').hidden = !st.running;
+    var msg = $('kbMsg');
+    if (st.running) {
+      msg.textContent = 'Downloading' + (st.locale ? ' ' + st.locale : '') + '\u2026 ' + (st.saved || 0).toLocaleString() + ' saved so far.';
+      clearTimeout(kbPoll); kbPoll = setTimeout(pollKb, 2000);
+    } else if (st.error) {
+      msg.textContent = 'Stopped: ' + st.error;
+    } else if (st.finished_ms) {
+      msg.textContent = 'Done: ' + (st.saved || 0).toLocaleString() + ' articles and translations.';
+    } else {
+      msg.textContent = '';
+    }
+  }
+  function pollKb() { api('/api/kb').then(drawKb).catch(function () {}); }
+  $('kbSync').addEventListener('click', function () {
+    this.disabled = true; $('kbMsg').textContent = 'Starting\u2026';
+    post('/api/kb/sync').then(drawKb).catch(function (e) { $('kbSync').disabled = false; if (e.message !== 'login') $('kbMsg').textContent = e.message; });
+  });
+  $('kbStop').addEventListener('click', function () {
+    this.disabled = true; $('kbMsg').textContent = 'Stopping after the current page\u2026';
+    post('/api/kb/stop').then(function () { setTimeout(pollKb, 800); });
   });
 
   $('impStop').addEventListener('click', function () {

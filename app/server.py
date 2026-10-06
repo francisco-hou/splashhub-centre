@@ -46,9 +46,10 @@ PW_FILE = os.path.join(APP, "admin_password.txt")
 COOKIE = "shcadmin"
 # What needs the admin session: the Logs page's data and the Settings page's.
 # Everything else (SOS Scans, SSO Requests, PriceBook, AI) is open to the team.
-ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases"}
+ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases",
+             "/api/kb"}
 ADMIN_POST = {"/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
-              "/api/cases/download", "/api/cases/stop", "/api/cases/update"}
+              "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop"}
 # Local preview fills an empty database with sample runs. Never on Spluki.
 SAMPLE = store.backend() == "sqlite" and os.environ.get("SAMPLE_DATA", "1") != "0"
 
@@ -185,8 +186,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("settings.html", "text/html; charset=utf-8")
             if u.path in ("/sso", "/sso.html"):
                 return self.static("sso.html", "text/html; charset=utf-8")
+            if u.path in ("/kb", "/kb.html"):
+                return self.static("kb.html", "text/html; charset=utf-8")
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/splashtop-icon.png"):
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -292,8 +295,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(row)
             if u.path == "/api/import-past":
                 return self.json(sosscan.import_status())
+            # ---- Knowledge Base (kb.py): the page is open to the team; the sync is admin ----
+            if u.path == "/api/kb":
+                import kb
+                return self.json(kb.status())
+            if u.path == "/api/kb/meta":
+                import kb
+                return self.json(kb.meta((qs.get("locale") or [""])[0] or None))
+            if u.path == "/api/kb/search":
+                import kb
+                one = lambda k: ((qs.get(k) or [""])[0]).strip()
+                try:
+                    page = max(0, int(one("page") or 0))
+                except ValueError:
+                    page = 0
+                return self.json(kb.search(one("q")[:120] or None, one("locale") or None, one("category") or None,
+                                           one("flag") or None, one("sort") or None, page))
+            m = re.match(r"^/api/kb/article/(\d+)$", u.path)
+            if m:
+                import kb
+                a = kb.article(int(m.group(1)), (qs.get("locale") or [""])[0] or None)
+                return self.json(a) if a else self.json({"error": "not found"}, 404)
             if u.path == "/api/cases":
-                # Settings > Cases: what is downloaded, and the job's progress.
+                # Settings > Zendesk Tickets: what is downloaded, and the job's progress.
                 import cases
                 st = cases.status()
                 if (qs.get("zendesk") or [""])[0] == "1":
@@ -443,6 +467,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # "Import past SOS requests": runs in the background on the server.
             started = sosscan.start_import()
             return self.json(dict(sosscan.import_status(), started=started))
+        if u.path in ("/api/kb/sync", "/api/kb/stop"):
+            # Settings > Database > Zendesk Knowledge Base (reads Zendesk only).
+            import kb
+            if u.path.endswith("/stop"):
+                return self.json({"ok": kb.stop()})
+            started = kb.start()
+            return self.json(dict(kb.status(), started=started))
         if u.path in ("/api/cases/download", "/api/cases/update", "/api/cases/stop"):
             # Settings > Cases: download 2026's tickets, update them, or stop (reads Zendesk only).
             import cases
@@ -659,6 +690,8 @@ def main():
     ssocheck.resume_import()
     import cases
     cases.boot()                      # a download a restart interrupted carries on; hourly updates
+    import kb
+    kb.boot()                         # the Knowledge Base again every 6 hours, once downloaded
     _spark_hello()
     srv = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print("SplashHub Centre on http://%s:%d  (backend: %s%s)" % (HOST, PORT, store.backend(), ", sample data" if SAMPLE else ""))
