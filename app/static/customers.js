@@ -11,6 +11,8 @@
   var ZD = '';
   var VERDICT = { normal: 'Verified', needs_review: 'Needs review', suspicious: 'High risk' };
   var SSO = { needs_details: 'Needs details', pending: 'Not checked', not_found: 'Not found yet', verified: 'Verified', error: 'Check failed' };
+  var OPEN = { new: 1, open: 1, pending: 1, hold: 1 };
+  var SPARK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>';
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var OUT = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>';
 
@@ -94,6 +96,7 @@
     api('/api/customers/profile?key=' + encodeURIComponent(key)).then(function (c) {
       $('q').value = c.label;
       $('view').innerHTML = profile(c);
+      loadSummary(c.key);
     }).catch(function (e) { $('view').innerHTML = '<div class="cu-empty">' + esc(e.message) + '</div>'; });
   }
 
@@ -124,48 +127,104 @@
       '<div class="cu-sub">' + [c.orgs.length ? esc(c.orgs.join(' · ')) : '', c.countries.length ? esc(c.countries.join(', ')) + ' <span class="muted">(guess)</span>' : '',
         c.first_ms ? 'first seen ' + esc(day(c.first_ms)) : ''].filter(Boolean).join(' &nbsp;&middot;&nbsp; ') + '</div>' +
       (c.generic ? '<div class="cu-generic">Free e-mail provider: only this one address is shown, not everyone at ' + esc(c.domain) + '.</div>' : '') +
+      (c.people.length ? '<div class="cu-people">' + c.people.slice(0, 8).map(function (p) {
+        return '<a href="#email:' + esc(p.email) + '" title="Only this address">' + esc(p.email) + ' <i>' + p.n + '</i></a>';
+      }).join('') + '</div>' : '') +
       '</div><div class="cu-links">' + links.join('') + '</div></section>';
 
+    // the AI summary: filled in by loadSummary() when Spark has written it
+    h += '<section class="card cu-ai" id="cuAi"><div class="cu-ai-h"><span class="cu-ai-t">' + SPARK + 'Summary</span><span class="snav-ai">Spark</span>' +
+      '<span class="cu-ai-when" id="cuAiWhen"></span><button type="button" class="btn btn-sm" id="cuAiAgain" title="Write it again">Refresh</button></div>' +
+      '<div class="cu-ai-body" id="cuAiBody"><span class="cu-ai-wait">Spark is reading this customer’s records…</span></div></section>';
+
     var verified = (c.sso_requests || []).filter(function (s) { return s.status === 'verified'; }).length;
+    var nextProv = (c.provisioning_requests || []).filter(function (p) { return OPEN[p.status]; }).length;
     h += '<div class="stats">' +
-      stat('Tickets, 2026', int(c.tickets), c.open ? '<b>' + int(c.open) + '</b> still open' : 'none open') +
-      stat('SOS packages', int(c.sos), c.flagged ? int(c.flagged) + ' needs review / high risk' : (c.sos ? 'none flagged' : '&nbsp;'), c.flagged ? 'cu-warn' : '') +
-      stat('SSO requests', int(c.sso), c.sso ? int(verified) + ' verified' : '&nbsp;') +
-      stat('Last contact', esc(ago(c.last_ms)), esc(day(c.last_ms)) + (c.recent_30d ? ' &middot; ' + int(c.recent_30d) + ' in 30 days' : '')) + '</div>';
+      stat('Tickets, 2026', int(c.tickets), c.open ? '<b>' + int(c.open) + '</b> still open' : (c.tickets ? 'none open' : '&nbsp;')) +
+      stat('Provisioning', int(c.provisioning), c.provisioning ? (nextProv ? int(nextProv) + ' pending' : 'none pending') : 'no requests') +
+      stat('Custom SOS packages', int(c.sos), c.flagged ? int(c.flagged) + ' needs review / high risk' : (c.sos ? 'none flagged' : 'none'), c.flagged ? 'cu-warn' : '') +
+      stat('SSO requests', int(c.sso), c.sso ? int(verified) + ' verified' : 'none') + '</div>';
 
-    // left: tickets; right: SOS, SSO, people
-    var L = '<section class="card cu-section"><div class="card-head"><h2 class="card-title">Tickets</h2><span class="count">2026</span></div><div class="cu-pad">';
+    // 1) their tickets
+    var T = '<section class="card cu-section"><div class="card-head"><h2 class="card-title">Tickets</h2><span class="count">2026' +
+      (c.provisioning ? ' &middot; provisioning requests are in their own box below' : '') + '</span></div><div class="cu-pad">';
     if (!c.tickets) {
-      L += '<div class="cu-empty">No 2026 tickets from ' + (c.kind === 'email' ? 'this address' : 'this domain') + ' (or Zendesk Tickets aren&rsquo;t downloaded yet).</div>';
+      T += '<div class="cu-empty">No 2026 tickets from ' + (c.kind === 'email' ? 'this address' : 'this domain') + ' (or Zendesk Tickets aren&rsquo;t downloaded yet).</div>';
     } else {
-      L += months(c.per_month);
-      if (c.topics.length) L += '<div class="cu-h">Topics</div><div class="cu-tags">' + c.topics.map(function (t) { return '<span>' + esc(t) + '</span>'; }).join('') + '</div>';
-      if (c.tags.length) L += '<div class="cu-h">Tags</div><div class="cu-tags">' + c.tags.map(function (t) { return '<span>' + esc(t.tag) + ' <i>' + t.n + '</i></span>'; }).join('') + '</div>';
-      L += '<div class="cu-h">Latest</div><table class="runs cu-table"><tbody>' + c.recent_tickets.map(function (t) {
-        return '<tr><td class="when">' + esc(day(t.created_ms)) + '</td><td>' + zdTicket(t.ticket_id) + '</td><td class="cu-subj" title="' + esc(t.subject) + '">' + esc(t.subject || '') +
-          (c.kind === 'domain' && t.requester_email ? '<span class="muted"> &middot; ' + esc(t.requester_email) + '</span>' : '') + '</td><td>' + tstatus(t.status) + '</td></tr>';
-      }).join('') + '</tbody></table>';
+      T += '<div class="cu-tix"><div class="cu-tix-l">' + months(c.per_month) +
+        (c.topics.length ? '<div class="cu-h">Topics</div><div class="cu-tags">' + c.topics.map(function (t) { return '<span>' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
+        (c.tags.length ? '<div class="cu-h">Tags</div><div class="cu-tags">' + c.tags.map(function (t) { return '<span>' + esc(t.tag) + ' <i>' + t.n + '</i></span>'; }).join('') + '</div>' : '') +
+        '</div><div class="cu-tix-r"><table class="runs cu-table"><tbody>' + c.recent_tickets.map(function (t) {
+          return '<tr><td class="when">' + esc(day(t.created_ms)) + '</td><td>' + zdTicket(t.ticket_id) + '</td><td class="cu-subj" title="' + esc(t.subject) + '">' + esc(t.subject || '') +
+            (c.kind === 'domain' && t.requester_email ? '<span class="muted"> &middot; ' + esc(t.requester_email) + '</span>' : '') + '</td><td>' + tstatus(t.status) + '</td></tr>';
+        }).join('') + '</tbody></table>' + (c.tickets > c.recent_tickets.length ? '<div class="cu-more">Latest ' + c.recent_tickets.length + ' of ' + int(c.tickets) + '.</div>' : '') +
+        '</div></div>';
     }
-    L += '</div></section>';
+    T += '</div></section>';
 
-    var R = '<section class="card cu-section"><div class="card-head"><h2 class="card-title">Custom SOS packages</h2><span class="count">' + int(c.sos) + '</span></div><div class="cu-pad">';
-    R += c.packages.length ? c.packages.map(function (p) {
-      return '<a class="cu-row" href="/scans#' + p.id + '"><span class="cu-row-t"><b>' + esc(p.name || 'Package') + '</b>' +
-        (p.type ? ' <span class="' + (String(p.type).toLowerCase() === 'trial' ? 'cu-trial' : 'muted') + '">' + esc(p.type) + '</span>' : '') +
-        '<span class="muted cu-row-s">' + esc(day(p.requested_ms)) + ' &middot; #' + p.ticket + (p.creator && c.kind === 'domain' ? ' &middot; ' + esc(p.creator) : '') + '</span></span>' +
-        (p.verdict ? '<span class="vpill v-' + esc(p.verdict) + '">' + esc(VERDICT[p.verdict] || p.verdict) + '</span>' : '<span class="muted">not reviewed</span>') + '</a>';
-    }).join('') : '<div class="cu-empty">None.</div>';
-    R += '</div></section>';
-    R += '<section class="card cu-section"><div class="card-head"><h2 class="card-title">SSO requests</h2><span class="count">' + int(c.sso) + '</span></div><div class="cu-pad">';
-    R += c.sso_requests.length ? c.sso_requests.map(function (s) {
-      return '<a class="cu-row" href="/sso#' + s.id + '"><span class="cu-row-t"><b>' + esc(s.domain || '(no domain yet)') + '</b><span class="muted cu-row-s">' +
-        esc(day(s.requested_ms)) + ' &middot; #' + s.ticket_id + '</span></span><span class="vpill s-' + esc(s.status) + '">' + esc(SSO[s.status] || s.status) + '</span></a>';
-    }).join('') : '<div class="cu-empty">None.</div>';
-    R += '</div></section>';
-    if (c.people.length) {
-      R += '<section class="card cu-section"><div class="card-head"><h2 class="card-title">People</h2><span class="count">who wrote in</span></div><div class="cu-pad cu-people">' +
-        c.people.map(function (p) { return '<a href="#email:' + esc(p.email) + '" title="Only this address">' + esc(p.email) + ' <i>' + p.n + '</i></a>'; }).join('') + '</div></section>';
+    // 2) the rest, each in its own box -- only when there are any
+    var boxes = [];
+    if (c.provisioning_requests && c.provisioning_requests.length) {
+      boxes.push(box('Provisioning requests', c.provisioning, c.provisioning_requests.map(function (p) {
+        var due = p.expected ? 'expected ' + esc(p.expected) : '';
+        return '<div class="cu-row"><span class="cu-row-t"><b>' + esc(p.product || p.subject || 'Provisioning request') + (p.quantity ? ' <span class="cu-qty">&times; ' + int(p.quantity) + '</span>' : '') + '</b>' +
+          '<span class="muted cu-row-s">' + [p.order_type ? esc(p.order_type) : '', due, zdTicket(p.ticket_id) + ' &middot; ' + esc(day(p.created_ms))].filter(Boolean).join(' &middot; ') + '</span></span>' +
+          tstatus(p.status) + '</div>';
+      })));
     }
-    return h + '<div class="cu-cols"><div class="cu-col">' + L + '</div><div class="cu-col">' + R + '</div></div>';
+    if (c.packages && c.packages.length) {
+      boxes.push(box('Custom SOS packages', c.sos, c.packages.map(function (p) {
+        return '<a class="cu-row" href="/scans#' + p.id + '"><span class="cu-row-t"><b>' + esc(p.name || 'Package') +
+          (p.type ? ' <span class="' + (String(p.type).toLowerCase() === 'trial' ? 'cu-trial' : 'cu-type') + '">' + esc(p.type) + '</span>' : '') + '</b>' +
+          '<span class="muted cu-row-s">' + esc(day(p.requested_ms)) + ' &middot; #' + p.ticket + (p.creator && c.kind === 'domain' ? ' &middot; ' + esc(p.creator) : '') + '</span></span>' +
+          (p.verdict ? '<span class="vpill v-' + esc(p.verdict) + '">' + esc(VERDICT[p.verdict] || p.verdict) + '</span>' : '<span class="muted">not reviewed</span>') + '</a>';
+      })));
+    }
+    if (c.sso_requests && c.sso_requests.length) {
+      boxes.push(box('SSO requests', c.sso, c.sso_requests.map(function (s) {
+        return '<a class="cu-row" href="/sso#' + s.id + '"><span class="cu-row-t"><b>' + esc(s.domain || '(no domain yet)') + '</b><span class="muted cu-row-s">' +
+          esc(day(s.requested_ms)) + ' &middot; #' + s.ticket_id + '</span></span><span class="vpill s-' + esc(s.status) + '">' + esc(SSO[s.status] || s.status) + '</span></a>';
+      })));
+    }
+    var none = [!c.provisioning ? 'provisioning requests' : '', !c.sos ? 'Custom SOS packages' : '', !c.sso ? 'SSO requests' : ''].filter(Boolean);
+    return h + T + (boxes.length ? '<div class="cu-boxes">' + boxes.join('') + '</div>' : '') +
+      (none.length ? '<div class="cu-none">No ' + none.join(', ').replace(/, ([^,]*)$/, ' or $1') + '.</div>' : '');
   }
+  function box(title, n, rows) {
+    return '<section class="card cu-section"><div class="card-head"><h2 class="card-title">' + esc(title) + '</h2><span class="count">' + int(n) + '</span></div>' +
+      '<div class="cu-pad">' + rows.join('') + '</div></section>';
+  }
+
+  // ---- the AI summary (Spark writes it in the background; ask again until it's there) ----
+  var sumT = null, sumKey = null;
+  function loadSummary(key, fresh, tries) {
+    clearTimeout(sumT);
+    sumKey = key;
+    api('/api/customers/summary?key=' + encodeURIComponent(key) + (fresh ? '&fresh=1' : '')).then(function (s) {
+      if (sumKey !== key || !$('cuAiBody')) return;
+      var body = $('cuAiBody');
+      if (s.off) { $('cuAi').hidden = true; return; }
+      if (s.pending) {
+        if (s.old && s.old.points) drawPoints(s.old, true);
+        else body.innerHTML = '<span class="cu-ai-wait">Spark is reading this customer’s records…</span>';
+        if ((tries || 0) < 30) sumT = setTimeout(function () { loadSummary(key, false, (tries || 0) + 1); }, 2500);
+        return;
+      }
+      if (s.error) { body.innerHTML = '<span class="muted">Spark couldn’t write the summary: ' + esc(s.error) + '</span>'; return; }
+      drawPoints(s, false);
+    }).catch(function () {});
+  }
+  function drawPoints(s, updating) {
+    $('cuAiBody').innerHTML = '<ul>' + s.points.map(function (p) {
+      return '<li>' + esc(p).replace(/#(\d{3,9})\b/g, function (m, n) { return ZD ? '<a href="' + esc(ZD) + '/agent/tickets/' + n + '" target="_blank" rel="noopener">#' + n + '</a>' : m; }) + '</li>';
+    }).join('') + '</ul>';
+    $('cuAiWhen').textContent = updating ? 'updating…' : (s.ms ? 'written ' + ago(s.ms) : '');
+  }
+  document.addEventListener('click', function (ev) {
+    if (ev.target.closest('#cuAiAgain') && sumKey) {
+      $('cuAiBody').innerHTML = '<span class="cu-ai-wait">Spark is writing it again…</span>';
+      $('cuAiWhen').textContent = '';
+      loadSummary(sumKey, true);
+    }
+  });
 })();

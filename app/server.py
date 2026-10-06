@@ -305,6 +305,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 import customers
                 p = customers.profile(((qs.get("key") or [""])[0])[:200])
                 return self.json(p) if p.get("found") else self.json(dict(p, error="Nothing about this customer yet."), 404)
+            if u.path == "/api/customers/summary":
+                # The AI summary box (Spark), written in the background and kept until something new comes in.
+                import customers
+                return self.json(customers.summary(((qs.get("key") or [""])[0])[:200], fresh=(qs.get("fresh") or [""])[0] == "1"))
             if u.path == "/api/customers/top":
                 import customers
                 return self.json(customers.top())

@@ -749,8 +749,6 @@ main.page:not([hidden]) { animation: shcIn .28s cubic-bezier(.2, .7, .2, 1); }
 .cu-links { display: flex; flex-wrap: wrap; gap: 6px; }
 .cu-links .btn { display: inline-flex; align-items: center; gap: 5px; }
 .stat-value.cu-warn { color: #c0504a; }
-.cu-cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-.cu-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .cu-pad { padding: 4px 16px 16px; }
 .cu-h { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #78838f; margin: 14px 0 6px; }
 .cu-tags { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -769,8 +767,28 @@ main.page:not([hidden]) { animation: shcIn .28s cubic-bezier(.2, .7, .2, 1); }
 .cu-people { display: flex; flex-wrap: wrap; gap: 6px; }
 .cu-people a { font-size: 12.5px; border: 1px solid #dce7f2; border-radius: 999px; padding: 2px 10px; }
 .cu-people i { font-style: normal; color: #98a3ae; }
-@media (max-width: 980px) { .cu-cols { grid-template-columns: minmax(0, 1fr); } }
-
 /* the customer view: its blocks spaced like the rest of the page */
 #view { display: flex; flex-direction: column; gap: 16px; }
 #view:empty { display: none; }
+
+/* ---- Customers: the AI summary, tickets, and the separate boxes ---- */
+.cu-ai { padding: 14px 18px 16px; border-color: #cfe3f7; background: linear-gradient(180deg, #f7fbff, #fff 60%); }
+.cu-ai-h { display: flex; align-items: center; gap: 8px; }
+.cu-ai-t { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: #0b4f8f; }
+.cu-ai-t svg { color: #0071ce; }
+.cu-ai-when { margin-left: auto; font-size: 11.5px; color: #98a3ae; }
+.cu-ai-body { font-size: 13.5px; line-height: 1.6; color: #1d242c; margin-top: 8px; }
+.cu-ai-body ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.cu-ai-wait { color: #78838f; animation: askPulseText 1.4s ease-in-out infinite; }
+@keyframes askPulseText { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .cu-ai-wait { animation: none; } }
+.cu-head .cu-people { margin-top: 6px; }
+.cu-tix { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.cu-tix-l .cu-h:first-of-type { margin-top: 8px; }
+.cu-more { font-size: 12px; color: #78838f; padding: 8px 8px 0; }
+.cu-boxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+.cu-none { font-size: 12.5px; color: #98a3ae; padding: 0 4px; }
+.cu-qty { font-weight: 500; color: #55606b; }
+.cu-type { font-weight: 500; color: #78838f; font-size: 12px; }
+@media (max-width: 860px) { .cu-tix { grid-template-columns: minmax(0, 1fr); } }
+.cu-ai .snav-ai { margin-left: 0; }
