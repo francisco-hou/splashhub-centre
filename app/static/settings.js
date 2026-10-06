@@ -232,7 +232,7 @@
   var poPoll = null;
   function drawPo(st) {
     $('poState').innerHTML = st.count
-      ? '<b>' + st.count.toLocaleString() + '</b> PO requests, ' + esc(day(st.first_ms ? new Date(st.first_ms).toISOString().slice(0, 10) : '')) + ' &ndash; ' +
+      ? '<b>' + st.count.toLocaleString() + '</b> PO requests (' + (st.with_convo || 0).toLocaleString() + ' with their conversation), ' + esc(day(st.first_ms ? new Date(st.first_ms).toISOString().slice(0, 10) : '')) + ' &ndash; ' +
         esc(day(st.last_ms ? new Date(st.last_ms).toISOString().slice(0, 10) : '')) + '.' + (st.synced_ms ? ' Last updated ' + esc(new Date(st.synced_ms).toLocaleString()) + '.' : '')
       : 'Nothing imported yet.';
     $('poImport').hidden = !!st.synced_ms;
@@ -241,7 +241,9 @@
     $('poStop').hidden = !st.running;
     var msg = $('poMsg');
     if (st.running) {
-      msg.textContent = (st.kind === 'update' ? 'Updating' : 'Importing') + '\u2026 ' + (st.seen || 0).toLocaleString() + ' tickets read, ' + (st.saved || 0).toLocaleString() + ' PO requests saved.';
+      msg.textContent = st.phase === 'conversations'
+        ? 'Reading each PO ticket\u2019s conversation\u2026 ' + (st.replies || 0).toLocaleString() + ' read so far (a few a second; you can leave this page).'
+        : (st.kind === 'update' ? 'Updating' : 'Importing') + '\u2026 ' + (st.seen || 0).toLocaleString() + ' tickets read, ' + (st.saved || 0).toLocaleString() + ' PO requests saved.';
       clearTimeout(poPoll); poPoll = setTimeout(pollPo, 2000);
     } else if (st.error) {
       msg.textContent = 'Stopped: ' + st.error;

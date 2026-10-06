@@ -13,9 +13,16 @@ On-Prem product is On-Prem, bvinvoice@ in the cc list is EMEA, else US.
 Splashtop staff addresses are not kept (the role mailboxes that set the region
 are read, then dropped); the customer's are.
 
+Kept per PO ticket: the order (above), the ticket's subject, status, tags and
+dates, its first message, and the whole conversation -- every reply and internal
+note, marked Customer / Support, agents' names replaced by [agent] (cases.py's
+conversation(): the same wall as the Zendesk Tickets data).
+
 Getting them (Settings > Database > PO Requests, admin): a Zendesk search for
-"Provision Details" over all years, then an hourly search for the ones created
-or updated since. Reads only -- nothing is written to Zendesk.
+"Provision Details" over all years (quick), then each ticket's conversation,
+newest first, gently (a few per second); then an hourly search for the ones
+created or updated since, whose conversations are read again. Reads only --
+nothing is written to Zendesk.
 """
 import json, re, sys, threading, time
 
@@ -29,7 +36,7 @@ EMAIL = re.compile(r"[\w.+'-]+@[\w-]+(?:\.[\w-]+)+")
 OPEN = ("new", "open", "pending", "hold")
 
 COLS = ("ticket_id", "created_ms", "updated_ms", "status", "subject", "spid", "company", "order_type", "expected",
-        "region", "customer_domain", "products_json", "order_json", "saved_ms")
+        "region", "customer_domain", "products_json", "order_json", "saved_ms", "tags", "description")
 DDL = """CREATE TABLE IF NOT EXISTS po_requests (
     ticket_id BIGINT PRIMARY KEY, created_ms BIGINT, updated_ms BIGINT, status TEXT, subject TEXT,
     spid TEXT, company TEXT, order_type TEXT, expected TEXT, region TEXT, customer_domain TEXT,
@@ -61,6 +68,13 @@ def ensure():
     try:
         cur = c.cursor()
         cur.execute(DDL)
+        for col in ("tags", "description", "convo", "convo_ms", "convo_turns"):   # added later: tags, first message, conversation
+            if store.backend() == "postgres":
+                cur.execute("ALTER TABLE po_requests ADD COLUMN IF NOT EXISTS %s %s" % (col, "BIGINT" if col.startswith("convo_") else "TEXT"))
+            else:
+                cur.execute("PRAGMA table_info(po_requests)")
+                if col not in [r[1] for r in cur.fetchall()]:
+                    cur.execute("ALTER TABLE po_requests ADD COLUMN %s %s" % (col, "BIGINT" if col.startswith("convo_") else "TEXT"))
         cur.execute("CREATE INDEX IF NOT EXISTS po_created ON po_requests (created_ms)")
         cur.execute("CREATE INDEX IF NOT EXISTS po_domain ON po_requests (customer_domain)")
         c.commit()
@@ -151,7 +165,17 @@ def row_of(t):
     return (int(t["id"]), _ms(t.get("created_at")), _ms(t.get("updated_at")), t.get("status"), (t.get("subject") or "")[:300],
             spid[:200] or None, company[:200] or None, _field(order, r"order\s*type")[:120] or None,
             _date(_field(order, r"expected\s*provision\s*date")) or None, region, dom,
-            json.dumps(products), json.dumps(order), _now())
+            json.dumps(products), json.dumps(order), _now(), " ".join(t.get("tags") or [])[:1000] or None, _text(raw))
+
+
+def _text(raw):
+    """The ticket's first message as a record: Splashtop staff addresses and the
+    signature block out (cases.scrub), links as their site."""
+    try:
+        import cases
+        return cases.scrub(STAFF.sub("[splashtop]", raw or ""), 20000) or None
+    except Exception:
+        return STAFF.sub("[splashtop]", raw or "")[:20000] or None
 
 
 def _save(rows):
@@ -196,6 +220,7 @@ def _run(kind):
             if len(batch) >= 100:
                 _save(batch); JOB["saved"] += len(batch); batch = []
         _save(batch); JOB["saved"] += len(batch)
+        _fill_convos()
         if not JOB["stop"]:
             store.set_setting("po_synced", str(started), "po")
         sys.stderr.write("[po] %s %s: %d ticket(s) read, %d PO request(s) saved\n" % (
@@ -210,6 +235,41 @@ def _run(kind):
         JOB.update(running=False, finished_ms=_now())
 
 
+RATE = 3.0      # conversation reads per second, at most (Zendesk's limit is shared with every other app)
+
+
+def _fill_convos():
+    """Each PO ticket's whole conversation, newest first; a ticket updated since
+    its conversation was read is read again."""
+    import cases
+    JOB["phase"] = "conversations"
+    while not JOB["stop"]:
+        ids = [r[0] for r in store._read("SELECT ticket_id FROM po_requests WHERE convo_ms IS NULL OR convo_ms < updated_ms "
+                                         "ORDER BY created_ms DESC LIMIT 100", [], fresh=True)]
+        if not ids:
+            break
+        for tid in ids:
+            if JOB["stop"]:
+                break
+            began = time.time()
+            try:
+                text, turns = cases.conversation(tid)
+            except zendesk.ZendeskError as e:
+                if "HTTP 404" not in str(e) and "HTTP 403" not in str(e):
+                    raise
+                text, turns = "", 0                       # deleted or not readable: don't ask again
+            c = store.connect(True)
+            try:
+                c.cursor().execute(store._q("UPDATE po_requests SET convo = %s, convo_ms = %s, convo_turns = %s WHERE ticket_id = %s"),
+                                   [STAFF.sub("[splashtop]", text or "") or None, _now(), turns, tid])
+                c.commit()
+            finally:
+                c.close()
+            JOB["replies"] = JOB.get("replies", 0) + 1
+            time.sleep(max(0.0, 1.0 / RATE - (time.time() - began)))
+    JOB["phase"] = None
+
+
 def start(kind="import"):
     with _lock:
         if JOB["running"]:
@@ -217,7 +277,7 @@ def start(kind="import"):
         if zendesk.configured():
             JOB["error"] = "SplashHub Centre can't read Zendesk yet"
             return False
-        JOB.update(running=True, kind=kind, seen=0, saved=0, error=None, finished_ms=None, stop=False)
+        JOB.update(running=True, kind=kind, seen=0, saved=0, replies=0, phase="tickets", error=None, finished_ms=None, stop=False)
     threading.Thread(target=_run, args=(kind,), name="po-" + kind, daemon=True).start()
     return True
 
@@ -242,9 +302,11 @@ def boot():
 
 def status():
     ensure()
-    n, first, last = store._read("SELECT count(*), min(created_ms), max(created_ms) FROM po_requests", [])[0]
+    n, first, last, conv = store._read("SELECT count(*), min(created_ms), max(created_ms), "
+                                       "sum(CASE WHEN convo_ms IS NOT NULL THEN 1 ELSE 0 END) FROM po_requests", [])[0]
     synced = store.get_setting("po_synced", "")
-    return dict(JOB, count=int(n or 0), first_ms=first, last_ms=last, synced_ms=int(synced) if synced else None)
+    return dict(JOB, count=int(n or 0), with_convo=int(conv or 0), first_ms=first, last_ms=last,
+                synced_ms=int(synced) if synced else None)
 
 
 # ---- the PO Requests page -------------------------------------------------------------------
@@ -324,6 +386,8 @@ def get(ticket_id):
     if not rows:
         return None
     d = dict(zip(COLS, rows[0]))
+    cv = store._read("SELECT convo, convo_ms, convo_turns FROM po_requests WHERE ticket_id = %s", [int(ticket_id)])
+    d["convo"], d["convo_ms"], d["convo_turns"] = cv[0] if cv else (None, None, None)
     for k in ("products_json", "order_json"):
         try:
             d[k[:-5]] = json.loads(d.pop(k) or ("[]" if k == "products_json" else "{}"))

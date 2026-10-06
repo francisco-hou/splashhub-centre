@@ -14,14 +14,18 @@ app:
     added to the ticket as an internal note only when an agent presses that button.
     SSO Requests: lists SSO method validation requests and, on an agent's press, looks up
     the customer's DNS TXT record to see whether it has been added.
-    Cases: 2026's Zendesk tickets (subject, tags, status, requester, the whole conversation) kept so the AI page can
+    Zendesk Tickets: 2026's Zendesk tickets (subject, tags, status, requester, the whole conversation) kept so the AI page can
     count, group and find similar cases and their fixes; read-only, never anything per support agent.
+    Knowledge Base: the Zendesk Help Center's articles (read-only), searchable, with votes, languages and the tickets
+    that link each one. PO Requests: every ticket with a "Provision Details" order, all years, with the order read out
+    and the ticket's conversation (agents' names removed). Customers: one customer's tickets, PO requests, Custom SOS
+    packages and SSO requests on one page, with a Spark summary.
   type: web-service
   runtime: docker
   port: 8795
   health_check_path: /health
   stage: in_development
-  version: "0.11.2"
+  version: "0.12.0"
 
 deployment:
   environment: dev

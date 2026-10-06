@@ -150,6 +150,23 @@
         return '<dt>' + esc(k) + '</dt><dd>' + esc(r.order[k]).replace(/\n/g, '<br>') + '</dd>';
       }).join('') + '</dl></section>';
     }
+    if (r.tags) h += '<section class="pn-sec"><div class="pn-h">Ticket tags</div><div class="kb-labels">' + r.tags.split(/\s+/).map(function (t) { return '<span>' + esc(t) + '</span>'; }).join('') + '</div></section>';
+    if (r.convo) {
+      var turns = r.convo.split(/\n\n(?=Customer: |Support: |Support \(internal note\): |\[\.\.\.)/);
+      h += '<section class="pn-sec"><div class="pn-h">Conversation <span class="count">' + (r.convo_turns || turns.length) + '</span></div><div class="po-convo">' +
+        turns.map(function (t) {
+          var m = /^(Customer|Support \(internal note\)|Support): ([\s\S]*)$/.exec(t);
+          var who = m ? m[1] : '', text = m ? m[2] : t;
+          return '<div class="po-turn ' + (who === 'Customer' ? 'cust' : who ? (who.indexOf('internal') > 0 ? 'inote' : 'sup') : 'gap') + '">' +
+            (who ? '<span class="po-who-l">' + esc(who) + '</span>' : '') + '<div class="po-said">' + esc(text) + '</div></div>';
+        }).join('') + '</div></section>';
+    } else if (r.convo_ms == null) {
+      h += '<section class="pn-sec"><div class="pn-h">Conversation</div><div class="muted">Not read yet &mdash; it fills in after the import (Settings &rsaquo; Database &rsaquo; PO Requests).</div></section>';
+    }
+    if (r.description) {
+      h += '<section class="pn-sec"><button type="button" class="link-btn rq-raw-btn" id="poRaw" aria-expanded="false">Show the original request</button>' +
+        '<pre class="rq-raw" id="poRawText" hidden>' + esc(r.description) + '</pre></section>';
+    }
     h += '<div class="pn-foot">Ticket #' + r.ticket_id + ' &middot; ' + esc(r.subject || '') + ' &middot; updated ' + esc(day(r.updated_ms)) + '</div>';
     return '<div class="pn-main kb-pop">' + h + '</div>';
   }
@@ -174,6 +191,12 @@
   $('refresh').addEventListener('click', function () { overview(); load(); });
   $('rows').addEventListener('click', function (ev) { var r = ev.target.closest('.po-row'); if (r) openPanel(+r.getAttribute('data-id')); });
   $('rows').addEventListener('keydown', function (ev) { var r = ev.target.closest('.po-row'); if (r && ev.key === 'Enter') openPanel(+r.getAttribute('data-id')); });
+  $('detail').addEventListener('click', function (ev) {
+    var b = ev.target.closest('#poRaw'); if (!b) return;
+    var t = $('poRawText'), show = t.hidden;
+    t.hidden = !show; b.setAttribute('aria-expanded', show);
+    b.textContent = show ? 'Hide the original request' : 'Show the original request';
+  });
   $('pnClose').addEventListener('click', closePanel);
   $('pnPrev').addEventListener('click', function () { step(-1); });
   $('pnNext').addEventListener('click', function () { step(1); });

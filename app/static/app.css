@@ -816,3 +816,16 @@ main.page:not([hidden]) { animation: shcIn .28s cubic-bezier(.2, .7, .2, 1); }
 .po-dl dd { margin: 0; overflow-wrap: anywhere; }
 #statusChips + #whenChips { margin-left: 12px; padding-left: 12px; border-left: 1px solid #e3edf7; }
 .kb-stat b span { font-size: inherit; letter-spacing: normal; text-transform: none; }
+
+/* PO pop-up: the ticket's conversation */
+.po-convo { display: flex; flex-direction: column; gap: 8px; }
+.po-turn { border: 1px solid #e3edf7; border-radius: 9px; padding: 8px 12px; background: #fff; }
+.po-turn.cust { background: #f7fbff; }
+.po-turn.inote { background: #fffaf0; border-color: #f3e2bd; }
+.po-turn.gap { border-style: dashed; color: #78838f; font-size: 12px; text-align: center; }
+.po-who-l { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #78838f; margin-bottom: 3px; }
+.po-turn.inote .po-who-l { color: #9a5b00; }
+.po-said { font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.kb-stat b span { color: inherit; font-weight: inherit; }
+.kb-stat b span.po-over { color: #c0504a; }
+.kb-stat b span.po-soon { color: #0071ce; }
