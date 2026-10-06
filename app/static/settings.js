@@ -237,11 +237,64 @@
       (last ? ' Last ' + esc(last.what) + ' ' + esc(new Date(last.ms).toLocaleString()) + ': ' + (last.error ? '<span class="sc-err-i">' + esc(last.error) + '</span>' : 'posted.') : '');
     $('ntTest').disabled = !n.configured;
     $('ntKinds').innerHTML = n.kinds.map(function (k) {
-      return '<div class="set-row"><div class="set-txt"><div class="set-t">' + esc(k.label) + '</div></div>' +
+      return '<div class="set-row"><div class="set-txt"><div class="set-t">' + esc(k.label) + '</div>' +
+        '<div class="frow set-form"><button type="button" class="btn btn-sm" data-run="' + esc(k.key) + '"' + (n.configured ? '' : ' disabled') +
+        ' title="Post this alert to Teams now, from the current data, marked as a test">Run now</button><span class="sc-msg" data-runmsg="' + esc(k.key) + '"></span></div></div>' +
         '<label class="aisw"><span class="aisw-sw"><input type="checkbox" data-kind="' + esc(k.key) + '"' + (k.on ? ' checked' : '') +
         ' aria-label="' + esc(k.label) + '"><span class="aisw-track"></span></span><span class="aisw-state">' + (k.on ? 'On' : 'Off') + '</span></label></div>';
     }).join('');
+    if (n.languages && !LANG_DIRTY) drawLangs(n.languages);
   }
+  // ---- Language routing table
+  var LANG_DIRTY = false;
+  function langRow(r) {
+    return '<tr><td><input type="checkbox" class="nt-on"' + (r.on ? ' checked' : '') + ' aria-label="On"></td>' +
+      '<td><input type="text" class="sc-input nt-l" value="' + esc(r.lang || '') + '" aria-label="Language"></td>' +
+      '<td><input type="text" class="sc-input nt-t" value="' + esc((r.tags || []).join(', ')) + '" spellcheck="false" aria-label="Tags"></td>' +
+      '<td><input type="text" class="sc-input nt-p" value="' + esc((r.people || []).map(function (p) { return p.email; }).join(', ')) + '" spellcheck="false" placeholder="name@splashtop.com, \u2026" aria-label="People"></td>' +
+      '<td><button type="button" class="btn btn-icon btn-sm nt-del" title="Remove" aria-label="Remove">&times;</button></td></tr>';
+  }
+  function drawLangs(cfg) {
+    $('ntQuery').value = cfg.query || '';
+    $('ntRows').innerHTML = (cfg.rows || []).map(langRow).join('');
+  }
+  function readLangs() {
+    var rows = Array.prototype.map.call($('ntRows').querySelectorAll('tr'), function (tr) {
+      var split = function (sel) { return tr.querySelector(sel).value.split(/[,;\s]+/).map(function (x) { return x.trim(); }).filter(Boolean); };
+      return { on: tr.querySelector('.nt-on').checked, lang: tr.querySelector('.nt-l').value.trim(), tags: split('.nt-t'),
+               people: split('.nt-p').map(function (e) { return { email: e }; }) };
+    });
+    return { query: $('ntQuery').value.trim(), rows: rows };
+  }
+  $('ntRows').addEventListener('input', function () { LANG_DIRTY = true; $('ntLangMsg').textContent = 'Not saved yet.'; });
+  $('ntRows').addEventListener('change', function () { LANG_DIRTY = true; $('ntLangMsg').textContent = 'Not saved yet.'; });
+  $('ntQuery').addEventListener('input', function () { LANG_DIRTY = true; $('ntLangMsg').textContent = 'Not saved yet.'; });
+  $('ntRows').addEventListener('click', function (ev) {
+    var d = ev.target.closest('.nt-del'); if (!d) return;
+    d.closest('tr').remove(); LANG_DIRTY = true; $('ntLangMsg').textContent = 'Not saved yet.';
+  });
+  $('ntAdd').addEventListener('click', function () {
+    $('ntRows').insertAdjacentHTML('beforeend', langRow({ on: false, lang: '', tags: [], people: [] }));
+    LANG_DIRTY = true;
+  });
+  $('ntSave').addEventListener('click', function () {
+    var b = this; b.disabled = true; $('ntLangMsg').textContent = 'Saving\u2026';
+    var sent = readLangs();
+    post('/api/notify/languages', sent).then(function (n) {
+      b.disabled = false; LANG_DIRTY = false; drawNotify(n);
+      var dropped = sent.rows.reduce(function (t, r) { return t + r.people.length; }, 0) -
+        n.languages.rows.reduce(function (t, r) { return t + r.people.length; }, 0);
+      $('ntLangMsg').textContent = 'Saved.' + (dropped > 0 ? ' ' + dropped + ' address' + (dropped === 1 ? '' : 'es') + ' left out: only @splashtop.com people can be mentioned.' : '');
+    }).catch(function (e) { b.disabled = false; if (e.message !== 'login') $('ntLangMsg').textContent = e.message; });
+  });
+  $('ntKinds').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-run]'); if (!b) return;
+    var k = b.getAttribute('data-run'), m = document.querySelector('[data-runmsg="' + k + '"]');
+    b.disabled = true; m.textContent = 'Posting\u2026';
+    post('/api/notify/run', { kind: k }).then(function (r) {
+      b.disabled = false; m.textContent = (r.posted ? 'Posted' : 'Nothing posted') + (r.note ? ' \u2014 ' + r.note : '') + '.';
+    }).catch(function (e) { b.disabled = false; if (e.message !== 'login') m.textContent = e.message; });
+  });
   function loadNotify() { api('/api/notify').then(drawNotify).catch(function () {}); }
   $('ntKinds').addEventListener('change', function (ev) {
     var c = ev.target.closest('[data-kind]'); if (!c) return;

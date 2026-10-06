@@ -802,13 +802,14 @@ def run_scan(scan_id, ticket_id, force=False, manual=False, was=None):
                           result_json=json.dumps(parsed), model=model, input_tokens=usage.get("input_tokens", 0) or 0,
                           output_tokens=usage.get("output_tokens", 0) or 0, cost=cost, error=None, reviewed_ms=_now())
         _auto_note(scan_id, ticket_id)
-        if verdict == "suspicious":                       # Teams, when that's switched on (notify.py)
+        if verdict in ("suspicious", "needs_review"):     # Teams, when that's switched on (notify.py)
             try:
                 import notify
                 full = store.scan_get(scan_id, fresh=True) or {}
                 pkg = next((f.get("value") for f in json.loads(full.get("fields_json") or "[]")
                             if (f.get("label") or "").lower() == "package name"), "")
-                notify.high_risk(scan_id, ticket_id, pkg, full.get("creator_domain"), review_reasons(full, parsed))
+                (notify.high_risk if verdict == "suspicious" else notify.needs_review)(
+                    scan_id, ticket_id, pkg, full.get("creator_domain"), review_reasons(full, parsed))
             except Exception as e:
                 sys.stderr.write("[notify] high-risk card skipped: %s\n" % type(e).__name__)
         # Its cost on the Logs page, next to the sidebar's own scans -- under

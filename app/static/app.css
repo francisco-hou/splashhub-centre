@@ -829,3 +829,10 @@ main.page:not([hidden]) { animation: shcIn .28s cubic-bezier(.2, .7, .2, 1); }
 .kb-stat b span { color: inherit; font-weight: inherit; }
 .kb-stat b span.po-over { color: #c0504a; }
 .kb-stat b span.po-soon { color: #0071ce; }
+
+/* Settings > Notifications: Language routing */
+.nt-query { width: 100%; box-sizing: border-box; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.nt-table { margin-top: 8px; }
+.nt-table td, .nt-table th { padding: 5px 6px; }
+.nt-table .sc-input { width: 100%; box-sizing: border-box; height: 30px; font-size: 12.5px; }
+.nt-table td:nth-child(2) { width: 18%; } .nt-table td:nth-child(3) { width: 30%; }

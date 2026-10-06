@@ -7,6 +7,12 @@ Its host must be in the OUTBOUND_HTTP grant (the platform's proxy refuses any
 other). Until both are there, nothing is sent and Settings says why.
 
 What is posted, each switched on in Settings > Notifications (all off at first):
+  languages    open RR tickets in a routed language: "Hi @A and @B, there are 3
+               Japanese tickets that require your assistance" + the tickets.
+               Languages, their Zendesk tags (Auto Tag's language_xx) and the
+               people to @mention are a table in Settings. Posted when a new
+               ticket joins a language's list               (checked every 30 min)
+  needs_review an SOS package reviewed as Needs review              (sosscan.py)
   high_risk    an SOS package reviewed as High risk                 (sosscan.py)
   sso_verified an SSO domain's TXT record found                      (ssocheck.py)
   spike        SOS requests well above usual (24 h / 7 days)         (checked every 15 min)
@@ -15,12 +21,14 @@ What is posted, each switched on in Settings > Notifications (all off at first):
 Each event is posted once. Cards carry the ticket number, the package / domain /
 company and a button to open it in SplashHub Centre -- never an agent's name.
 """
-import json, os, sys, threading, time, urllib.error, urllib.request
+import json, os, re, sys, threading, time, urllib.error, urllib.request
 
 import store
 
 CENTRE = (os.environ.get("CENTRE_URL") or "https://splashhub-37268f-dev.tperd.splashtop.dev").rstrip("/")
 KINDS = {
+    "languages": "Open RR tickets in a routed language (Language routing below)",
+    "needs_review": "An SOS package is reviewed as Needs review",
     "high_risk": "An SOS package is reviewed as High risk",
     "sso_verified": "An SSO domain's TXT record is found (verified)",
     "spike": "SOS requests are well above usual (last 24 h or 7 days)",
@@ -50,7 +58,7 @@ def settings():
     except ValueError:
         last = None
     return {"configured": configured(), "kinds": [{"key": k, "label": v, "on": enabled(k)} for k, v in KINDS.items()],
-            "last": last}
+            "last": last, "languages": lang_config()}
 
 
 def set_kind(kind, on):
@@ -81,8 +89,9 @@ def _once(key):
         return True
 
 
-def card(title, lines, link=None, link_label="Open in SplashHub Centre", tone="attention", facts=()):
-    """An Adaptive Card message, as the Teams workflow expects it."""
+def card(title, lines, link=None, link_label="Open in SplashHub Centre", tone="attention", facts=(), mentions=()):
+    """An Adaptive Card message, as the Teams workflow expects it. mentions:
+    [(name, email)] -- write "<at>name</at>" in a line to @mention them."""
     body = [{"type": "TextBlock", "text": title, "weight": "Bolder", "size": "Medium", "wrap": True,
              "color": {"attention": "Attention", "good": "Good", "warning": "Warning"}.get(tone, "Default")}]
     for l in lines:
@@ -93,6 +102,9 @@ def card(title, lines, link=None, link_label="Open in SplashHub Centre", tone="a
     content = {"$schema": "http://adaptivecards.io/schemas/adaptive-card.json", "type": "AdaptiveCard", "version": "1.4", "body": body}
     if link:
         content["actions"] = [{"type": "Action.OpenUrl", "title": link_label, "url": link}]
+    if mentions:
+        content["msteams"] = {"entities": [{"type": "mention", "text": "<at>%s</at>" % n, "mentioned": {"id": e, "name": n}}
+                                           for n, e in mentions]}
     return {"type": "message", "attachments": [{"contentType": "application/vnd.microsoft.card.adaptive", "contentUrl": None,
                                                 "content": content}]}
 
@@ -132,6 +144,14 @@ def high_risk(scan_id, ticket_id, package, creator_domain, reasons):
         ["**%s**%s" % (package or "Custom SOS package", (" · creator @%s" % creator_domain) if creator_domain else "")] +
         ["• " + r for r in (reasons or [])[:3]],
         CENTRE + "/scans#%s" % scan_id))
+
+
+def needs_review(scan_id, ticket_id, package, creator_domain, reasons):
+    _send("needs_review", "nr:%s" % scan_id, card(
+        "\U0001F7E0 SOS package needs review \u00b7 #%s" % ticket_id,
+        ["**%s**%s" % (package or "Custom SOS package", (" \u00b7 creator @%s" % creator_domain) if creator_domain else "")] +
+        ["\u2022 " + r for r in (reasons or [])[:3]],
+        CENTRE + "/scans#%s" % scan_id, tone="warning"))
 
 
 def sso_verified(sso_id, ticket_id, domain):
@@ -178,13 +198,164 @@ def _check_po():
                    ("Region", r.get("region"))]))
 
 
+# ---- Language routing: open RR tickets in a routed language ---------------------------------
+
+RR_QUERY = "type:ticket status<pending tags:assigned_by_rr -tags:survey"
+LANG_DEFAULTS = [("Japanese", ["language_ja"]), ("Chinese", ["language_zh-cn", "language_zh-tw"]), ("Korean", ["language_ko"]),
+                 ("French", ["language_fr"]), ("German", ["language_de"]), ("Spanish", ["language_es"]),
+                 ("Italian", ["language_it"]), ("Portuguese", ["language_pt"])]
+
+
+def lang_config():
+    try:
+        cfg = json.loads(store.get_setting("notify_lang", "") or "null")
+    except ValueError:
+        cfg = None
+    if not cfg:
+        cfg = {"query": RR_QUERY, "rows": [{"lang": l, "tags": t, "people": [], "on": False} for l, t in LANG_DEFAULTS]}
+    return cfg
+
+
+def _name_of(email):
+    """first.last@splashtop.com -> First Last (what the @mention shows)."""
+    local = email.split("@")[0]
+    return " ".join(w.capitalize() for w in re.split(r"[._-]+", local) if w) or email
+
+
+def set_lang_config(cfg):
+    rows = []
+    for r in (cfg.get("rows") or [])[:20]:
+        lang = re.sub(r"\s+", " ", str(r.get("lang") or "")).strip()[:40]
+        tags = [t for t in (re.sub(r"[^\w:.\-]", "", str(x)).strip() for x in (r.get("tags") or [])) if t][:6]
+        people = []
+        for x in (r.get("people") or [])[:12]:
+            e = str(x.get("email") if isinstance(x, dict) else x).strip().lower()
+            if re.fullmatch(r"[\w.+'-]+@splashtop\.com", e):
+                people.append({"email": e, "name": (x.get("name") if isinstance(x, dict) and x.get("name") else _name_of(e))[:60]})
+        if lang and tags:
+            rows.append({"lang": lang, "tags": tags, "people": people, "on": bool(r.get("on"))})
+    q = re.sub(r"\s+", " ", str(cfg.get("query") or RR_QUERY)).strip()[:300]
+    if "type:ticket" not in q:
+        raise ValueError("the queue must be a Zendesk ticket search (type:ticket ...)")
+    store.set_setting("notify_lang", json.dumps({"query": q, "rows": rows}), "notify")
+    return lang_config()
+
+
+def _lang_tickets(cfg, row):
+    import zendesk
+    seen, out = set(), []
+    for tag in row["tags"]:
+        for t in zendesk.search_tickets("%s tags:%s" % (cfg["query"], tag), max_pages=3):
+            if t.get("id") not in seen and t.get("status") in ("new", "open"):
+                seen.add(t["id"])
+                out.append({"id": int(t["id"]), "subject": (t.get("subject") or "")[:120], "created": t.get("created_at") or ""})
+    return sorted(out, key=lambda t: t["created"])
+
+
+def _lang_card(row, tickets, test=False):
+    import zendesk
+    base = zendesk.base_url()
+    people = row.get("people") or []
+    names = ["<at>%s</at>" % p["name"] for p in people]
+    hi = ("Hi " + ", ".join(names[:-1]) + " and " + names[-1] + ", ") if len(names) > 1 else          ("Hi %s, " % names[0] if names else "Hi team, ")
+    n = len(tickets)
+    lines = [hi + "there %s **%d %s ticket%s** that require%s your assistance." % (
+        "is" if n == 1 else "are", n, row["lang"], "" if n == 1 else "s", "s" if n == 1 else "")]
+    lines += ["\u2022 [#%d %s](%s/agent/tickets/%d)" % (t["id"], t["subject"].replace("[", "(").replace("]", ")"), base, t["id"])
+              for t in tickets[:10]]
+    if n > 10:
+        lines.append("\u2026 and %d more." % (n - 10))
+    return card(("\U0001F9EA Test \u00b7 " if test else "") + "\U0001F310 %s tickets waiting \u00b7 %d" % (row["lang"], n), lines,
+                None, tone="warning", mentions=[(p["name"], p["email"]) for p in people])
+
+
+def check_languages(force=False):
+    """Post, per routed language, when a new ticket joins its list (force: post
+    the current list now, for Run now). Returns what was found."""
+    cfg = lang_config()
+    found = []
+    for row in cfg["rows"]:
+        if not row.get("on") and not force:
+            continue
+        tickets = _lang_tickets(cfg, row)
+        found.append({"lang": row["lang"], "n": len(tickets)})
+        if not tickets:
+            continue
+        ids = sorted(t["id"] for t in tickets)
+        if force:
+            post(_lang_card(row, tickets, test=True), "languages")
+            continue
+        key = "lang:%s:%s" % (row["lang"], ",".join(map(str, ids)))
+        new = [i for i in ids if not _seen("langt:%s:%s" % (row["lang"], i))]
+        if new and enabled("languages"):
+            for i in new:
+                _once("langt:%s:%s" % (row["lang"], i))
+            _send("languages", key, _lang_card(row, tickets))
+    return found
+
+
+def _seen(key):
+    try:
+        return key in set(json.loads(store.get_setting("notify_seen", "") or "[]"))
+    except ValueError:
+        return False
+
+
+def run_now(kind):
+    """Settings' Run now: post this alert now from real data, ignoring "posted
+    once", marked as a test. Returns {"posted": n, "note": ...} or raises ValueError."""
+    if not configured():
+        raise ValueError("Teams isn't connected yet (no TEAMS_WEBHOOK_URL)")
+    if kind == "languages":
+        found = check_languages(force=True)
+        n = sum(1 for f in found if f["n"])
+        return {"posted": n, "note": ", ".join("%s %d" % (f["lang"], f["n"]) for f in found) or "no routed languages"}
+    if kind in ("needs_review", "high_risk"):
+        want = "needs_review" if kind == "needs_review" else "suspicious"
+        rows = store.scans(None, want, 0, 1)["rows"]
+        if not rows:
+            return {"posted": 0, "note": "no request is %s right now" % ("Needs review" if kind == "needs_review" else "High risk")}
+        import sosscan
+        full = store.scan_get(rows[0]["id"], fresh=True) or {}
+        res = json.loads(full.get("result_json") or "null") or {}
+        pkg = next((f.get("value") for f in json.loads(full.get("fields_json") or "[]") if (f.get("label") or "").lower() == "package name"), "")
+        msg = card(("\U0001F9EA Test \u00b7 ") + ("SOS package needs review" if kind == "needs_review" else "High-risk SOS package") +
+                   " \u00b7 #%s" % full.get("ticket_id"),
+                   ["**%s** \u00b7 creator @%s" % (pkg or "Custom SOS package", full.get("creator_domain") or "?")] +
+                   ["\u2022 " + r for r in sosscan.review_reasons(full, res)[:3]], CENTRE + "/scans#%s" % full.get("id"), tone="warning")
+        return {"posted": 0 if post(msg, kind) else 1, "note": "the latest one, #%s" % full.get("ticket_id")}
+    if kind == "sso_verified":
+        rows = [r for r in store.sso_list(None, "verified", 0, 1).get("rows", [])]
+        if not rows:
+            return {"posted": 0, "note": "no SSO request is verified yet"}
+        r = rows[0]
+        msg = card("\U0001F9EA Test \u00b7 SSO verified \u00b7 %s" % (r.get("domain") or "?"),
+                   ["The TXT record for **%s** is in DNS (ticket #%s)." % (r.get("domain"), r.get("ticket_id"))], CENTRE + "/sso#%s" % r["id"], tone="good")
+        return {"posted": 0 if post(msg, kind) else 1, "note": r.get("domain")}
+    if kind == "spike":
+        import sosdash
+        sp = sosdash.build().get("spikes") or {}
+        d, w = sp.get("day") or {}, sp.get("week") or {}
+        msg = card("\U0001F9EA Test \u00b7 SOS requests vs usual", ["Last 24 h: **%s** (usual ~%s)%s" % (d.get("n"), round(d.get("usual") or 0), " \u26A1" if d.get("alert") else ""),
+                                                               "Last 7 days: **%s** (usual ~%s)%s" % (w.get("n"), round(w.get("usual") or 0), " \u26A1" if w.get("alert") else "")],
+                   CENTRE + "/scans", tone="warning")
+        return {"posted": 0 if post(msg, kind) else 1, "note": "alert now" if d.get("alert") or w.get("alert") else "no spike right now (sent the numbers)"}
+    if kind == "po_overdue":
+        import po
+        rows = po.search(when="overdue", per_page=10)["rows"]
+        lines = ["\u2022 %s \u00b7 expected %s \u00b7 #%s" % (r.get("company") or r.get("spid") or "?", r.get("expected"), r["ticket_id"]) for r in rows] or ["None overdue right now."]
+        return {"posted": 0 if post(card("\U0001F9EA Test \u00b7 Overdue PO requests \u00b7 %d" % len(rows), lines, CENTRE + "/po", tone="warning"), kind) else 1,
+                "note": "%d overdue" % len(rows)}
+    raise ValueError("unknown notification")
+
+
 def boot():
     def loop():
         n = 0
         while True:
             time.sleep(CHECK_EVERY)
             n += 1
-            for f, every in ((_check_spike, 1), (_check_po, 4)):
+            for f, every in ((_check_spike, 1), (check_languages, 2), (_check_po, 4)):
                 if n % every == 0:
                     try:
                         f()

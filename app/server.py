@@ -50,7 +50,7 @@ ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/se
              "/api/kb", "/api/po", "/api/notify"}
 ADMIN_POST = {"/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
               "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop", "/api/po/import", "/api/po/update", "/api/po/stop", "/api/notify",
-              "/api/notify/test"}
+              "/api/notify/test", "/api/notify/run", "/api/notify/languages"}
 # Local preview fills an empty database with sample runs. Never on Spluki.
 SAMPLE = store.backend() == "sqlite" and os.environ.get("SAMPLE_DATA", "1") != "0"
 
@@ -516,6 +516,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import notify
             err = notify.test()
             return self.json({"error": err}, 400) if err else self.json({"ok": True, "settings": notify.settings()})
+        if u.path == "/api/notify/run":
+            # Settings > Notifications > Run now: this alert, now, from real data (admin).
+            import notify, zendesk
+            try:
+                out = notify.run_now(str((json.loads(raw or b"{}") or {}).get("kind") or ""))
+            except ValueError as e:
+                return self.json({"error": str(e)}, 400)
+            except zendesk.ZendeskError as e:
+                return self.json({"error": "Zendesk: %s" % e}, 400)
+            return self.json(dict(out, settings=notify.settings()))
+        if u.path == "/api/notify/languages":
+            # Settings > Notifications > Language routing: languages, their tags and who to @mention (admin).
+            import notify
+            try:
+                notify.set_lang_config(json.loads(raw or b"{}") or {})
+            except ValueError as e:
+                return self.json({"error": str(e) or "bad request"}, 400)
+            return self.json(notify.settings())
         if u.path == "/api/notify":
             import notify
             try:
