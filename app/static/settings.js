@@ -256,6 +256,7 @@
   }
   function drawLangs(cfg) {
     $('ntQuery').value = cfg.query || '';
+    $('ntSpark').checked = cfg.spark !== false;
     $('ntRows').innerHTML = (cfg.rows || []).map(langRow).join('');
   }
   function readLangs() {
@@ -264,11 +265,12 @@
       return { on: tr.querySelector('.nt-on').checked, lang: tr.querySelector('.nt-l').value.trim(), tags: split('.nt-t'),
                people: split('.nt-p').map(function (e) { return { email: e }; }) };
     });
-    return { query: $('ntQuery').value.trim(), rows: rows };
+    return { query: $('ntQuery').value.trim(), spark: $('ntSpark').checked, rows: rows.filter(function (r) { return r.lang; }) };
   }
   $('ntRows').addEventListener('input', function () { LANG_DIRTY = true; $('ntLangMsg').textContent = 'Not saved yet.'; });
   $('ntRows').addEventListener('change', function () { LANG_DIRTY = true; $('ntLangMsg').textContent = 'Not saved yet.'; });
   $('ntQuery').addEventListener('input', function () { LANG_DIRTY = true; $('ntLangMsg').textContent = 'Not saved yet.'; });
+  $('ntSpark').addEventListener('change', function () { LANG_DIRTY = true; $('ntLangMsg').textContent = 'Not saved yet.'; });
   $('ntRows').addEventListener('click', function (ev) {
     var d = ev.target.closest('.nt-del'); if (!d) return;
     d.closest('tr').remove(); LANG_DIRTY = true; $('ntLangMsg').textContent = 'Not saved yet.';

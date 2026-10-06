@@ -9,9 +9,11 @@ other). Until both are there, nothing is sent and Settings says why.
 What is posted, each switched on in Settings > Notifications (all off at first):
   languages    open RR tickets in a routed language: "Hi @A and @B, there are 3
                Japanese tickets that require your assistance" + the tickets.
-               Languages, their Zendesk tags (Auto Tag's language_xx) and the
-               people to @mention are a table in Settings. Posted when a new
-               ticket joins a language's list               (checked every 30 min)
+               The languages and the people to @mention are a table in Settings.
+               A ticket's language: its Zendesk tag when it has one (Auto Tag's
+               language_xx), else Spark reads it and picks one of the table's
+               languages or "other" -- each ticket once, remembered. Posted when
+               a new ticket joins a language's list        (checked every 30 min)
   needs_review an SOS package reviewed as Needs review              (sosscan.py)
   high_risk    an SOS package reviewed as High risk                 (sosscan.py)
   sso_verified an SSO domain's TXT record found                      (ssocheck.py)
@@ -213,6 +215,7 @@ def lang_config():
         cfg = None
     if not cfg:
         cfg = {"query": RR_QUERY, "rows": [{"lang": l, "tags": t, "people": [], "on": False} for l, t in LANG_DEFAULTS]}
+    cfg.setdefault("spark", True)
     return cfg
 
 
@@ -232,24 +235,78 @@ def set_lang_config(cfg):
             e = str(x.get("email") if isinstance(x, dict) else x).strip().lower()
             if re.fullmatch(r"[\w.+'-]+@splashtop\.com", e):
                 people.append({"email": e, "name": (x.get("name") if isinstance(x, dict) and x.get("name") else _name_of(e))[:60]})
-        if lang and tags:
+        if lang:                                  # tags are optional: Spark can read the language
             rows.append({"lang": lang, "tags": tags, "people": people, "on": bool(r.get("on"))})
     q = re.sub(r"\s+", " ", str(cfg.get("query") or RR_QUERY)).strip()[:300]
     if "type:ticket" not in q:
         raise ValueError("the queue must be a Zendesk ticket search (type:ticket ...)")
-    store.set_setting("notify_lang", json.dumps({"query": q, "rows": rows}), "notify")
+    store.set_setting("notify_lang", json.dumps({"query": q, "rows": rows, "spark": bool(cfg.get("spark", True))}), "notify")
     return lang_config()
 
 
-def _lang_tickets(cfg, row):
+def _queue_by_language(cfg, rows):
+    """{language: [tickets]} for the given table rows: every open ticket in the
+    queue, by its language tag, else by Spark's reading (once per ticket)."""
     import zendesk
-    seen, out = set(), []
-    for tag in row["tags"]:
-        for t in zendesk.search_tickets("%s tags:%s" % (cfg["query"], tag), max_pages=3):
-            if t.get("id") not in seen and t.get("status") in ("new", "open"):
-                seen.add(t["id"])
-                out.append({"id": int(t["id"]), "subject": (t.get("subject") or "")[:120], "created": t.get("created_at") or ""})
-    return sorted(out, key=lambda t: t["created"])
+    queue = [t for t in zendesk.search_tickets(cfg["query"], max_pages=5) if t.get("status") in ("new", "open")]
+    by_tag = {}
+    for r in rows:
+        for tag in r.get("tags") or []:
+            by_tag[tag.lower()] = r["lang"]
+    groups, unknown = {r["lang"]: [] for r in rows}, []
+    for t in queue:
+        item = {"id": int(t["id"]), "subject": (t.get("subject") or "")[:120], "created": t.get("created_at") or ""}
+        lang = next((by_tag[g.lower()] for g in t.get("tags") or [] if g.lower() in by_tag), None)
+        if lang:
+            groups[lang].append(item)
+        else:
+            unknown.append((item, t))
+    if unknown and cfg.get("spark", True):
+        names = [r["lang"] for r in rows]
+        found = _spark_languages(names, [t for _, t in unknown])
+        for item, t in unknown:
+            lang = found.get(int(t["id"]))
+            if lang in groups:
+                groups[lang].append(item)
+    return {k: sorted(v, key=lambda x: x["created"]) for k, v in groups.items()}
+
+
+def _spark_languages(names, tickets):
+    """{ticket id: one of names, or "Other"} -- Spark reads each ticket once;
+    the answer is remembered (until the list of languages changes)."""
+    import hashlib, spark
+    sig = hashlib.sha256("|".join(sorted(n.lower() for n in names)).encode()).hexdigest()[:12]
+    try:
+        cache = json.loads(store.get_setting("notify_langdet", "") or "null") or {}
+    except ValueError:
+        cache = {}
+    if cache.get("sig") != sig:
+        cache = {"sig": sig, "map": {}}
+    known = cache["map"]
+    todo = [t for t in tickets if str(t["id"]) not in known]
+    if todo and spark.available():
+        allowed = {n.lower(): n for n in names}
+        system = ("You sort support tickets by the language the CUSTOMER wrote in. The only answers allowed are: %s, or Other "
+                  "(English, or any language not in that list). Ignore English signatures, disclaimers, quoted replies and "
+                  "automatic text; judge the customer's own words. Answer with JSON only, one entry per ticket: "
+                  '{"<ticket id>": "<language or Other>"}.') % ", ".join(names)
+        for i in range(0, len(todo), 20):
+            batch = todo[i:i + 20]
+            text = "\n\n".join("Ticket %s\nSubject: %s\nMessage: %s" % (t["id"], (t.get("subject") or "")[:150],
+                                                                       re.sub(r"\s+", " ", t.get("description") or "")[:600])
+                                for t in batch)
+            try:
+                raw = spark.chat(system, text, max_tokens=600)
+                got = json.loads(raw[raw.find("{"):raw.rfind("}") + 1] or "{}")
+            except Exception as e:                       # Spark down or an odd answer: ask again next time
+                sys.stderr.write("[notify] Spark language check skipped: %s\n" % type(e).__name__)
+                continue
+            for t in batch:
+                ans = str(got.get(str(t["id"])) or "Other").strip().lower()
+                known[str(t["id"])] = allowed.get(ans, "Other")
+        cache["map"] = dict(list(known.items())[-3000:])
+        store.set_setting("notify_langdet", json.dumps(cache), "notify")
+    return {int(k): v for k, v in known.items()}
 
 
 def _lang_card(row, tickets, test=False):
@@ -274,10 +331,10 @@ def check_languages(force=False):
     the current list now, for Run now). Returns what was found."""
     cfg = lang_config()
     found = []
-    for row in cfg["rows"]:
-        if not row.get("on") and not force:
-            continue
-        tickets = _lang_tickets(cfg, row)
+    rows = [r for r in cfg["rows"] if r.get("on") or force]
+    groups = _queue_by_language(cfg, rows) if rows else {}
+    for row in rows:
+        tickets = groups.get(row["lang"]) or []
         found.append({"lang": row["lang"], "n": len(tickets)})
         if not tickets:
             continue
