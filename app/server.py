@@ -600,6 +600,7 @@ def main():
         print("seeded %d sample runs into %s" % (n, store.SQLITE_FILE))
     feed.start()
     sosscan.requeue_unfinished()      # scans a previous container left half-done
+    sosscan.start_rules_fix()         # earlier reviews under today's team rules (in the background)
     sosscan.start_retries()           # and waiting ones, every 10 minutes
     sosscan.resume_import()           # an import a restart interrupted carries on
     ssocheck.resume_import()

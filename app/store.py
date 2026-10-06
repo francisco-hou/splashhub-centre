@@ -453,6 +453,14 @@ def sos_dash_rows(since_ms):
                                               "ORDER BY requested_ms", [int(since_ms)])]
 
 
+def scans_normal_reviewed():
+    """Reviews stored as "normal", with what the team rules need to look at."""
+    ensure_schema()
+    cols = ["id", "verdict", "creator_domain", "creator_email", "result_json"]
+    rows = _read("SELECT " + ", ".join(cols) + " FROM sos_scans WHERE verdict = %s AND result_json IS NOT NULL", ["normal"], True)
+    return [dict(zip(cols, r)) for r in rows]
+
+
 def scan_set_statuses(statuses, ms):
     """The Ticket status column, many rows in one go: {scan id: status or None}
     (None keeps the old status and only marks it as checked)."""

@@ -455,11 +455,28 @@ def is_generic(row, res):
                 (row.get("creator_domain") or "").lower() in FREE_EMAIL_DOMAINS)
 
 
+def brand_mismatch(row, res):
+    """Images whose branding does not match the creator's email domain (the
+    AI's own domain_consistency call): [(image index, [brands], how)]. Empty for a
+    generic email -- that has its own rule."""
+    if is_generic(row, res):
+        return []
+    out = []
+    for f in res.get("findings") or []:
+        brands = [b for b in f.get("detected_brand_references") or [] if b]
+        # "inconsistent": the AI sees another company; "unclear": a company name
+        # it can't tie to the email's domain -- both are for a person to check.
+        if f.get("domain_consistency") == "inconsistent" or (f.get("domain_consistency") == "unclear" and brands):
+            out.append((f.get("image_index", 0), brands, f.get("domain_consistency")))
+    return out
+
+
 def effective_verdict(row, res):
-    """The verdict as shown: a generic email is never "normal" (also for
-    reviews made before that rule)."""
+    """The verdict as shown. Two team rules make "normal" at least "needs
+    review" (also for reviews made before the rules): a generic email, and
+    branding that does not match the creator's email domain."""
     v = row.get("verdict") or "normal"
-    return "needs_review" if v == "normal" and is_generic(row, res) else v
+    return "needs_review" if v == "normal" and (is_generic(row, res) or brand_mismatch(row, res)) else v
 
 
 def review_reasons(row, res=None):
@@ -475,6 +492,17 @@ def review_reasons(row, res=None):
     reasons = []
     if is_generic(row, res):
         reasons.append("Generic email (%s): not accepted unless the customer gives a reason" % (row.get("creator_email") or "creator"))
+    mism = brand_mismatch(row, res)
+    if mism:
+        brands = []
+        for _, bs, _how in mism:
+            brands += [b for b in bs if b not in brands]
+        sure = any(how == "inconsistent" for _, _, how in mism)
+        dom = (row.get("creator_domain") or "").lower() or ((row.get("creator_email") or "").split("@")[-1].lower())
+        reasons.append("Branding %s the creator’s email: %s show%s %s, but the email is %s" % (
+            "doesn’t match" if sure else "may not match", ", ".join(fname({"image_index": i}) for i, _, _h in mism), "" if len(mism) > 1 else "s",
+            ", ".join("“%s”" % b for b in brands[:4]) or "another company’s branding",
+            ("@" + dom) if dom else "from another domain"))
     if any(f.get("splashtop_reference") == "other_reference" for f in fs):
         reasons.append("Contains a Splashtop name/logo/attribution beyond \u201cPowered by\u201d: not acceptable for a white-label build")
     for f in fs:
@@ -749,6 +777,10 @@ def run_scan(scan_id, ticket_id, force=False, manual=False, was=None):
             parsed["generic_email"] = (who or {}).get("email") or True
             if verdict == "normal":
                 verdict = "needs_review"
+        # Team rule: branding that does not match the creator's email domain
+        # is checked by a person -- at least "needs review".
+        if verdict == "normal" and brand_mismatch({"creator_domain": (who or {}).get("domain")}, parsed):
+            verdict = "needs_review"
         if manual and left_out:
             parsed["text_only"] = left_out     # images the review could not see
         store.scan_update(scan_id, status="done", verdict=verdict, finished_ms=_now(), attach_key=key,
@@ -1094,3 +1126,29 @@ def stop_job(which="import"):
         IMPORT["stop"] = True
         return True
     return False
+
+
+def apply_rules_to_past():
+    """Reviews saved "normal" before a team rule existed (generic email,
+    branding vs email) are stored as "needs review", so the list's filter and
+    the dashboard count them right. Cheap; runs at start."""
+    fixed = 0
+    for row in store.scans_normal_reviewed():
+        try:
+            res = json.loads(row.get("result_json") or "null") or {}
+        except ValueError:
+            continue
+        if effective_verdict(row, res) != "normal":
+            store.scan_update(row["id"], verdict="needs_review")
+            fixed += 1
+    if fixed:
+        sys.stderr.write("[scan] %d earlier review(s) now need review under the team rules\n" % fixed)
+
+
+def start_rules_fix():
+    def run():
+        try:
+            apply_rules_to_past()
+        except Exception as e:
+            sys.stderr.write("[scan] team-rule pass failed: %s\n" % type(e).__name__)
+    threading.Thread(target=run, name="team-rules", daemon=True).start()
