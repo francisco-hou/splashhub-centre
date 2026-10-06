@@ -180,7 +180,8 @@
   function drawCases(st) {
     var n = (st.count || 0).toLocaleString();
     $('caseState').innerHTML = st.count
-      ? '<b>' + n + '</b> cases kept, ' + esc(day(st.first)) + ' &ndash; ' + esc(day(st.last)) + '.' +
+      ? '<b>' + n + '</b> cases kept, ' + esc(day(st.first)) + ' &ndash; ' + esc(day(st.last)) + ', ' +
+        '<b>' + (st.with_replies || 0).toLocaleString() + '</b> with their conversation.' +
         (st.downloaded ? (st.updated ? ' Last updated ' + esc(new Date(st.updated).toLocaleString()) + '.' : '') : ' Download not finished yet (next: the week of ' + esc(day(st.next_week)) + ').')
       : 'Nothing downloaded yet.';
     $('caseDl').hidden = !!st.downloaded;
@@ -191,15 +192,17 @@
     $('caseStop').disabled = !!st.stop;
     var msg = $('caseMsg');
     if (st.running) {
-      msg.textContent = (st.kind === 'download' ? (st.week ? 'Downloading the week of ' + day(st.week) + '… ' : 'Starting… ') : 'Updating… ') +
-        (st.saved ? st.saved.toLocaleString() + ' saved so far.' : '') + (st.skipped ? ' ' + st.skipped + ' skipped (unreadable).' : '');
+      msg.textContent = (st.phase === 'replies' ? 'Reading conversations… ' + (st.replies || 0).toLocaleString() + ' read so far.' :
+        st.phase === 'tickets' && st.week ? 'Downloading the week of ' + day(st.week) + '… ' + (st.saved ? st.saved.toLocaleString() + ' saved so far.' : '') :
+        st.phase === 'updates' ? 'Updating… ' : 'Starting… ') + (st.skipped ? ' ' + st.skipped + ' skipped (unreadable).' : '');
       clearTimeout(casePoll); casePoll = setTimeout(pollCases, 2500);
     } else if (st.error) {
       msg.textContent = 'Stopped: ' + st.error;
     } else if (st.stopped) {
       msg.textContent = 'Stopped. Press the button again to carry on from the same week.';
     } else if (st.finished_ms) {
-      msg.textContent = 'Done: ' + (st.saved || 0).toLocaleString() + ' saved' + (st.skipped ? ', ' + st.skipped + ' skipped (unreadable)' : '') + '.';
+      msg.textContent = 'Done: ' + (st.saved || 0).toLocaleString() + ' tickets, ' + (st.replies || 0).toLocaleString() + ' conversations' +
+        (st.skipped ? ', ' + st.skipped + ' skipped (unreadable)' : '') + '.';
     } else {
       msg.textContent = '';
     }
@@ -211,7 +214,7 @@
     api('/api/cases?zendesk=1').then(function (st) {
       b.disabled = false;
       var many = st.zendesk_count != null ? 'Zendesk has about ' + st.zendesk_count.toLocaleString() + ' tickets from 2026.\n\n' : '';
-      if (!confirm('Download 2026 tickets?\n\n' + many + 'SplashHub Centre reads them from Zendesk a week at a time and keeps each one\'s subject, first message (without e-mail addresses, phone numbers and signatures), tags, status and dates. Nothing is written to Zendesk. It can take a while; you can leave this page.')) {
+      if (!confirm('Download 2026 tickets?\n\n' + many + 'SplashHub Centre reads them from Zendesk: first the tickets a week at a time, then each one\'s conversation (a few hours for the year). It keeps the subject, tags, status, dates, the requester\'s e-mail and organization, and the conversation, with support agents\' names, addresses and signatures taken out. Nothing is written to Zendesk. You can leave this page.')) {
         $('caseMsg').textContent = ''; return;
       }
       post('/api/cases/download').then(drawCases).catch(function (e) { if (e.message !== 'login') $('caseMsg').textContent = e.message; });

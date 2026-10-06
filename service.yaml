@@ -14,14 +14,14 @@ app:
     added to the ticket as an internal note only when an agent presses that button.
     SSO Requests: lists SSO method validation requests and, on an agent's press, looks up
     the customer's DNS TXT record to see whether it has been added.
-    Cases: 2026's Zendesk tickets (subject, first message, tags, status) kept so the AI page can
-    find similar cases and trends; read-only, never anything per support agent.
+    Cases: 2026's Zendesk tickets (subject, tags, status, requester, the whole conversation) kept so the AI page can
+    count, group and find similar cases and their fixes; read-only, never anything per support agent.
   type: web-service
   runtime: docker
   port: 8795
   health_check_path: /health
   stage: in_development
-  version: "0.10.1"
+  version: "0.11.0"
 
 deployment:
   environment: dev

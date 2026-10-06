@@ -8,9 +8,12 @@ click. Nothing here writes anything.
 
 The wall: nothing about a specific SUPPORT AGENT -- who handled what, how
 someone performs, one agent's tickets or usage. A question with a Splashtop
-address in it is refused before Spark sees it (AGENT_WALL); no lookup returns
-anything per agent (the run log only by tool and model; cases keep no assignee
-and no signatures); the system prompt tells Spark to refuse the rest; and a
+address in it, or plainly about agents (_AGENT_Q), is refused before Spark sees
+it (AGENT_WALL); no lookup returns anything per agent (the run log only by tool
+and model; cases keep no assignee, mark replies "Support" and replace agents'
+names); the system prompt tells Spark the rest -- and that customers,
+companies and countries are NOT agents, since a small model over-refuses: a
+refusal of a question the code let through is retried once (_REFUSAL); and a
 Splashtop address that still reaches an answer is blanked (_blank).
 
 Each step is returned with the answer, so the page can show what was looked
@@ -236,8 +239,16 @@ def case_overview(from_date=None, to_date=None):
     return _cases().overview(from_date, to_date)
 
 
-def case_search(query=None, from_date=None, to_date=None, status=None, tag=None, limit=10):
-    return _cases().search(query, from_date, to_date, status, tag, limit)
+def case_search(query=None, from_date=None, to_date=None, status=None, tag=None, requester=None, country=None, limit=10):
+    return _cases().search(query, from_date, to_date, status, tag, requester, country, limit)
+
+
+def case_themes(query=None, from_date=None, to_date=None, status=None, country=None):
+    return _cases().themes(query, from_date, to_date, status, country)
+
+
+def case_solutions(query=None, ticket_id=None, from_date=None, to_date=None):
+    return _cases().solutions(query, ticket_id, from_date, to_date)
 
 
 def case_similar(ticket_id, limit=8):
@@ -250,24 +261,51 @@ def case_read(ticket_id):
 
 _DATES = {"from_date": {"type": "string", "description": "YYYY-MM-DD, optional"},
           "to_date": {"type": "string", "description": "YYYY-MM-DD inclusive, optional"}}
-TOOLS["case_overview"] = (case_overview, "The general picture of Zendesk support cases since 2026-01-01 (or a date range): "
-                          "how many, per month, by status and channel, the most used tags and the words most used in "
-                          "subjects. Use for 'what are the common problems' or trend questions.", dict(_DATES))
-TOOLS["case_search"] = (case_search, "Find support cases (Zendesk tickets since 2026) that talk about something. Give the "
-                        "important words (product, feature, error, symptom; synonyms help: 'black screen blank display'); "
-                        "returns how many cases match in all and per month, and the best matches with a snippet. Optional "
-                        "date range, ticket status (new/open/pending/hold/solved/closed) and Zendesk tag.",
-                        dict(_DATES, query={"type": "string"}, status={"type": "string"}, tag={"type": "string"},
-                             limit={"type": "integer"}))
-TOOLS["case_similar"] = (case_similar, "Cases similar to one ticket, by ticket number: searches for that ticket's own "
-                         "subject, words and tags.", {"ticket_id": {"type": "integer"}, "limit": {"type": "integer"}})
-TOOLS["case_read"] = (case_read, "One 2026 case by ticket number: subject, its first message (cleaned of personal "
-                      "details), tags, status, type, channel, dates.", {"ticket_id": {"type": "integer"}})
+_QUERY = {"type": "string", "description": "2-5 short alternative phrasings, comma-separated, e.g. "
+                                           "'2fa, two-factor, two step verification, authenticator'. A case matches when "
+                                           "it has ALL the words of ONE phrase, so keep each phrase to 1-3 words."}
+TOOLS["case_search"] = (case_search, "COUNT and FIND support cases (Zendesk tickets since 2026-01-01) about something: "
+                        "how many match, per month, by country, region (Americas/EMEA/APAC), language and status, plus "
+                        "the best matches with requester, organization and a snippet. Filters: dates, ticket status "
+                        "(new/open/pending/hold/solved/closed, comma-separated), Zendesk tag, requester (e-mail, domain "
+                        "or organization), country.",
+                        dict(_DATES, query=_QUERY, status={"type": "string"}, tag={"type": "string"},
+                             requester={"type": "string"}, country={"type": "string"}, limit={"type": "integer"}))
+TOOLS["case_themes"] = (case_themes, "WHAT THE PROBLEMS ARE: a random sample of what customers wrote in the matching "
+                        "cases (all cases if no query), to read and group into the real problems with their share. Use "
+                        "for 'most common issues', 'trending problems', 'what goes wrong with Windows 7'.",
+                        dict(_DATES, query=_QUERY, status={"type": "string"}, country={"type": "string"}))
+TOOLS["case_solutions"] = (case_solutions, "HOW IT WAS FIXED: the last support replies and internal notes of the "
+                           "best-matching solved/closed cases about a topic, or of one ticket. Use for 'how was it fixed', "
+                           "'what's the solution', 'how do we usually answer this'.",
+                           dict(_DATES, query=_QUERY, ticket_id={"type": "integer"}))
+TOOLS["case_overview"] = (case_overview, "Totals for a period: cases per month, status, country, region, language, the "
+                          "words most used, and the words rising most in the last 30 days. Single words, not problems: "
+                          "follow up with case_themes.", dict(_DATES))
+TOOLS["case_similar"] = (case_similar, "Cases most similar to one ticket, by ticket number.",
+                         {"ticket_id": {"type": "integer"}, "limit": {"type": "integer"}})
+TOOLS["case_read"] = (case_read, "One 2026 case in full by ticket number: subject, requester, organization, country, "
+                      "tags, status, the first message and the whole conversation (Customer / Support turns).",
+                      {"ticket_id": {"type": "integer"}})
 
-# The wall, in code: a Splashtop (agent) address in the question or the answer.
+# The wall, in code. Only about Splashtop's own support staff -- customers,
+# companies and countries are fine. A Splashtop address in the question, or a
+# question plainly about agents, never reaches Spark; Spark is told the rest.
 _AGENT_EMAIL = re.compile(r"[\w.+'-]+@([\w-]+\.)*splashtop\.com\b", re.I)
-AGENT_WALL = ("I can't answer questions about specific support agents. "
-              "Ask about cases, topics, products, plans or trends instead.")
+_AGENT_Q = re.compile(r"\b(support agents?|which agents?|what agents?|each agent|every agent|per agent|by agent|"
+                      r"top agents?|best agents?|worst agents?|fastest agents?|slowest agents?|"
+                      r"agents?'?s? (performance|workload|stats|statistics|productivity|response times?)|assignees?|"
+                      r"assigned to (whom|who)|who (handled|solved|answered|closed|replied to|responded to|worked on|took|"
+                      r"was assigned)|(handled|solved|answered|closed) by (whom|who))\b", re.I)
+AGENT_WALL = ("I can't answer questions about individual support agents. "
+              "Ask about cases, customers, topics, products, plans or trends instead.")
+
+
+_REFUSAL = re.compile(r"can.?t (answer|help with|discuss) (any )?questions about (specific|individual) (support )?agents", re.I)
+
+
+def _about_agents(text):
+    return bool(_AGENT_EMAIL.search(text or "") or _AGENT_Q.search(text or ""))
 
 
 def _blank(text):
@@ -280,20 +318,32 @@ def _tool_specs():
 
 
 SYSTEM = ("You are the assistant inside SplashHub Centre, Splashtop support's internal tool. Answer questions about "
-          "what SplashHub Centre holds: Custom SOS package requests and their AI brand reviews, SSO method validation "
-          "requests and their DNS checks, Zendesk support cases since 2026, Splashtop list prices (the Price Book), and the SplashHub run log. Use the tools to look things up; answer ONLY from "
-          "their results and never invent numbers or tickets. If the tools can't answer, say so plainly. Be brief: a "
-          "sentence or two, then a short list if useful. Write ticket numbers as #12345. Today is %s (UTC).\n\n"
-          "CASES: Zendesk support cases since 2026-01-01 are searchable (case_overview, case_search, case_similar, "
-          "case_read). For 'any cases similar to #123' use case_similar; for 'cases about X' use case_search with the "
-          "key words and a few synonyms; for 'what are the common problems' use case_overview. Give the count, the "
-          "trend if useful, then the best matches as '- #ticket (date, status): subject - what it is about'. A case "
-          "lookup finds words, not meaning: say so if the matches look off.\n\n"
-          "SUPPORT AGENTS -- A HARD RULE: never answer anything about a specific support agent (a Splashtop "
-          "support team member), named, described or by e-mail: which tickets someone handled or solved, how fast "
-          "or well someone works, who used SplashHub most, one agent's costs or activity, comparisons between "
-          "agents. Reply only: '%s' -- even if a tool result happens to contain a name. Never name an agent in "
-          "an answer. Team-wide totals without names are fine. Customers and SOS creators are not agents.\n\n"
+          "what SplashHub Centre holds: Zendesk support cases since 2026, Custom SOS package requests and their AI "
+          "brand reviews, SSO method validation requests, Splashtop list prices (the Price Book), and the SplashHub "
+          "run log. ALWAYS look things up with the tools before answering, and answer ONLY from their results: never "
+          "invent numbers or tickets, and never say something can't be counted or found without trying a lookup "
+          "first. Be brief: a sentence or two, then a short list. Write ticket numbers as #12345. Today is %s (UTC).\n\n"
+          "CASES -- every ticket since 2026-01-01 with its subject, the customer's first message, the whole "
+          "conversation (turns marked Customer / Support), the requester's e-mail and organization, and a country "
+          "guess. Pick the lookup by the question:\n"
+          "- how many / how often / per month / by country, region or language -> case_search. Give 2-5 short "
+          "alternative phrasings in query, comma-separated. Report matching_cases and the breakdown asked for.\n"
+          "- the most common or trending problems, overall or within a topic ('windows 7', '2fa') -> case_themes; read "
+          "the sample and group it into 3-6 concrete problems customers had, each with a rough share and an example "
+          "ticket. For 'trending' also call case_overview and use rising_last_30_days. A tag, a channel or a single "
+          "word such as 'chat' is never a problem.\n"
+          "- how was it fixed / the solution / how do we answer this -> case_solutions (query for a topic, ticket_id "
+          "for one case); say what support did, and which fixes recur, citing tickets.\n"
+          "- similar to #123 -> case_similar. One case in detail -> case_read.\n"
+          "Countries are a guess (the e-mail's country domain, else the profile time zone): say so when you give them.\n\n"
+          "FOLLOW-UPS: when the user pushes back or asks again in other words, your last answer missed. Use a "
+          "DIFFERENT lookup (case_themes rather than case_overview, case_solutions for fixes, case_search for counts) "
+          "and never repeat an earlier answer.\n\n"
+          "SUPPORT AGENTS: SplashHub Centre never discusses individual support agents (Splashtop's own support "
+          "staff): who handled, solved or answered which tickets, how someone performs, anyone's workload or "
+          "activity. If asked that, say only: '%s' This rule is ONLY about Splashtop support staff. Questions about "
+          "customers, requesters, companies, countries, regions, products, topics, counts and trends are NOT about "
+          "agents: answer them. Never name a support agent.\n\n"
           "PLAN QUESTIONS (\"what's the best plan for 3 techs, 200 users and 10 devices\", attended vs unattended...): "
           "call plan_guide, decide what fits from its 'for' lines and the FAQ, then call quote for EACH option. Answer as:\n"
           "**Assumptions** - how you read the need (technicians = concurrent technician licences for supporting OTHER "
@@ -316,7 +366,7 @@ def ask(messages, focus=None, on_event=None):
     Returns {answer, steps: [{tool, args, note}]}."""
     tell = on_event or (lambda e: None)
     last = str((messages[-1] if messages else {}).get("content") or "")
-    if _AGENT_EMAIL.search(last):
+    if _about_agents(last):
         return {"answer": AGENT_WALL, "steps": [], "refused": True}
     if not spark.available():
         raise spark.SparkError("Spark isn't connected yet")
@@ -327,14 +377,23 @@ def ask(messages, focus=None, on_event=None):
     convo = [{"role": "system", "content": sysmsg}]
     for m in messages[-10:]:
         if m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str):
+            if m["role"] == "assistant" and _REFUSAL.search(m["content"]):
+                continue                     # an earlier refusal only teaches a small model to refuse again
             convo.append({"role": m["role"], "content": m["content"][:4000]})
-    steps = []
+    steps, nudged = [], False
     for n in range(MAX_STEPS):
         tell({"phase": "think", "round": n})
         msg = spark.chat_raw(convo, tools=_tool_specs())
         calls = msg.get("tool_calls") or []
         if not calls:
-            return {"answer": _blank(spark.clean(msg.get("content") or "")), "steps": steps}
+            answer = spark.clean(msg.get("content") or "")
+            if _REFUSAL.search(answer) and not nudged and n < MAX_STEPS - 1:
+                # The code already let the question through: it isn't about agents. Once more, with that said.
+                nudged = True
+                convo.append({"role": "system", "content": "That question is not about support agents (it is about "
+                              "cases, customers, countries, products or topics). Answer it, using the tools."})
+                continue
+            return {"answer": _blank(answer), "steps": steps}
         convo.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
         for c in calls:
             fn = (c.get("function") or {})
@@ -352,7 +411,7 @@ def ask(messages, focus=None, on_event=None):
             else:
                 result = {"error": "no such lookup"}
             steps.append({"tool": name, "args": args})
-            convo.append({"role": "tool", "tool_call_id": c.get("id") or name, "content": json.dumps(result, default=str)[:12000]})
+            convo.append({"role": "tool", "tool_call_id": c.get("id") or name, "content": json.dumps(result, default=str)[:18000]})
     # out of steps: ask for an answer with what it has
     tell({"phase": "think", "round": MAX_STEPS})
     msg = spark.chat_raw(convo + [{"role": "user", "content": "Answer now with what you found."}])
