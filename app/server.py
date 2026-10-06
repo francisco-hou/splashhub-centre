@@ -47,7 +47,7 @@ COOKIE = "shcadmin"
 # What needs the admin session: the Logs page's data and the Settings page's.
 # Everything else (SOS Scans, SSO Requests, PriceBook, AI) is open to the team.
 ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases",
-             "/api/kb", "/api/po", "/api/notify", "/api/teams-ask"}
+             "/api/kb", "/api/po", "/api/notify", "/api/teams-ask", "/api/overview"}
 ADMIN_POST = {"/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
               "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop", "/api/po/import", "/api/po/update", "/api/po/stop", "/api/notify",
               "/api/notify/test", "/api/notify/run", "/api/notify/languages", "/api/teams-ask", "/api/teams-ask/key"}
@@ -177,6 +177,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._send(302, "", "text/plain; charset=utf-8", [("Location", "/scans")])
             if u.path in ("/logs", "/logs.html"):
                 return self.static("index.html", "text/html; charset=utf-8")
+            if u.path in ("/overview", "/overview.html"):
+                return self.static("overview.html", "text/html; charset=utf-8")
             if u.path in ("/scans", "/scans.html"):
                 return self.static("scans.html", "text/html; charset=utf-8")
             if u.path in ("/prices", "/prices.html"):
@@ -194,7 +196,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path in ("/customers", "/customers.html"):
                 return self.static("customers.html", "text/html; charset=utf-8")
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/splashtop-icon.png"):
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -301,6 +303,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path == "/api/import-past":
                 return self.json(sosscan.import_status())
             # ---- PO Requests (po.py): the list is open to the team; the import is admin ----
+            if u.path == "/api/overview":
+                # Admin > Dashboard: the whole support picture (team-wide only).
+                import overview
+                return self.json(overview.build(fresh=(qs.get("fresh") or [""])[0] == "1"))
             if u.path == "/api/notify":
                 import notify
                 return self.json(notify.settings())
