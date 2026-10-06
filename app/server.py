@@ -130,6 +130,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
+    def _sidebar_origin(self):
+        """The Origin of SplashHub's sidebar in an agent's browser (a Zendesk app
+        page), or None. Only such pages may call /api/sidebar/review cross-site;
+        Spluki's network fence keeps out anything off the company network."""
+        o = (self.headers.get("Origin") or "").strip()
+        return o if re.fullmatch(r"https://[a-z0-9-]+\.apps\.zdusercontent\.com|https://[a-z0-9-]+\.zendesk\.com", o) else None
+
+    def _cors(self, origin):
+        return [("Access-Control-Allow-Origin", origin), ("Vary", "Origin"),
+                ("Access-Control-Allow-Private-Network", "true")] if origin else []
+
+    def do_OPTIONS(self):
+        # The browser's pre-flight for the sidebar's call.
+        origin = self._sidebar_origin()
+        if urlparse(self.path).path != "/api/sidebar/review" or not origin:
+            return self._send(404, "", "text/plain")
+        return self._send(204, "", "text/plain", self._cors(origin) + [
+            ("Access-Control-Allow-Methods", "POST"), ("Access-Control-Allow-Headers", "Content-Type"),
+            ("Access-Control-Max-Age", "600")])
+
     def json(self, obj, code=200, extra=()):
         self._send(code, json.dumps(obj, ensure_ascii=False), "application/json; charset=utf-8", extra)
 
@@ -373,27 +393,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # 64 KB is plenty for every form here; the Price Book's cached prices are the one bigger save.
         raw = self.rfile.read(min(n, (2 * 1024 * 1024) if u.path == "/api/pricebook/store" else 64 * 1024)) if n else b""
         if u.path == "/api/sidebar/review":
-            # SplashHub's sidebar (through Zendesk's proxy): the review made
-            # here for a ticket, or one started now -- never a second AI call.
-            # Same shared key as the run-log feed (RUNLOG_SECRET).
+            # SplashHub's sidebar: the review made here for a ticket, or one
+            # started now -- never a second AI call. It calls from the agent's
+            # browser (a Zendesk app page; Zendesk's own servers can't reach
+            # an app behind Spluki's company-network fence). Or with the run-log
+            # feed's key (RUNLOG_SECRET), for a caller inside the network.
             import feed
+            origin = self._sidebar_origin()
             key, given = feed._secret(), (self.headers.get("X-SplashHub-Key") or "").strip()
-            if not key or not hmac.compare_digest(given.encode("utf-8"), key.encode("utf-8")):
-                return self.json({"error": "key refused"}, 403)
+            keyed = bool(key and given and hmac.compare_digest(given.encode("utf-8"), key.encode("utf-8")))
+            if not (origin or keyed):
+                return self.json({"error": "not allowed"}, 403)
+            cors = self._cors(origin)
             try:
                 data = json.loads(raw or b"{}")
                 tid = int(str(data.get("ticket_id") or "").strip().lstrip("#"))
             except (ValueError, TypeError):
-                return self.json({"error": "Give a ticket number."}, 400)
+                return self.json({"error": "Give a ticket number."}, 400, cors)
             if tid <= 0:
-                return self.json({"error": "Give a ticket number."}, 400)
+                return self.json({"error": "Give a ticket number."}, 400, cors)
             try:
-                return self.json(sosscan.sidebar_review(tid, start=data.get("start", True) is not False,
-                                                        again=bool(data.get("again")), by=data.get("by"),
-                                                        press=bool(data.get("press"))))
+                out = sosscan.sidebar_review(tid, start=data.get("start", True) is not False, again=bool(data.get("again")),
+                                             by=data.get("by"), press=bool(data.get("press")))
             except Exception as e:
                 sys.stderr.write("[sidebar] #%s lookup failed: %s\n" % (tid, type(e).__name__))
-                return self.json({"state": "error", "error": "SplashHub Centre could not look this up (%s)" % type(e).__name__}, 500)
+                return self.json({"state": "error", "error": "SplashHub Centre could not look this up (%s)" % type(e).__name__}, 500, cors)
+            if data.get("press") or out.get("state") != "pending":
+                sys.stderr.write("[sidebar] #%s %s%s\n" % (tid, out.get("state"), " (Review again)" if data.get("again") else ""))
+            return self.json(out, 200, cors)
         if u.path == "/login":
             try:
                 given = (json.loads(raw or b"{}").get("password") or "")
