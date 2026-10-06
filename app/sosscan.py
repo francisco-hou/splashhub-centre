@@ -787,8 +787,11 @@ def run_scan(scan_id, ticket_id, force=False, manual=False, was=None):
                           result_json=json.dumps(parsed), model=model, input_tokens=usage.get("input_tokens", 0) or 0,
                           output_tokens=usage.get("output_tokens", 0) or 0, cost=cost, error=None, reviewed_ms=_now())
         _auto_note(scan_id, ticket_id)
-        # Its cost on the Logs page, next to the sidebar's own scans.
-        store.insert_many([{"when": _now(), "agent": "SplashHub Centre", "kind": "brand scan (manual)" if manual else "brand scan (auto)",
+        # Its cost on the Logs page, next to the sidebar's own scans -- under
+        # the agent who pressed Scan in SplashHub's sidebar, when that started it.
+        who = _reviewer(scan_id)
+        store.insert_many([{"when": _now(), "agent": who or "SplashHub Centre",
+                            "kind": "brand scan (sidebar)" if who else ("brand scan (manual)" if manual else "brand scan (auto)"),
                             "model": model, "topic": "#%d custom SOS package · %s" % (int(ticket_id), verdict),
                             "tickets": 1, "input_tokens": usage.get("input_tokens", 0), "output_tokens": usage.get("output_tokens", 0),
                             "cost": cost, "source": "centre"}])
@@ -1178,6 +1181,25 @@ def _press(scan_id, by, action):
     store.scan_update(scan_id, sidebar_json=json.dumps(hist[-30:]))
 
 
+def _reviewer(scan_id):
+    """The agent who started this request's review from SplashHub's sidebar
+    (their name), or None: a request the sidebar created carries the name in
+    requested_by; one it asked to review has a "started"/"again" press from the
+    last half hour."""
+    row = store.scan_get(scan_id, fresh=True) or {}
+    rb = row.get("requested_by") or ""
+    if row.get("source") == "sidebar" and " \u00b7 SplashHub sidebar" in rb:
+        return rb.split(" \u00b7 SplashHub sidebar")[0] or None
+    try:
+        hist = json.loads(row.get("sidebar_json") or "[]")
+    except ValueError:
+        hist = []
+    for p in reversed(hist):
+        if p.get("action") in ("started", "again") and _now() - int(p.get("ms") or 0) < 30 * 60000:
+            return p.get("by") or None
+    return None
+
+
 def sidebar_review(ticket_id, start=True, again=False, by=None, press=False):
     """What SplashHub's sidebar shows for a ticket, so one ticket gets one AI
     review: the latest one made here, as the AI returned it (the sidebar draws
@@ -1199,9 +1221,18 @@ def sidebar_review(ticket_id, start=True, again=False, by=None, press=False):
         return {"state": "pending"}
     done = next((r for r in rows if r.get("status") == "done" and r.get("result_json")), None)
     if done and not again:
+        full = store.scan_get(done["id"], fresh=True) or done
         if press:
             _press(done["id"], by, "viewed")
-        full = store.scan_get(done["id"], fresh=True) or done
+            try:
+                res0 = json.loads(full.get("result_json") or "null") or {}
+            except ValueError:
+                res0 = {}
+            store.insert_many([{"when": _now(), "agent": _who(by) or "SplashHub sidebar", "kind": "brand scan (from Centre)",
+                                "model": full.get("model") or "", "tickets": 1, "input_tokens": 0, "output_tokens": 0, "cost": 0,
+                                "topic": "#%d custom SOS package \u00b7 %s \u00b7 shown from SplashHub Centre, no new AI call" % (
+                                    int(ticket_id), effective_verdict(full, res0)),
+                                "source": "centre"}])
         try:
             res = json.loads(full.get("result_json") or "null") or {}
         except ValueError:
@@ -1223,9 +1254,9 @@ def sidebar_review(ticket_id, start=True, again=False, by=None, press=False):
     # Listed here already (e.g. while the switch was off): review that request.
     # Otherwise list the ticket and review it.
     if rows and not again:
-        err = review_now(rows[0]["id"])
-        if not err and press:
+        if press:
             _press(rows[0]["id"], by, "started")
+        err = review_now(rows[0]["id"])
         return {"state": "error", "error": err} if err else {"state": "pending"}
     who = _who(by)
     sid = request(int(ticket_id), "sidebar", (who + " \u00b7 SplashHub sidebar") if who else "SplashHub sidebar",
