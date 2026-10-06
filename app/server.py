@@ -123,7 +123,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        # Styles, scripts and images are versioned (?v=) in the pages, so the browser
+        # may keep them: page to page then reuses them instead of fetching (no flash).
+        # Pages and data are never kept.
+        static_asset = ctype.split(";")[0] in ("text/css", "text/javascript", "image/png")
+        self.send_header("Cache-Control", "public, max-age=604800" if static_asset and code == 200 else "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "same-origin")
         for k, v in extra:
@@ -177,6 +181,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._send(302, "", "text/plain; charset=utf-8", [("Location", "/scans")])
             if u.path in ("/logs", "/logs.html"):
                 return self.static("index.html", "text/html; charset=utf-8")
+            if u.path in ("/tags", "/tags.html"):
+                return self.static("tags.html", "text/html; charset=utf-8")
+            if u.path in ("/me", "/me.html"):
+                return self.static("me.html", "text/html; charset=utf-8")
             if u.path in ("/overview", "/overview.html"):
                 return self.static("overview.html", "text/html; charset=utf-8")
             if u.path in ("/scans", "/scans.html"):
@@ -196,7 +204,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path in ("/customers", "/customers.html"):
                 return self.static("customers.html", "text/html; charset=utf-8")
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/splashtop-icon.png"):
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -304,9 +312,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(sosscan.import_status())
             # ---- PO Requests (po.py): the list is open to the team; the import is admin ----
             if u.path == "/api/overview":
-                # Admin > Dashboard: the whole support picture (team-wide only).
+                # Admin > Dashboard: the whole support picture; AI usage per member (?agent=).
                 import overview
-                return self.json(overview.build(fresh=(qs.get("fresh") or [""])[0] == "1"))
+                return self.json(overview.build(fresh=(qs.get("fresh") or [""])[0] == "1",
+                                                agent=((qs.get("agent") or [""])[0])[:120] or None))
+            if u.path == "/api/tags":
+                # The Tags page: tickets per tag from the Zendesk Tickets data (no Zendesk calls).
+                import tags
+                one = lambda k: ((qs.get(k) or [""])[0]).strip()
+                try:
+                    tz = max(-840, min(840, int(one("tz") or 0)))
+                except ValueError:
+                    tz = 0
+                sel = [x for x in one("select").split("|") if x] or None
+                return self.json(tags.counts(one("kind") or "topics", tz, sel))
             if u.path == "/api/notify":
                 import notify
                 return self.json(notify.settings())

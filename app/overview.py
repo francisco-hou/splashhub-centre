@@ -1,7 +1,7 @@
 """Overview: the whole support picture on one admin page (Admin > Dashboard).
 
-Team-wide numbers only -- never anything per support agent (the same wall as
-the rest of SplashHub Centre).
+Team-wide numbers, except AI usage: per member as the run log records it (the
+Logs page shows the same), with a member filter. Admin only.
 
   Zendesk now     tickets new / open / pending / on hold, the RR queue, created
                   and solved today, and the RR queue per routed language --
@@ -160,17 +160,24 @@ def _attention(now):
     return out[:14]
 
 
-def _ai(now):
+def _ai(now, agent=None):
+    """Runs and cost by tool, this week vs last -- for everyone, or one member
+    (the name the run log records); plus each member's runs this week."""
+    who, wa = (" AND agent = %s", (agent,)) if agent else ("", ())
+
     def by_tool(a, b):
         return {t: {"runs": int(n or 0), "cost": float(c or 0)} for t, n, c in _rows(
-            "SELECT tool, count(*), sum(cost) FROM runs WHERE ts_ms >= %s AND ts_ms < %s GROUP BY tool", (a, b))}
+            "SELECT tool, count(*), sum(cost) FROM runs WHERE ts_ms >= %s AND ts_ms < %s" + who + " GROUP BY tool", (a, b) + wa)}
+    people = [{"agent": a, "runs": int(n or 0), "cost": round(float(c or 0), 2)} for a, n, c in _rows(
+        "SELECT agent, count(*), sum(cost) FROM runs WHERE ts_ms >= %s AND agent IS NOT NULL AND agent <> '' "
+        "GROUP BY agent ORDER BY count(*) DESC", (now - 30 * DAY,))]
     week, prev = by_tool(now - 7 * DAY, now + 1), by_tool(now - 14 * DAY, now - 7 * DAY)
     labels = dict(store.TOOLS)
     tools = [{"tool": labels.get(t, t), "runs": v["runs"], "cost": round(v["cost"], 2), "prev_runs": (prev.get(t) or {}).get("runs", 0)}
              for t, v in sorted(week.items(), key=lambda x: -x[1]["runs"])]
     return {"runs": sum(v["runs"] for v in week.values()), "cost": round(sum(v["cost"] for v in week.values()), 2),
             "prev_runs": sum(v["runs"] for v in prev.values()), "prev_cost": round(sum(v["cost"] for v in prev.values()), 2),
-            "tools": tools}
+            "tools": tools, "agent": agent, "people": people}
 
 
 def _kb():
@@ -193,7 +200,7 @@ def _customers():
         return []
 
 
-def build(fresh=False):
+def build(fresh=False, agent=None):
     now = _now()
     return {"now": now, "live": live(fresh), "tickets": _tickets(now), "sos": _sos(now), "sso": _sso(now), "po": _po(),
-            "attention": _attention(now), "ai": _ai(now), "kb": _kb(), "customers": _customers()}
+            "attention": _attention(now), "ai": _ai(now, agent), "kb": _kb(), "customers": _customers()}

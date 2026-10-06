@@ -40,10 +40,11 @@
     .then(function (x) { ZD = x.zendesk_url || ''; }).catch(function () {});
   $('page').hidden = false;
 
-  var again = null, tries = 0;
+  var again = null, tries = 0, AGENT = '';
   function load(fresh) {
     clearTimeout(again);
-    api('/api/overview' + (fresh ? '?fresh=1' : '')).then(function (d) {
+    var q = [fresh ? 'fresh=1' : '', AGENT ? 'agent=' + encodeURIComponent(AGENT) : ''].filter(Boolean).join('&');
+    api('/api/overview' + (q ? '?' + q : '')).then(function (d) {
       $('ov').innerHTML = draw(d);
       var l = d.live || {};
       $('stamp').textContent = l.updating ? 'Reading Zendesk…' : (l.ms ? 'Zendesk ' + ago(l.ms) : '');
@@ -53,6 +54,13 @@
   }
   load(false);
   $('refresh').addEventListener('click', function () { tries = 0; load(true); });
+  $('ov').addEventListener('change', function (ev) {
+    if (ev.target.id === 'ovAgent') { AGENT = ev.target.value; load(false); }
+  });
+  $('ov').addEventListener('click', function (ev) {
+    var p = ev.target.closest('[data-agent]'); if (!p) return;
+    ev.preventDefault(); AGENT = p.getAttribute('data-agent'); load(false);
+  });
   setInterval(function () { if (document.visibilityState === 'visible') load(false); }, 5 * 60000);
 
   function tile(label, value, sub, cls, href) {
@@ -111,10 +119,18 @@
       card('RR queue by language', 'tagged', langs) + '</div>';
     // ---- AI usage, Knowledge Base, customers
     var ai = d.ai;
-    var aiBody = '<div class="ov-big"><b>' + int(ai.runs) + '</b> AI runs &middot; <b>' + usd(ai.cost) + '</b> in 7 days ' + trend(ai.runs, ai.prev_runs, false) + '</div>' +
+    var sel = '<select class="sel ov-agent" id="ovAgent" aria-label="Member"><option value="">Everyone</option>' + (ai.people || []).map(function (p) {
+      return '<option value="' + esc(p.agent) + '"' + (p.agent === ai.agent ? ' selected' : '') + '>' + esc(p.agent) + '</option>';
+    }).join('') + '</select>';
+    var aiBody = sel + '<div class="ov-big"><b>' + int(ai.runs) + '</b> AI runs &middot; <b>' + usd(ai.cost) + '</b> in 7 days ' + trend(ai.runs, ai.prev_runs, false) + '</div>' +
       (ai.tools.length ? ai.tools.map(function (x) {
         return '<div class="dhb"><span>' + esc(x.tool) + '</span><div class="dhbt"><i style="width:' + Math.round(100 * x.runs / Math.max(1, ai.tools[0].runs)) + '%"></i></div><span>' + int(x.runs) + ' &middot; ' + usd(x.cost) + '</span></div>';
-      }).join('') : '<div class="cu-empty">No runs this week.</div>') + '<div class="ov-more"><a href="/logs">Open Logs</a></div>';
+      }).join('') : '<div class="cu-empty">No runs this week.</div>') +
+      (!ai.agent && ai.people && ai.people.length ? '<div class="cu-h">By member (30 days)</div>' + ai.people.slice(0, 8).map(function (p) {
+        return '<a class="dhb ov-person" href="#" data-agent="' + esc(p.agent) + '"><span title="' + esc(p.agent) + '">' + esc(p.agent) + '</span><div class="dhbt"><i style="width:' +
+          Math.round(100 * p.runs / Math.max(1, ai.people[0].runs)) + '%"></i></div><span>' + int(p.runs) + ' &middot; ' + usd(p.cost) + '</span></a>';
+      }).join('') : '') +
+      '<div class="ov-more"><a href="/logs' + (ai.agent ? '?agent=' + encodeURIComponent(ai.agent) : '') + '">Open Logs' + (ai.agent ? ' for ' + esc(ai.agent) : '') + '</a></div>';
     var kb = d.kb;
     var kbBody = '<div class="ov-kv"><span>Articles</span><b>' + int(kb.articles) + '</b><span>Outdated translations</span><b class="' + (kb.outdated ? 'ov-o' : '') + '">' + int(kb.outdated) + '</b></div>' +
       (kb.least_helpful.length ? '<div class="cu-h">Least helpful (10+ votes)</div>' + kb.least_helpful.map(function (a) {
