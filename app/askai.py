@@ -299,6 +299,16 @@ TOOLS["case_read"] = (case_read, "One case in full by ticket number: subject, re
                       "fresh=true reads the latest straight from Zendesk -- ALWAYS use it to draft a reply.",
                       {"ticket_id": {"type": "integer"}, "fresh": {"type": "boolean"}})
 
+def centre_help(topic=None):
+    import centrehelp
+    return centrehelp.guide(topic)
+
+
+TOOLS["centre_help"] = (centre_help, "HOW SPLASHHUB CENTRE WORKS: its user guide -- pages, buttons, verdicts and the "
+                        "team rules, internal notes, the SplashHub sidebar link, SSO checks, the PriceBook, the AI page, "
+                        "Cases, Logs, Settings, admin. Use for any question about using or understanding SplashHub Centre.",
+                        {"topic": {"type": "string", "description": "a few words, e.g. 'internal note', 'needs review'"}})
+
 # The wall, in code. Only about Splashtop's own support staff -- customers,
 # companies and countries are fine. A Splashtop address in the question, or a
 # question plainly about agents, never reaches Spark; Spark is told the rest.
@@ -329,7 +339,7 @@ def _tool_specs():
 
 
 SYSTEM = ("You are the assistant inside SplashHub Centre, Splashtop support's internal tool. Answer questions about "
-          "what SplashHub Centre holds: Zendesk support cases since 2026, Custom SOS package requests and their AI "
+          "how SplashHub Centre works, and about what it holds: Zendesk support cases since 2026, Custom SOS package requests and their AI "
           "brand reviews, SSO method validation requests, Splashtop list prices (the Price Book), and the SplashHub "
           "run log. ALWAYS look things up with the tools before answering, and answer ONLY from their results: never "
           "invent numbers or tickets, and never say something can't be counted or found without trying a lookup "
@@ -358,6 +368,9 @@ SYSTEM = ("You are the assistant inside SplashHub Centre, Splashtop support's in
           "FOLLOW-UPS: when the user pushes back or asks again in other words, your last answer missed. Use a "
           "DIFFERENT lookup (case_themes rather than case_overview, case_solutions for fixes, case_search for counts) "
           "and never repeat an earlier answer.\n\n"
+          "HOW SPLASHHUB CENTRE WORKS (what a page, button, verdict or setting does, why a request is Needs review, "
+          "how to add an internal note, where something is, what the sidebar does): call centre_help and answer from "
+          "it only -- say where to click, step by step if useful. If the guide doesn't cover it, say so.\n\n"
           "SUPPORT AGENTS: SplashHub Centre never discusses individual support agents (Splashtop's own support "
           "staff): who handled, solved or answered which tickets, how someone performs, anyone's workload or "
           "activity. If asked that, say only: '%s' This rule is ONLY about Splashtop support staff. Questions about "
