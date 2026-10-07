@@ -4,9 +4,10 @@ backlinks, website traffic, ads, development...) -- or a real request. The ones
 it calls ads are listed on the Ad filter page to be checked (Right / Wrong).
 
 HELD: nothing is changed in Zendesk by itself. A person can open a ticket's
-preview and press Silent close (confirmed twice): one Zendesk update adds a
-private note "Silent-Close" and the silent_close tag -- nothing is sent to the
-customer; Zendesk's own triggers do the rest.
+preview and press Silent close (confirmed twice): the silent_close tag, then one
+update -- a private note "Silent-Close" (nothing is sent to the customer),
+Product = Don't Know, Issue Type = Other (both required to solve) and status
+Solved; the ticket is read back to show what stuck. It can be pressed again.
 
 Its own Zendesk search, every 2 minutes: tickets created from the start day
 (the day before it was first switched on), whatever their status. Each new
@@ -324,34 +325,57 @@ def _get(tid):
 
 def preview(ticket_id):
     """What the page's preview shows: the row, and the ticket as Zendesk has it
-    now (its whole first message, status, tags)."""
+    now -- status, tags, and the whole conversation (every reply and internal
+    note, oldest first, each marked customer / agent / internal note)."""
     import zendesk
     ensure()
     row = _get(ticket_id)
     if not row:
         raise ValueError("the Ad/Spam Filter hasn't read this ticket")
+    tid = int(ticket_id)
     try:
-        t = (zendesk.get_json("/api/v2/tickets/%d.json" % int(ticket_id)).get("ticket") or {})
+        t = (zendesk.get_json("/api/v2/tickets/%d.json" % tid).get("ticket") or {})
+        convo, url, users, pages = [], "/api/v2/tickets/%d/comments.json?page[size]=100&include=users" % tid, {}, 0
+        while url and pages < 3:
+            d = zendesk.get_json(url)
+            pages += 1
+            users.update({u.get("id"): u for u in d.get("users") or []})
+            for c in d.get("comments") or []:
+                u = users.get(c.get("author_id")) or {}
+                kind = "note" if c.get("public") is False else (
+                    "customer" if c.get("author_id") == t.get("requester_id") or u.get("role") == "end-user" else "agent")
+                convo.append({"kind": kind, "who": u.get("name") or u.get("email") or "", "ms": _iso_ms(c.get("created_at")),
+                              "text": (c.get("plain_body") or c.get("body") or "")[:8000]})
+            nxt = (d.get("links") or {}).get("next") if (d.get("meta") or {}).get("has_more") else None
+            url = nxt[len(zendesk.base_url()):] if nxt and nxt.startswith(zendesk.base_url()) else None
         row.update(description=(t.get("description") or "")[:12000], tags=t.get("tags") or [], status=t.get("status") or row["status"],
-                   live=True)
+                   conversation=convo, live=True)
     except Exception as e:                       # Zendesk out of reach: what was kept
-        row.update(description=row.get("sample") or "", tags=[], live=False, live_error=str(e)[:200])
+        row.update(description=row.get("sample") or "", tags=[], conversation=[], live=False, live_error=str(e)[:200])
     return row
 
 
+def _iso_ms(iso):
+    import calendar
+    try:
+        return int(calendar.timegm(time.strptime((iso or "")[:19], "%Y-%m-%dT%H:%M:%S")) * 1000)
+    except ValueError:
+        return None
+
+
 def silent_close(ticket_id):
-    """Silent close (a person, twice confirmed): a private note "Silent-Close"
-    and the silent_close tag on the Zendesk ticket, in one update. Marked here
-    (silent_ms) and counted as Spark being right."""
+    """Silent close (a person, twice confirmed): zendesk.silent_close -- the tag,
+    then the private note, the required fields and Solved -- and what stuck.
+    Marked here (silent_ms) and counted as Spark being right. Can be pressed
+    again (a retry) for now."""
     import zendesk
     ensure()
     tid = int(ticket_id)
     row = _get(tid)
     if not row:
         raise ValueError("the Ad/Spam Filter hasn't read this ticket")
-    if row.get("silent_ms"):
-        raise ValueError("this ticket was silently closed already")
-    t = zendesk.silent_close(tid)
+    res = zendesk.silent_close(tid)
+    t = res["ticket"]
     c = store.connect(True)
     try:
         c.cursor().execute(store._q("UPDATE adfilter SET silent_ms = %s, status = coalesce(%s, status), verdict = coalesce(verdict, 'right'), "
@@ -360,5 +384,8 @@ def silent_close(ticket_id):
         c.commit()
     finally:
         c.close()
-    sys.stderr.write("[adfilter] #%d silently closed (private note + silent_close tag)\n" % tid)
-    return _get(tid)
+    sys.stderr.write("[adfilter] #%d silent close: tag %s, status %s, %s\n" % (
+        tid, "ok" if res["tag"] else "MISSING", res["status"], ", ".join("%s %s" % (k, "ok" if v else "NOT SET") for k, v in res["fields"].items())))
+    out = _get(tid)
+    out["check"] = {"tag": res["tag"], "status": res["status"], "fields": res["fields"]}
+    return out

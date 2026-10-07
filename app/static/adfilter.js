@@ -2,8 +2,9 @@
 // are marketing or spam, held here to be checked. Open tasks first (not solved
 // or closed), then Solved / closed and the ones marked wrong. A row opens the
 // preview: the ticket's whole first message (fresh from Zendesk), Spark's call,
-// Right / Wrong, and Silent close -- confirmed twice; one Zendesk update adds a
-// private note "Silent-Close" and the silent_close tag (nothing to the customer).
+// Right / Wrong, and Silent close -- confirmed twice: the silent_close tag, a
+// private note "Silent-Close" (nothing to the customer), Product = Don't Know,
+// Issue Type = Other and Solved; then what stuck. It can be pressed again.
 (function () {
   'use strict';
 
@@ -95,17 +96,16 @@
   // ---- the preview ------------------------------------------------------------------------------
   function detail(p) {
     var r = p.row, z = p.zd;
-    var silent = r.silent_ms ? '<div class="ad-done">Silently closed from SplashHub Centre ' + esc(when(r.silent_ms)) +
-      ' &mdash; private note &ldquo;Silent-Close&rdquo; and the <code>silent_close</code> tag added.</div>' : '';
-    var close = r.silent_ms ? '' :
+    var silent = r.silent_ms ? '<div class="ad-done">Silently closed from SplashHub Centre ' + esc(when(r.silent_ms)) + '.' + checkLine(p.check) + '</div>' : '';
+    var close =
       '<div class="at-k">Silent close</div>' +
       (p.confirm ? '<div class="ad-confirm">' +
-          '<div>Adds a <b>private note &ldquo;Silent-Close&rdquo;</b> and the tag <code>silent_close</code> to ticket <b>#' + r.ticket_id + '</b> in Zendesk. Nothing is sent to the customer.</div>' +
+          '<div>On ticket <b>#' + r.ticket_id + '</b> in Zendesk: adds the tag <code>silent_close</code>, a <b>private note &ldquo;Silent-Close&rdquo;</b>, sets <b>Product = Don&rsquo;t Know</b> and <b>Issue Type = Other</b>, and marks it <b>Solved</b>. Nothing is sent to the customer.</div>' +
           '<label class="ad-sure"><input type="checkbox" id="adSure"> I checked it: this ticket is spam / marketing</label>' +
           '<div class="frow ad-act"><button type="button" class="btn btn-sm ad-danger" id="adGo" disabled>Yes, silent close #' + r.ticket_id + '</button>' +
           '<button type="button" class="btn btn-sm" id="adCancel">Cancel</button></div></div>'
-        : '<div class="frow ad-act"><button type="button" class="btn btn-sm ad-danger-o" id="adClose">Silent close…</button>' +
-          '<span class="muted">Private note + <code>silent_close</code> tag; asks twice.</span></div>');
+        : '<div class="frow ad-act"><button type="button" class="btn btn-sm ad-danger-o" id="adClose">' + (r.silent_ms ? 'Silent close again…' : 'Silent close…') + '</button>' +
+          '<span class="muted">Tag, private note, Product / Issue Type, Solved; asks twice.</span></div>');
     return '<div class="at-d">' +
       '<div class="at-dh"><div class="at-dt">' + ticketLink(r.ticket_id) + ' · ' + esc(r.subject || '(no subject)') + '</div>' +
         '<div class="muted">' + esc(when(r.created_ms)) + (r.requester ? ' · ' + esc(r.requester) : '') + (r.channel ? ' · ' + esc(r.channel) : '') + ' · ' + tstatus(z.status || r.status) + '</div></div>' +
@@ -114,8 +114,7 @@
         (r.why ? '<div>' + esc(r.why) + '</div>' : '') + '<div class="muted"><a href="/settings#sparklog-' + r.ticket_id + '">What Spark read and answered</a> (admins)</div></div>' +
       '<div class="at-box"><div class="at-k">In Zendesk now</div><div>' + tstatus(z.status || r.status) + '</div>' +
         '<div class="muted ad-tags">' + (z.tags && z.tags.length ? z.tags.map(function (t) { return '<code>' + esc(t) + '</code>'; }).join(' ') : 'no tags') + '</div></div></div>' +
-      '<div class="at-k">What they wrote' + (z.live ? '' : ' <span class="muted">(kept copy — Zendesk didn’t answer)</span>') + '</div>' +
-      '<div class="at-sample ad-full">' + esc(z.description || r.sample || '(no text)') + '</div>' +
+      convo(z, r) +
       '<div class="at-k">Is Spark right?</div>' +
       '<div class="frow ad-act"><button type="button" class="btn btn-sm' + (r.verdict === 'right' ? ' on-ok' : '') + '" data-v="right">✓ Right, it’s spam</button>' +
         '<button type="button" class="btn btn-sm' + (r.verdict === 'wrong' ? ' on-bad' : '') + '" data-v="wrong">✗ Wrong, it’s real</button>' +
@@ -123,6 +122,29 @@
       close +
       '<div class="sc-msg" id="adMsg" aria-live="polite"></div>' +
       '<div class="frow"><a class="btn btn-sm" href="' + esc(zdUrl(r.ticket_id)) + '" target="_blank" rel="noopener">Open in Zendesk</a></div></div>';
+  }
+  // what Zendesk shows after a silent close: each part ✓ or ✗
+  function checkLine(c) {
+    if (!c) return '';
+    var part = function (ok, label) { return '<span class="' + (ok ? 'at-ok' : 'at-bad') + '">' + (ok ? '✓' : '✗') + ' ' + esc(label) + '</span>'; };
+    return '<div class="ad-check">' + part(c.tag, 'silent_close tag') + ' ' +
+      Object.keys(c.fields || {}).map(function (k) { return part(c.fields[k], k); }).join(' ') + ' ' +
+      part(c.status === 'solved' || c.status === 'closed', 'Solved' + (c.status && c.status !== 'solved' && c.status !== 'closed' ? ' (it is ' + c.status + ')' : '')) + '</div>';
+  }
+  // the whole ticket, oldest first: customer / agent / internal note, each with who and when
+  function convo(z, r) {
+    var c = z.conversation || [];
+    if (!c.length) {
+      return '<div class="at-k">What they wrote' + (z.live ? '' : ' <span class="muted">(kept copy — Zendesk didn’t answer)</span>') + '</div>' +
+        '<div class="at-sample ad-full">' + esc(z.description || r.sample || '(no text)') + '</div>';
+    }
+    var LBL = { customer: 'Customer', agent: 'Agent', note: 'Internal note' };
+    return '<div class="at-k">The whole ticket <span class="muted">(' + c.length + (c.length === 1 ? ' message' : ' messages') + ', oldest first)</span></div>' +
+      '<div class="ad-convo">' + c.map(function (m) {
+        return '<div class="ad-msg ad-' + esc(m.kind) + '"><div class="ad-mh"><b>' + esc(LBL[m.kind] || m.kind) + '</b>' +
+          (m.who ? ' · ' + esc(m.who) : '') + (m.ms ? ' <span class="muted">· ' + esc(when(m.ms)) + '</span>' : '') + '</div>' +
+          '<div class="ad-mb">' + esc(m.text || '') + '</div></div>';
+      }).join('') + '</div>';
   }
   function draw() { if (P && CUR === P.row.ticket_id) $('detail').innerHTML = detail(P); }
   function openPanel(id) {
@@ -135,7 +157,7 @@
     $('panel').focus();
     api('/api/adfilter/ticket/' + id).then(function (t) {
       if (CUR !== id) return;
-      P.zd = { description: t.description, tags: t.tags, status: t.status, live: t.live };
+      P.zd = { description: t.description, tags: t.tags, status: t.status, live: t.live, conversation: t.conversation };
       draw();
     }).catch(function (e) { if (CUR !== id) return; P.zd = { description: r.sample, tags: [], live: false }; draw(); $('adMsg').textContent = e.message; });
   }
@@ -166,8 +188,15 @@
       if (!$('adSure').checked) return;
       var go = ev.target; go.disabled = true; go.textContent = 'Closing…';
       post('/api/adfilter/silent-close', { ticket_id: id }).then(function (r) {
-        refreshRow(r); P.confirm = false; draw(); loadStatus();
-        $('adMsg').textContent = 'Done — #' + id + ' has the private note “Silent-Close” and the silent_close tag.';
+        P.check = r.check; refreshRow(r); P.confirm = false; draw(); loadStatus();
+        var c = r.check || {}, all = c.tag && (c.status === 'solved' || c.status === 'closed') && Object.keys(c.fields || {}).every(function (k) { return c.fields[k]; });
+        var msg = all ? 'Done — #' + id + ' is silently closed.' : 'Not everything stuck on #' + id + ' — see above; you can press Silent close again.';
+        $('adMsg').textContent = msg;
+        api('/api/adfilter/ticket/' + id).then(function (t) {          // the ticket again: the new note in the conversation
+          if (!P || CUR !== id) return;
+          P.zd = { description: t.description, tags: t.tags, status: t.status, live: t.live, conversation: t.conversation };
+          draw(); $('adMsg').textContent = msg;
+        }).catch(function () {});
       }).catch(function (e) { go.disabled = false; go.textContent = 'Yes, silent close #' + id; $('adMsg').textContent = 'Could not silent close: ' + e.message; });
     }
   });

@@ -17,7 +17,7 @@ Errors are worded here, never copied from the library: a proxy refusal quotes
 the proxy URL -- which carries this app's proxy password -- in its exception
 text, and these messages end up on a web page.
 """
-import base64, json, os, urllib.error, urllib.parse, urllib.request
+import base64, json, os, re, urllib.error, urllib.parse, urllib.request
 
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 TIMEOUT = 30
@@ -201,17 +201,57 @@ def change_tags(ticket_id, add=(), remove=()):
     return tags
 
 
-def silent_close(ticket_id, note="Silent-Close", tag="silent_close"):
-    """The Ad/Spam Filter's Silent close: ONE ticket update -- a private note
-    (public: false, never sent to the requester) and the silent_close tag added
-    to the ticket's tags. Nothing else changes here; what the tag then does is
-    Zendesk's own (its triggers). Returns the ticket as Zendesk has it after."""
-    body = json.dumps({"ticket": {"comment": {"body": note, "public": False}, "additional_tags": [tag]}}).encode("utf-8")
-    data, _ = _open(base_url() + "/api/v2/tickets/%d.json" % int(ticket_id), method="PUT", body=body)
-    try:
-        return (json.loads(data or b"{}") or {}).get("ticket") or {}
-    except ValueError:
-        return {}
+_FIELD_OPTS = {}
+
+
+def _norm(s):
+    return re.sub(r"[^a-z0-9]", "", str(s or "").lower())
+
+
+def field_option(title, option):
+    """(ticket field id, option value) for a field's title and one of its
+    options' names -- e.g. ("Product", "Don't Know") -- found in the account's
+    ticket fields (a nested option matches on its last part). Kept once found."""
+    key = (_norm(title), _norm(option))
+    if key in _FIELD_OPTS:
+        return _FIELD_OPTS[key]
+    url = "/api/v2/ticket_fields.json?page[size]=100"
+    pages = 0
+    while url and pages < 20:
+        d = get_json(url)
+        pages += 1
+        for f in d.get("ticket_fields") or []:
+            if key[0] not in (_norm(f.get("title")), _norm(f.get("raw_title")), _norm(f.get("title_in_portal"))):
+                continue
+            for o in f.get("custom_field_options") or []:
+                if key[1] in (_norm((o.get("name") or "").split("::")[-1]), _norm((o.get("raw_name") or "").split("::")[-1])):
+                    _FIELD_OPTS[key] = (int(f["id"]), o.get("value"))
+                    return _FIELD_OPTS[key]
+        nxt = (d.get("links") or {}).get("next") if (d.get("meta") or {}).get("has_more") else d.get("next_page")
+        url = nxt[len(base_url()):] if nxt and nxt.startswith(base_url()) else None
+    raise ZendeskError('could not find the ticket field "%s" with the option "%s"' % (title, option))
+
+
+def silent_close(ticket_id, note="Silent-Close", tag="silent_close", fields=(("Product", "Don't Know"), ("Issue Type", "Other"))):
+    """The Ad/Spam Filter's Silent close. 1) the silent_close tag, through the
+    tags endpoint (a single-ticket update ignores additional_tags); 2) one update:
+    a private note (public: false, never sent to the requester), the required
+    fields (Product = Don't Know, Issue Type = Other) and status Solved. Then the
+    ticket is read back: {"tag", "status", "fields": {title: ok}, "ticket"} --
+    what actually stuck."""
+    tid = int(ticket_id)
+    want = [(t, o) + field_option(t, o) for t, o in fields]          # before any change: a missing field stops here
+    change_tags(tid, add=[tag])
+    body = {"ticket": {"comment": {"body": note, "public": False}, "status": "solved",
+                       "custom_fields": [{"id": fid, "value": val} for _, _, fid, val in want]}}
+    _open(base_url() + "/api/v2/tickets/%d.json" % tid, method="PUT", body=json.dumps(body).encode("utf-8"))
+    t = (get_json("/api/v2/tickets/%d.json" % tid).get("ticket") or {})
+    if tag not in (t.get("tags") or []):                              # a second try, then say what is there
+        change_tags(tid, add=[tag])
+        t = (get_json("/api/v2/tickets/%d.json" % tid).get("ticket") or {})
+    have = {int(c.get("id")): c.get("value") for c in t.get("custom_fields") or [] if c.get("id") is not None}
+    return {"tag": tag in (t.get("tags") or []), "status": t.get("status"),
+            "fields": {"%s = %s" % (title, opt): have.get(fid) == val for title, opt, fid, val in want}, "ticket": t}
 
 
 def download(url):
