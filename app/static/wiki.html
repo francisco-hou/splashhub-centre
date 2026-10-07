@@ -260,7 +260,7 @@
             <p>Spark reads every new ticket and decides whether it&rsquo;s <b>marketing or spam</b> &mdash; someone selling SEO, backlinks, website traffic, ads or development to Splashtop &mdash; or a real request. Only the ones it calls ads are listed.</p>
             <h4>How it scans</h4>
             <ul>
-              <li>Every <b>2 minutes</b>, every ticket created since the day before it was first switched on, whatever its status.</li>
+              <li>Every <b>2 minutes</b>, every ticket created in the <b>last 3 days</b> (never before the day before it was first switched on), whatever its status. Older ads still open get their status refreshed once a day.</li>
               <li>Reads tickets the same way as AutoTag (first message; chats after their transcript; messaging in full).</li>
               <li>Never called spam: phone calls, provisioning requests, and tickets with no real text. A chat asking about Splashtop is never spam.</li>
               <li>Spark compares each ticket with the <b>example ads</b> in Settings &rsaquo; AutoTag &rsaquo; Ad/Spam Filter. Paste new spam there when one slips through.</li>

@@ -9,8 +9,9 @@ update -- a private note "Silent-Close" (nothing is sent to the customer),
 Product = Don't Know, Issue Type = Other (both required to solve) and status
 Solved; the ticket is read back to show what stuck. It can be pressed again.
 
-Its own Zendesk search, every 2 minutes: tickets created from the start day
-(the day before it was first switched on), whatever their status. Each new
+Its own Zendesk search, every 2 minutes: tickets created in the last 3 days
+(never before the start day: the day before it was first switched on),
+whatever their status; older ads' statuses are refreshed once a day. Each new
 one's subject, sender and the customer's first message (read the way AutoTag
 reads it); phone calls and provisioning requests are left out (not ads). 8
 tickets to a Spark call, the example ads (Settings > AutoTag > Ad filter) in
@@ -180,6 +181,30 @@ def _statuses(found, known):
         c.close()
 
 
+def _refresh_older():
+    """Once a day: the status of ads older than the 3-day search (still open
+    ones only), 100 to a Zendesk call -- they move between the page's views."""
+    import zendesk
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    if store.get_setting("adfilter_status_day", "") == day:
+        return
+    cutoff = _now() - 3 * 86400000
+    ids = [int(r[0]) for r in store._read("SELECT ticket_id FROM adfilter WHERE spam = 1 AND created_ms < %s AND "
+                                          "coalesce(status, '') NOT IN ('solved', 'closed')", [cutoff], fresh=True)]
+    for i in range(0, len(ids), 100):
+        got = zendesk.statuses(ids[i:i + 100])
+        if got:
+            c = store.connect(True)
+            try:
+                cur = c.cursor()
+                for tid, st in got.items():
+                    cur.execute(store._q("UPDATE adfilter SET status = %s WHERE ticket_id = %s"), (st, tid))
+                c.commit()
+            finally:
+                c.close()
+    store.set_setting("adfilter_status_day", day, "adfilter")
+
+
 def run_once(limit=PER_ROUND):
     import spark, zendesk, autotag
     ensure()
@@ -188,8 +213,11 @@ def run_once(limit=PER_ROUND):
         return
     if zendesk.configured():
         raise RuntimeError("SplashHub Centre can't read Zendesk yet")
-    found = [t for t in zendesk.search_tickets("type:ticket created>=%s" % s["since"], max_pages=30)
+    # the last 3 days only (it never grows): every new ticket is in it, and recent ones' statuses
+    since = max(s["since"], time.strftime("%Y-%m-%d", time.gmtime(time.time() - 3 * 86400)))
+    found = [t for t in zendesk.search_tickets("type:ticket created>=%s" % since, max_pages=30)
              if (t.get("created_at") or "")[:10] >= s["since"]]
+    _refresh_older()
     ids = [int(t["id"]) for t in found]
     known = set()
     for i in range(0, len(ids), 500):

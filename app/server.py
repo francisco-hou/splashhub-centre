@@ -26,6 +26,8 @@ Zendesk history) to the platform's SPLUKI_WEBHOOK intake, and a background loop
 here takes it. SplashHub keeps writing to Zendesk as well.
 """
 import base64, csv, hashlib, hmac, http.server, io, json, os, re, secrets, sys, time
+import gzip
+GZIP_TYPES = ("application/json", "text/html", "text/css", "text/javascript", "application/javascript", "text/plain", "text/csv", "image/svg+xml")
 from http import cookies
 from urllib.parse import parse_qs, urlparse
 
@@ -121,9 +123,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _send(self, code, body, ctype, extra=()):
         if isinstance(body, str):
             body = body.encode("utf-8")
+        # Text over ~1.4 KB goes compressed when the browser accepts it: lists and
+        # pages shrink by 70-80%, which is what the VPN feels.
+        gz = (len(body) > 1400 and ctype.split(";")[0] in GZIP_TYPES and "gzip" in (self.headers.get("Accept-Encoding") or "")
+              and not any(k.lower() == "content-encoding" for k, _ in extra))
+        if gz:
+            body = gzip.compress(body, 5)
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
+        if gz:
+            self.send_header("Content-Encoding", "gzip")
+            self.send_header("Vary", "Accept-Encoding")
         # Styles, scripts and images are versioned (?v=) in the pages, so the browser
         # may keep them: page to page then reuses them instead of fetching (no flash).
         # Pages and data are never kept.

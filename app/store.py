@@ -17,7 +17,7 @@ Two are added here: `tool` (the Logs-page bucket, derived from kind at insert so
 filtering is plain SQL) and `event_id` (unique; lets the webhook pickup and the
 one-off Zendesk import insert idempotently).
 """
-import hashlib, os, threading
+import hashlib, os, threading, time
 from urllib.parse import quote
 
 APP = os.path.dirname(os.path.abspath(__file__))
@@ -88,12 +88,83 @@ def _pg_url(host):
                                            host, e["PORT"] or "5432", e["NAME"] or "")
 
 
-def connect(write=True):
+# Postgres connections are kept and reused: opening one (network, TLS, login)
+# costs more than most queries. connect() hands out an idle one when there is
+# a fresh one, else opens a new one; close() hands it back, rolled back so no
+# transaction stays open. Idle ones older than POOL_IDLE_S, broken or closed
+# ones are dropped; a read that fails on a reused one is tried again on a new
+# one (_read). SQLite (local preview) is not pooled.
+import threading as _threading
+_POOL = {}                 # host -> [(connection, idle since)]
+_POOL_LOCK = _threading.Lock()
+POOL_IDLE_MAX = 6          # idle connections kept per host
+POOL_IDLE_S = 120          # an idle connection older than this is closed, not reused
+
+
+class _Pooled(object):
+    """A pooled Postgres connection: used like the real one; close() hands it back."""
+    __slots__ = ("_c", "_host", "reused")
+
+    def __init__(self, c, host, reused):
+        self._c, self._host, self.reused = c, host, reused
+
+    def __getattr__(self, name):
+        return getattr(self._c, name)
+
+    def close(self):
+        c, self._c = self._c, None
+        if c is None:
+            return
+        try:
+            if c.closed or c.broken:
+                return
+            c.rollback()                                   # nothing left open (no-op after a commit)
+        except Exception:
+            _quiet_close(c)
+            return
+        with _POOL_LOCK:
+            idle = _POOL.setdefault(self._host, [])
+            if len(idle) < POOL_IDLE_MAX:
+                idle.append((c, time.time()))
+                return
+        _quiet_close(c)
+
+
+def _quiet_close(c):
+    try:
+        c.close()
+    except Exception:
+        pass
+
+
+def _pool_drop(host=None):
+    """Forget the idle connections (of one host, or all) -- after a failure on a reused one."""
+    with _POOL_LOCK:
+        hosts = [host] if host else list(_POOL)
+        dead = [c for h in hosts for c, _ in _POOL.pop(h, [])]
+    for c in dead:
+        _quiet_close(c)
+
+
+def connect(write=True, reuse=True):
     if backend() == "postgres":
         import psycopg
         e = _pg_env()
         host = e["WRITER_HOST"] if write else (e["READER_HOST"] or e["WRITER_HOST"])
-        return psycopg.connect(_pg_url(host), connect_timeout=5)
+        if reuse:
+            now, stale = time.time(), []
+            with _POOL_LOCK:
+                idle = _POOL.get(host) or []
+                while idle:
+                    c, since = idle.pop()
+                    if now - since < POOL_IDLE_S and not c.closed and not c.broken:
+                        for s in stale:
+                            _quiet_close(s)
+                        return _Pooled(c, host, True)
+                    stale.append(c)
+            for s in stale:
+                _quiet_close(s)
+        return _Pooled(psycopg.connect(_pg_url(host), connect_timeout=5), host, False)
     import sqlite3
     return sqlite3.connect(SQLITE_FILE, timeout=5)
 
@@ -342,6 +413,15 @@ def _read(sql, args, fresh=False):
     use it. Pages showing lists can: a second's lag there is harmless."""
     c = connect(fresh)
     try:
+        cur = c.cursor()
+        cur.execute(_q(sql), args)
+        return cur.fetchall()
+    except Exception:
+        if not getattr(c, "reused", False):
+            raise
+        _pool_drop(getattr(c, "_host", None))          # a kept connection gone stale: once more on a new one
+        c.close()
+        c = connect(fresh, reuse=False)
         cur = c.cursor()
         cur.execute(_q(sql), args)
         return cur.fetchall()
