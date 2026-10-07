@@ -153,17 +153,21 @@
     diwali: { g: ['✦', '✧'], c: ['#f2a516', '#e8c25a', '#f07a1a'], n: 18, up: true },
     mid_autumn: { g: ['✦', '·'], c: ['#d9a441', '#e8c25a'], n: 16, up: true }
   };
-  var canvas = null, raf = 0, parts = [];
+  var canvas = null, raf = 0, parts = [], onResize = null;
 
-  function stopFx() { cancelAnimationFrame(raf); raf = 0; if (canvas) { canvas.remove(); canvas = null; } parts = []; }
+  function stopFx() {
+    cancelAnimationFrame(raf); raf = 0; parts = [];
+    if (onResize) { window.removeEventListener('resize', onResize); onResize = null; }
+    if (canvas) { canvas.remove(); canvas = null; }
+  }
   function startFx(key) {
     stopFx();
     var f = FX[key]; if (!f || still) return;
     canvas = document.createElement('canvas'); canvas.className = 'th-fx'; canvas.setAttribute('aria-hidden', 'true');
     document.body.insertBefore(canvas, document.body.firstChild);
-    var ctx = canvas.getContext('2d'), W = 0, H = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
-    function size() { W = innerWidth; H = innerHeight; canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
-    size(); window.addEventListener('resize', size);
+    var cv = canvas, ctx = cv.getContext('2d'), W = 0, H = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
+    function size() { W = innerWidth; H = innerHeight; cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+    size(); onResize = size; window.addEventListener('resize', size);
     function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
     function make(anyY) {
       return { x: Math.random() * W, y: anyY ? Math.random() * H : (f.up ? H + 20 : -20), s: 10 + Math.random() * 10,

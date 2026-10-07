@@ -452,3 +452,39 @@
   });
   fetch('/api/theme', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(draw).catch(function () {});
 })();
+
+/* Settings > AutoTag: on / off, skip phrases, always-Japanese requesters,
+   and a check for new tickets now. Writing to Zendesk by itself stays off. */
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  if (!$('atOn')) return;
+  function call(path, body) {
+    return fetch(path, { method: body ? 'POST' : 'GET', credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); });
+  }
+  function draw(s) {
+    [].forEach.call($('atOn').querySelectorAll('button'), function (b) {
+      var on = (b.getAttribute('data-on') === '1') === s.on;
+      b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+    });
+    $('atState').textContent = (s.on ? 'On' : 'Off') + ' · tickets created from ' + s.since + ' on, read every 2 minutes · ' +
+      s.total.toLocaleString() + ' read so far' + (s.error ? ' · last round: ' + s.error : '') + '. Spark is free.';
+    if (document.activeElement !== $('atSkip')) $('atSkip').value = s.skip.join('\n');
+    if (document.activeElement !== $('atJp')) $('atJp').value = s.jp_emails.join('\n');
+  }
+  function save(body, msg) {
+    $('atMsg').textContent = 'Saving…';
+    call('/api/autotag/settings', body).then(function (s) { draw(s); $('atMsg').textContent = msg; })
+      .catch(function (e) { $('atMsg').textContent = 'Could not save: ' + e.message; });
+  }
+  $('atOn').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-on]'); if (b) save({ on: b.getAttribute('data-on') === '1' }, 'Saved.');
+  });
+  $('atSave').addEventListener('click', function () { save({ skip: $('atSkip').value, jp_emails: $('atJp').value }, 'Saved — used from the next round.'); });
+  $('atRun').addEventListener('click', function () {
+    call('/api/autotag/run', {}).then(function () { $('atMsg').textContent = 'Checking now — new tickets show on the AutoTag page in a minute.'; })
+      .catch(function (e) { $('atMsg').textContent = 'Could not start: ' + e.message; });
+  });
+  call('/api/autotag').then(draw).catch(function () {});
+})();

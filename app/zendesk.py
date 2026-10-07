@@ -185,6 +185,22 @@ def add_internal_note(ticket_id, text, html=False):
         return {}
 
 
+def change_tags(ticket_id, add=(), remove=()):
+    """Add and/or remove tags on a ticket -- the tags endpoint, so nothing else
+    changes: no status change, no comment, nothing for an agent to submit.
+    Returns the ticket's tags afterwards."""
+    tags = None
+    if remove:
+        data, _ = _open(base_url() + "/api/v2/tickets/%d/tags.json" % int(ticket_id), method="DELETE",
+                        body=json.dumps({"tags": list(remove)}).encode("utf-8"))
+        tags = (json.loads(data or b"{}") or {}).get("tags")
+    if add:
+        data, _ = _open(base_url() + "/api/v2/tickets/%d/tags.json" % int(ticket_id), method="PUT",
+                        body=json.dumps({"tags": list(add)}).encode("utf-8"))
+        tags = (json.loads(data or b"{}") or {}).get("tags")
+    return tags
+
+
 def download(url):
     """An attachment's bytes. Tried first without credentials, the way the
     sidebar's browser fetch does (content_url is a signed link); with them only

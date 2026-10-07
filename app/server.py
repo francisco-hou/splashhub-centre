@@ -50,7 +50,8 @@ ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/se
              "/api/kb", "/api/po", "/api/notify", "/api/teams-ask", "/api/overview"}
 ADMIN_POST = {"/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
               "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop", "/api/po/import", "/api/po/update", "/api/po/stop", "/api/notify",
-              "/api/notify/test", "/api/notify/run", "/api/notify/languages", "/api/teams-ask", "/api/teams-ask/key", "/api/theme"}
+              "/api/notify/test", "/api/notify/run", "/api/notify/languages", "/api/teams-ask", "/api/teams-ask/key", "/api/theme",
+              "/api/autotag/settings", "/api/autotag/run"}
 # Local preview fills an empty database with sample runs. Never on Spluki.
 SAMPLE = store.backend() == "sqlite" and os.environ.get("SAMPLE_DATA", "1") != "0"
 
@@ -183,6 +184,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("index.html", "text/html; charset=utf-8")
             if u.path in ("/tags", "/tags.html"):
                 return self.static("tags.html", "text/html; charset=utf-8")
+            if u.path in ("/autotag", "/autotag.html"):
+                return self.static("autotag.html", "text/html; charset=utf-8")
             if u.path in ("/me", "/me.html"):
                 return self.static("me.html", "text/html; charset=utf-8")
             if u.path in ("/overview", "/overview.html"):
@@ -204,7 +207,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path in ("/customers", "/customers.html"):
                 return self.static("customers.html", "text/html; charset=utf-8")
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/splashtop-icon.png"):
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -316,6 +319,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 import overview
                 return self.json(overview.build(fresh=(qs.get("fresh") or [""])[0] == "1",
                                                 agent=((qs.get("agent") or [""])[0])[:120] or None))
+            if u.path == "/api/autotag":
+                # AutoTag: Spark's language for each new ticket, held here to be checked.
+                import autotag
+                return self.json(autotag.status())
+            if u.path == "/api/autotag/list":
+                import autotag
+                g = lambda k: (qs.get(k) or [""])[0]
+                try:
+                    pg = max(0, int(g("page") or 0))
+                except ValueError:
+                    pg = 0
+                return self.json(autotag.search(q=g("q") or None, lang=g("lang") or None, state=g("state") or None,
+                                                match=g("match") or None, verdict=g("verdict") or None, page=pg))
             if u.path == "/api/tags":
                 # The Tags page: tickets per tag from the Zendesk Tickets data (no Zendesk calls).
                 import tags
@@ -577,6 +593,33 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except ValueError as e:
                 return self.json({"error": str(e) or "bad request"}, 400)
             return self.json(notify.settings())
+        if u.path.startswith("/api/autotag/"):
+            import autotag
+            try:
+                data = json.loads(raw or b"{}") or {}
+                if u.path == "/api/autotag/verdict":
+                    return self.json(autotag.set_verdict(int(data.get("ticket_id")), str(data.get("verdict") or ""), data.get("correct_lang") or None))
+                if u.path == "/api/autotag/apply":
+                    # The Add tag / Change tag button: one ticket's language tag, written to Zendesk (tags only).
+                    return self.json(autotag.apply_tag(int(data.get("ticket_id")), str(data.get("lang") or "")))
+                if u.path == "/api/autotag/settings":
+                    return self.json(autotag.save_settings(data, "admin"))
+                if u.path == "/api/autotag/run":
+                    autotag.kick()
+                    return self.json({"ok": True})
+                # The page's Scan new tickets and mass Add tags (for the checking phase; to be removed later).
+                if u.path == "/api/autotag/scan":
+                    return self.json({"started": autotag.scan_now()})
+                if u.path == "/api/autotag/apply-many":
+                    return self.json(autotag.apply_many(data.get("ids") or []))
+            except (ValueError, TypeError) as e:
+                return self.json({"error": str(e) or "bad request"}, 400)
+            except Exception as e:
+                import zendesk
+                if isinstance(e, zendesk.ZendeskError):
+                    return self.json({"error": str(e)}, 502)
+                raise
+            return self.json({"error": "not found"}, 404)
         if u.path == "/api/theme":
             import theme
             try:
@@ -827,7 +870,9 @@ def main():
     import po
     po.boot()                         # new and changed PO requests every hour, once imported
     import notify
-    notify.boot()                     # Teams: spike and overdue-PO checks (only what's switched on)
+    notify.boot()
+    import autotag
+    autotag.boot()                    # AutoTag: new tickets' languages by Spark, every 2 minutes (held here, not written)                     # Teams: spike and overdue-PO checks (only what's switched on)
     _spark_hello()
     srv = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print("SplashHub Centre on http://%s:%d  (backend: %s%s)" % (HOST, PORT, store.backend(), ", sample data" if SAMPLE else ""))
