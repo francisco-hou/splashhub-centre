@@ -109,6 +109,8 @@ def parse(raw):
             val = val.split("\n")[0].strip()
         if key and val:
             order[key] = val[:2000]
+    if re.search(r"Japanese Product Name\s*:", text, re.I):
+        return {"order": order, "products": _jp_products(prod_part or text)}
     products = []
     for sec in re.split(r"\*\s*Product Name\s*:", prod_part, flags=re.I)[1:]:
         name = sec.split("\n")[0].strip()
@@ -121,7 +123,62 @@ def parse(raw):
                 p[k] = _clean(m.group(1))[:60]
         if not any(x["Product Name"] == p["Product Name"] and x.get("Quantity") == p.get("Quantity") for x in products):
             products.append(p)
+    if not products and re.search(r"Product Name\s*:", prod_part or text, re.I):
+        products = _jp_products(prod_part or text)            # fields without "* " bullets: read by key
     return {"order": order, "products": products}
+
+
+JP_KEYS = ("Product Name", "Japanese Product Name", "License Key", "Activation Key", "Quantity", "Provision Start Date", "Provision End Date")
+JP_KEY_RE = re.compile(r"(" + "|".join(re.escape(k) for k in JP_KEYS) + r")\s*:")
+
+
+def _jp_products(part):
+    """A JP order's products (SplashHub po.js parseRawJP): the lines are read by
+    key, a key seen again starts the next product. "Product Name" falls back to
+    the Japanese name. License / activation keys are not kept."""
+    found = list(JP_KEY_RE.finditer(part or ""))
+    items, cur = [], {}
+    for i, m in enumerate(found):
+        key = m.group(1)
+        end = found[i + 1].start() if i + 1 < len(found) else len(part)
+        val = re.split(r"\n(?:For any|Thank you|Splashtop Sales)", part[m.end():end], flags=re.I)[0].strip()
+        val = val.split("\n")[0].strip().lstrip("*").strip()
+        if key in cur or (key == "Product Name" and cur):
+            items.append(cur)
+            cur = {}
+        cur[key] = val
+    if cur:
+        items.append(cur)
+    out = []
+    for it in items:
+        name = _clean(it.get("Product Name") or it.get("Japanese Product Name") or "")
+        if not name or "maintenance" in name.lower() or "handling fee" in name.lower() or "保守" in name:
+            continue
+        p = {"Product Name": name[:200]}
+        if it.get("Japanese Product Name") and it.get("Product Name"):
+            p["Japanese Product Name"] = _clean(it["Japanese Product Name"])[:200]
+        for k in ("Quantity", "Provision Start Date", "Provision End Date"):
+            if it.get(k):
+                p[k] = _clean(it[k])[:60]
+        if not any(x["Product Name"] == p["Product Name"] and x.get("Quantity") == p.get("Quantity") for x in out):
+            out.append(p)
+    return out
+
+
+def order_kind(v):
+    """The order type, short: Renewal, Renewal Upgrade, Upsell / Expansion, New
+    Business ("Existing Business - " dropped); anything else as written."""
+    s = re.sub(r"^\s*existing\s+business\s*[-\u2013\u2014:]\s*", "", _clean(v or ""), flags=re.I).strip()
+    low = s.lower()
+    if "renewal" in low and "upgrade" in low:
+        return "Renewal Upgrade"
+    if "renewal" in low:
+        return "Renewal"
+    if "upsell" in low or "expansion" in low:
+        return "Upsell / Expansion"
+    if "new business" in low or low == "new":
+        return "New Business"
+    return s[:1].upper() + s[1:]
 
 
 def _field(order, *patterns):
@@ -163,7 +220,7 @@ def row_of(t):
     cust = [e.lower() for e in EMAIL.findall(" ".join([spid] + list(order.values()))) if not STAFF.search(e)]
     dom = cust[0].split("@")[-1] if cust else None
     return (int(t["id"]), _ms(t.get("created_at")), _ms(t.get("updated_at")), t.get("status"), (t.get("subject") or "")[:300],
-            spid[:200] or None, company[:200] or None, _field(order, r"order\s*type")[:120] or None,
+            spid[:200] or None, company[:200] or None, order_kind(_field(order, r"order\s*type"))[:120] or None,
             _date(_field(order, r"expected\s*provision\s*date")) or None, region, dom,
             json.dumps(products), json.dumps(order), _now(), " ".join(t.get("tags") or [])[:1000] or None, _text(raw))
 
@@ -287,8 +344,55 @@ def stop():
     return JOB["running"]
 
 
+def fix_once():
+    """Orders saved before these rules: the order type made short, and JP
+    orders' products read (from the saved first message, else from Zendesk)."""
+    if store.get_setting("po_fix_v2", "") == "yes":
+        return
+    ensure()
+    rows = store._read("SELECT ticket_id, order_type, region, products_json, description FROM po_requests", [], fresh=True)
+    fixed = 0
+    c = store.connect(True)
+    try:
+        cur = c.cursor()
+        for tid, ot, region, pj, desc in rows:
+            upd = {}
+            short = order_kind(ot) if ot else ot
+            if short != ot:
+                upd["order_type"] = short
+            if region == "JP" and (pj or "[]") in ("[]", "", "null"):
+                prods = parse(desc or "")["products"] if desc else []
+                if not prods and not zendesk.configured():
+                    try:
+                        t = zendesk.get_json("/api/v2/tickets/%d.json" % int(tid)).get("ticket") or {}
+                        prods = parse(t.get("description") or "")["products"]
+                        time.sleep(0.3)                     # gentle on Zendesk
+                    except Exception as e:
+                        sys.stderr.write("[po] JP products of #%s: %s\n" % (tid, type(e).__name__))
+                if prods:
+                    upd["products_json"] = json.dumps(prods)
+            if upd:
+                cur.execute(store._q("UPDATE po_requests SET %s WHERE ticket_id = %%s" % ", ".join(k + " = %s" for k in upd)),
+                            list(upd.values()) + [int(tid)])
+                fixed += 1
+                if fixed % 200 == 0:
+                    c.commit()
+        c.commit()
+    finally:
+        c.close()
+    store.set_setting("po_fix_v2", "yes", "po")
+    sys.stderr.write("[po] order types and JP products fixed on %d order(s)\n" % fixed)
+
+
 def boot():
     """Hourly, once all of history has been imported."""
+    def first():
+        try:
+            fix_once()
+        except Exception as e:
+            sys.stderr.write("[po] fix skipped: %s\n" % type(e).__name__)
+    threading.Thread(target=first, name="po-fix", daemon=True).start()
+
     def loop():
         while True:
             time.sleep(SYNC_EVERY)
