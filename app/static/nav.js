@@ -211,3 +211,98 @@
   }
   if (document.body) go(); else document.addEventListener('DOMContentLoaded', go);
 })();
+
+/* Loading, so nothing just pops or sits empty:
+   - the last view: each page's boxes are kept in this browser when you leave
+     it and shown straight away next time (a little faded) until the fresh
+     data replaces them
+   - placeholders: shimmering rows and boxes the very first time (app.css)
+   - a thin bar under the top bar while a page waits on SplashHub Centre after
+     you open it or click / type / filter (not for background refreshes, nor
+     the AI's own streamed answer)
+   - a soft fade when content arrives in a box that was waiting */
+(function () {
+  var root = document.documentElement, f0 = window.fetch;
+  var SK = '#stats, #dKpis, #dChart, .dcard, #dayChart, #toolChart, #chart, #verdicts, #chips, #tools, #ntKinds, #thGrid';
+  // the boxes kept per page: their data only (filters, forms and open panels are left alone)
+  var KEEP = '#stats, #dKpis, #dChart, #dAttention, #dSpike, #dWho, #dMix, #dayChart, #toolChart, #chart, #chartSub, #verdicts, #chips, #tools, ' +
+    '#rows, #count, #pagerTxt, #stamp, #ov';
+  var SNAP = 'shcView:' + location.pathname.replace(/\/+$/, '').replace(/\.html$/, ''), NOPE = /^\/(customers|ask|settings|me)\b/;
+  var host = document.querySelector('.topbar') || document.body;
+  var bar = document.createElement('div'); bar.className = 'ld-bar'; bar.setAttribute('aria-hidden', 'true');
+  host.appendChild(bar);
+  var busy = 0, act = Date.now(), showT = 0, settled = false, restored = false;
+  ['pointerdown', 'keydown', 'input', 'change'].forEach(function (e) { addEventListener(e, function () { act = Date.now(); }, true); });
+
+  function initial(el) {         // still as the page was written: empty, or only placeholders
+    return !el.children.length ? !el.textContent.trim() : [].every.call(el.children, function (c) { return /\b(sk-tr|sk-ov|pn-loading)\b/.test(c.className); });
+  }
+  function restore() {
+    if (restored || NOPE.test(location.pathname) || !document.querySelector('main.page')) return;
+    restored = true;
+    var snap = null;
+    try { snap = JSON.parse(localStorage.getItem(SNAP) || 'null'); } catch (e) {}
+    if (!snap || Date.now() - snap.ms > 7 * 86400000) return;
+    [].forEach.call(document.querySelectorAll(KEEP), function (el) {
+      var k = el.id || ''; if (!k || snap.box[k] == null || !initial(el)) return;
+      el.innerHTML = snap.box[k];
+      [].forEach.call(el.childNodes, function (n) { n._snap = true; });
+      el.setAttribute('data-stale', '');
+    });
+  }
+  function keep() {
+    if (NOPE.test(location.pathname) || !document.querySelector('main.page')) return;
+    var old = null, box = {}, size = 0;
+    try { old = JSON.parse(localStorage.getItem(SNAP) || 'null'); } catch (e) {}
+    [].forEach.call(document.querySelectorAll(KEEP), function (el) {
+      var k = el.id; if (!k) return;
+      if (el.hasAttribute('data-stale') || initial(el) || el.querySelector('.sk-tr, .pn-loading')) {   // never saved: keep the last good one
+        if (old && old.box[k] != null) box[k] = old.box[k];
+        return;
+      }
+      box[k] = el.innerHTML; size += box[k].length;
+    });
+    if (!Object.keys(box).length || size > 400000) return;
+    try { localStorage.setItem(SNAP, JSON.stringify({ ms: Date.now(), box: box })); }
+    catch (e) {           // full: make room by dropping the other pages' views
+      try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('shcView:') === 0 && k !== SNAP) localStorage.removeItem(k); });
+        localStorage.setItem(SNAP, JSON.stringify({ ms: Date.now(), box: box })); } catch (e2) {}
+    }
+  }
+  addEventListener('pagehide', keep);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') keep(); });
+  document.addEventListener('DOMContentLoaded', restore);
+
+  function unstale() { [].forEach.call(document.querySelectorAll('[data-stale]'), function (el) { el.removeAttribute('data-stale'); }); }
+  function start() { if (busy++ === 0) { clearTimeout(showT); bar.classList.remove('end'); showT = setTimeout(function () { bar.classList.add('on'); }, 150); } }
+  function done() {
+    if (--busy > 0) return;
+    busy = 0; clearTimeout(showT);
+    if (bar.classList.contains('on')) { bar.classList.add('end'); setTimeout(function () { if (!busy) bar.classList.remove('on', 'end'); }, 380); }
+    if (!settled) { settled = true; setTimeout(function () { root.classList.add('sk-off'); unstale(); }, 1500); }
+  }
+  if (f0) window.fetch = function (u, o) {
+    var url = typeof u === 'string' ? u : (u && u.url) || '';
+    if (url.indexOf('/api/') >= 0) restore();               // the page is built and asking for its data: show the last view now
+    var p = f0.apply(this, arguments);
+    if (url.indexOf('/api/') >= 0 && url.indexOf('/api/ask') < 0 && url.indexOf('/api/theme') < 0 && Date.now() - act < 1500) {
+      start(); p.then(done, done);
+    }
+    return p;
+  };
+  setTimeout(function () { root.classList.add('sk-off'); unstale(); }, 12000);     // never shimmer or stay faded for ever
+
+  if (!window.MutationObserver) return;
+  new MutationObserver(function (ms) {
+    ms.forEach(function (m) {
+      var t = m.target; if (t.nodeType !== 1 || !m.addedNodes.length) return;
+      var mine = [].every.call(m.addedNodes, function (n) { return n._snap; });
+      if (t.hasAttribute('data-stale') && !mine) { t.removeAttribute('data-stale'); return; }   // fresh data over the last view: no fade, it just updates
+      var waited = [].some.call(m.removedNodes, function (n) { return n.nodeType === 1 && /\b(sk-tr|sk-ov|pn-loading)\b/.test(n.className || ''); }) ||
+        (!m.removedNodes.length && t.matches && t.matches(SK) && t.childNodes.length === m.addedNodes.length);
+      if (!waited) return;
+      t.removeAttribute('data-arrived'); void t.offsetWidth; t.setAttribute('data-arrived', '');
+      clearTimeout(t._arr); t._arr = setTimeout(function () { t.removeAttribute('data-arrived'); }, 700);
+    });
+  }).observe(document.documentElement, { childList: true, subtree: true });
+})();
