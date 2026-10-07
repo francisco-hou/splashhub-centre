@@ -172,6 +172,53 @@ def _first_message(t):
     return _customer_text(t.get("description") or "", None), email.lower()
 
 
+CHAT_WAIT_MS = 24 * 3600 * 1000     # a chat whose transcript never arrives: judged on what is there after a day
+TRANSCRIPT_LINE = re.compile(r"^\(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?\)\s*\S", re.I | re.M)
+
+
+def _chat_kind(t):
+    """"chat" (live chat: the transcript arrives when the chat ends), "messaging"
+    (messages arrive one by one as comments) or None (email, web form...)."""
+    ch = ((t.get("via") or {}).get("channel") or "").lower()
+    if "messag" in ch:
+        return "messaging"
+    if "chat" in ch or re.match(r"^(chat|conversation) with\b", (t.get("subject") or "").strip(), re.I):
+        return "chat"
+    return None
+
+
+def _customer_words(t):
+    """(the customer's words, their email, ready?). A chat: every line the
+    visitor wrote in the transcript -- ready only once the transcript is in the
+    ticket (it arrives when the chat ends), or after a day whatever is there.
+    Messaging: every customer message, ready once there is one. Anything else:
+    the first customer message (SplashTags' rule), always ready."""
+    import zendesk
+    email = (((t.get("via") or {}).get("source") or {}).get("from") or {}).get("address") or ""
+    kind = _chat_kind(t)
+    old = (_now() - (_ms(t.get("created_at")) or _now())) > CHAT_WAIT_MS
+    try:
+        d = zendesk.get_json("/api/v2/tickets/%d/comments.json?page[size]=100&include=users" % int(t["id"]))
+        users = {u.get("id"): u for u in d.get("users") or []}
+        email = email or (users.get(t.get("requester_id")) or {}).get("email") or ""
+        parts, transcript = [], False
+        for c in d.get("comments") or []:
+            body = c.get("body") or c.get("plain_body") or ""
+            transcript = transcript or bool(TRANSCRIPT_LINE.search(body))
+            text = _customer_text(body, (users.get(c.get("author_id")) or {}).get("role"))
+            if text.strip():
+                parts.append(text.strip())
+    except Exception as e:
+        sys.stderr.write("[autotag] comments of #%s: %s\n" % (t.get("id"), type(e).__name__))
+        text = _customer_text(t.get("description") or "", None)
+        return text, email.lower(), kind != "chat" or old
+    if kind == "chat":
+        return "\n".join(parts)[:4000], email.lower(), transcript or old
+    if kind == "messaging":
+        return "\n".join(parts)[:4000], email.lower(), bool(parts) or old
+    return (parts[0] if parts else _customer_text(t.get("description") or "", None)), email.lower(), True
+
+
 # ---- Spark ---------------------------------------------------------------------------------
 
 def _ask_spark(items):
@@ -280,6 +327,16 @@ def run_once(force=False, limit=PER_ROUND):
     found = list(zendesk.search_tickets("type:ticket created>=%s" % since, max_pages=20))
     found = [t for t in found if (t.get("created_at") or "")[:10] >= s["since"]]
     _hide_old_calls()
+    if store.get_setting("autotag_chats_v2", "") != "yes":
+        c = store.connect(True)
+        try:
+            c.cursor().execute("UPDATE autotag SET state = 'waiting' WHERE state = 'none' AND applied_ms IS NULL AND verdict IS NULL AND "
+                               "(lower(coalesce(channel, '')) LIKE '%chat%' OR lower(coalesce(channel, '')) LIKE '%messag%' OR "
+                               "lower(coalesce(subject, '')) LIKE 'chat with%')")
+            c.commit()
+        finally:
+            c.close()
+        store.set_setting("autotag_chats_v2", "yes", "autotag")
     known = _known([int(t["id"]) for t in found])
     _refresh([t for t in found if int(t["id"]) in known and known[int(t["id"])] != "waiting"])
     todo = sorted([t for t in found if int(t["id"]) not in known or known[int(t["id"])] == "waiting"], key=lambda t: t.get("created_at") or "")
@@ -298,7 +355,7 @@ def run_once(force=False, limit=PER_ROUND):
                                       "zd_tags": " ".join(t.get("tags") or []), "checked_ms": _now(), "seen_ms": _now(),
                                       "lang": None, "tag": None, "confidence": None, "method": "skip", "state": "skipped", "reason": "phone call"}
                 continue
-            text, email = _first_message(t)
+            text, email, ready = _customer_words(t)
             subject = t.get("subject") or ""
             if re.match(r"^(chat|conversation) with\b", subject.strip(), re.I):
                 subject = ""
@@ -307,7 +364,9 @@ def run_once(force=False, limit=PER_ROUND):
                    "sample": re.sub(r"\s+", " ", text).strip()[:1200], "zd_tags": " ".join(t.get("tags") or []),
                    "checked_ms": _now(), "seen_ms": _now()}
             hit = next((p for p in skip if p and (p in text.lower() or p in (t.get("description") or "").lower())), None)
-            if hit:
+            if not ready:                              # a chat still going: its transcript comes when it ends
+                row.update(lang=None, tag=None, confidence=None, method="spark", state="waiting", reason="waiting for the chat transcript")
+            elif hit:
                 row.update(lang=None, tag=None, confidence=None, method="skip", state="skipped",
                            reason="provisioning request" if "provision" in hit else 'skip phrase "%s"' % hit)
             elif email and email in s["jp_emails"]:

@@ -126,7 +126,8 @@ def _ask(items, examples):
               "backlinks, guest posts, website traffic or ad space, web or app development, design, lead generation, data "
               "lists, outsourcing, crypto -- a cold sales pitch, or a newsletter. It is NOT spam when a customer or a prospect "
               "asks for help with Splashtop, asks to buy it or for a quote, a reseller or partner writes, it is about an "
-              "invoice or an existing order, or someone reports a security problem. When unsure, it is not spam.\n\n"
+              "invoice or an existing order, or someone reports a security problem. A chat where someone asks about "
+              "Splashtop is never spam; neither is a message with no real text. When unsure, it is not spam.\n\n"
               "Examples of spam this desk has received:\n" + ex + "\n\n"
               'Answer with JSON only, one entry per ticket: {"<ticket id>": {"spam": true or false, "confidence": '
               '"high|medium|low", "why": "<at most 8 words>"}}')
@@ -196,6 +197,22 @@ def run_once(limit=PER_ROUND):
         known |= {int(r[0]) for r in store._read("SELECT ticket_id FROM adfilter WHERE ticket_id IN (%s)" % ",".join(["%s"] * len(part)),
                                                  part, fresh=True)}
     _statuses(found, known)
+    if store.get_setting("adfilter_chats_v2", "") != "yes":
+        c = store.connect(True)
+        try:
+            c.cursor().execute("DELETE FROM adfilter WHERE spam = 1 AND verdict IS NULL AND silent_ms IS NULL AND "
+                               "(coalesce(sample, '') = '' OR lower(coalesce(subject, '')) LIKE 'chat with%' OR "
+                               "lower(coalesce(subject, '')) LIKE 'conversation with%' OR lower(coalesce(channel, '')) LIKE '%chat%' OR "
+                               "lower(coalesce(channel, '')) LIKE '%messag%')")
+            c.commit()
+        finally:
+            c.close()
+        store.set_setting("adfilter_chats_v2", "yes", "adfilter")
+        known = set()
+        for i in range(0, len(ids), 500):
+            part = ids[i:i + 500]
+            known |= {int(r[0]) for r in store._read("SELECT ticket_id FROM adfilter WHERE ticket_id IN (%s)" % ",".join(["%s"] * len(part)),
+                                                     part, fresh=True)}
     todo = sorted([t for t in found if int(t["id"]) not in known], key=lambda t: t.get("created_at") or "", reverse=True)[:limit]
     if not todo:
         return
@@ -211,12 +228,17 @@ def run_once(limit=PER_ROUND):
             if autotag._is_call(ch, t.get("subject"), t.get("tags")):          # a phone call: not an ad, not read
                 r["why"] = "phone call"
             else:
-                text, email = autotag._first_message(t)
+                text, email, ready = autotag._customer_words(t)
+                if not ready:                          # a chat still going: judged once its transcript arrives
+                    continue
                 r.update(requester=email, sample=re.sub(r"\s+", " ", text).strip())
                 if any(p and p in (text + " " + (t.get("description") or "")).lower() for p in skip):
                     r["why"] = "provisioning request"
+                elif len(re.sub(r"\s+", "", text)) < 15:  # no real message: never called spam
+                    r["why"] = "no customer text"
                 else:
-                    ask.append((int(t["id"]), t.get("subject") or "", email, text))
+                    subj = "" if autotag._chat_kind(t) else (t.get("subject") or "")
+                    ask.append((int(t["id"]), subj, email, text))
             rows[int(t["id"])] = r
         if ask:
             try:
