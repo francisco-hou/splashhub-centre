@@ -934,9 +934,8 @@ main.page:not([hidden]) { animation: none; }
 .nav-mini .snav-beta { display: none; }
 
 /* ---- holiday themes (theme.py; nav.js sets data-theme on <html>) ----
-   Only the frame changes: the top bar and the menu get a light tint, a thin
-   festive stripe and a greeting; decorations drift behind the boxes. Text and
-   data keep their usual colours. */
+   Only the frame changes: the top bar and the menu get a light shade, a
+   garland and a greeting. Text and data keep their usual colours. */
 [data-theme="new_year"]       { --th-a: #c9a227; --th-b: #1f2a44; --th-tint: #fbf6e6; --th-ink: #6b5410; }
 [data-theme="lunar_new_year"] { --th-a: #d7263d; --th-b: #f2b705; --th-tint: #fdeeee; --th-ink: #9b1426; }
 [data-theme="valentines"]     { --th-a: #e0457b; --th-b: #f7a8c4; --th-tint: #fdeef4; --th-ink: #a3214f; }
@@ -956,7 +955,6 @@ main.page:not([hidden]) { animation: none; }
 [data-theme] .snav-item.active { background: var(--th-tint); color: var(--th-ink); border-left-color: var(--th-a); }
 .th-greet { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
   color: var(--th-ink); background: #fff; border: 1px solid var(--th-b); white-space: nowrap; animation: shcIn .5s cubic-bezier(.22, .61, .36, 1) both; }
-.th-fx { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }   /* under every box, above the page background */
 @media (max-width: 600px) { .th-greet { display: none; } }
 /* Settings > Look > Theme */
 .th-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
@@ -1197,7 +1195,7 @@ tr.row-arrive > td { animation: rowGlow 4s ease-out .45s both; }
 .arrive-dot { width: 8px; height: 8px; border-radius: 50%; background: #0071ce; }
 @media (prefers-reduced-motion: reduce) { tr.row-arrive, tr.row-arrive > td, .arrive-toast.arrive-in { animation: none; } }
 
-/* ---- holiday themes, with more life (nav.js): garland, scene, greeting ---- */
+/* ---- holiday themes, with more life (nav.js): garland, greeting ---- */
 [data-theme] .topbar::after { display: none; }
 [data-theme] .topbar { background: linear-gradient(90deg, var(--th-tint) 0%, #fff 48%, #fff 70%, var(--th-tint) 100%); overflow: visible; }
 [data-theme] .page { padding-top: 40px; }
@@ -1215,8 +1213,4 @@ tr.row-arrive > td { animation: rowGlow 4s ease-out .45s both; }
 .th-greet { gap: 7px; padding: 5px 14px 5px 10px; background: linear-gradient(90deg, #fff, var(--th-tint)); border: 1px solid var(--th-a);
   box-shadow: 0 1px 0 rgba(0, 0, 0, .03), 0 0 0 3px color-mix(in srgb, var(--th-a) 12%, transparent); font-size: 13px; }
 .th-emoji { display: inline-block; font-size: 16px; animation: thBob 2.8s ease-in-out infinite; }
-.th-scene { height: 92px; margin: 0 8px 4px; pointer-events: none; }
-.th-scene svg { width: 100%; height: 100%; display: block; }
-.nav-mini .th-scene { display: none; }
-@media (max-height: 760px) { .th-scene { display: none; } }
 @media (prefers-reduced-motion: reduce) { .th-tw, .th-sway, .th-flick, .th-glow, .th-emoji { animation: none; } }

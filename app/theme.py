@@ -3,7 +3,7 @@
 Settings > Look > Theme. "Automatic" follows the calendar below; an admin can
 also pick one theme to keep, or turn them off. A theme only tints the top bar
 and the menu, adds a thin festive stripe and a greeting, and (if on) a few
-decorations drifting behind the boxes -- the text and the data never change
+a garland under the top bar -- the text and the data never change
 colour, so everything stays as readable as ever.
 """
 import datetime, json
