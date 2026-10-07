@@ -599,6 +599,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 data = json.loads(raw or b"{}") or {}
                 if u.path == "/api/autotag/verdict":
                     return self.json(autotag.set_verdict(int(data.get("ticket_id")), str(data.get("verdict") or ""), data.get("correct_lang") or None))
+                if u.path == "/api/autotag/clear":
+                    # The Clear tag button: the language tag(s) off one Zendesk ticket (tags only).
+                    return self.json(autotag.clear_tag(int(data.get("ticket_id"))))
                 if u.path == "/api/autotag/apply":
                     # The Add tag / Change tag button: one ticket's language tag, written to Zendesk (tags only).
                     return self.json(autotag.apply_tag(int(data.get("ticket_id")), str(data.get("lang") or "")))

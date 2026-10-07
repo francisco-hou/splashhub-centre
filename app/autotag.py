@@ -505,8 +505,37 @@ def apply_tag(ticket_id, lang):
     return search(q=str(tid))["rows"][0]
 
 
+def clear_tag(ticket_id):
+    """The page's Clear tag: take every language tag (the ten and language_other)
+    off the Zendesk ticket -- tags only, as apply_tag. Remembered as a change
+    made from Centre (applied_tag empty, applied_from = what was taken off)."""
+    import zendesk
+    ensure()
+    tid = int(ticket_id)
+    if not store._read("SELECT ticket_id FROM autotag WHERE ticket_id = %s", [tid], fresh=True):
+        raise ValueError("AutoTag hasn't read this ticket")
+    now_tags = (zendesk.get_json("/api/v2/tickets/%d.json" % tid).get("ticket") or {}).get("tags") or []
+    old = [g for g in now_tags if g in LABEL_OF_TAG]
+    if not old:
+        raise ValueError("the ticket has no language tag")
+    after = zendesk.change_tags(tid, remove=old)
+    if after is None:
+        after = [g for g in now_tags if g not in old]
+    c = store.connect(True)
+    try:
+        c.cursor().execute(store._q("UPDATE autotag SET zd_tags = %s, applied_tag = NULL, applied_ms = %s, applied_from = %s WHERE ticket_id = %s"),
+                           (" ".join(after), _now(), " ".join(old), tid))
+        c.commit()
+    finally:
+        c.close()
+    return search(q=str(tid))["rows"][0]
+
+
 def _target(r):
-    """The language a ticket's tag should be: the team's correction, else Spark's (None: nothing to add)."""
+    """The language a ticket's tag should be: the team's correction, else Spark's (None: nothing to add,
+    or its tag was cleared on purpose from the page)."""
+    if r.get("applied_ms") and not r.get("applied_tag"):
+        return None
     lang = r["correct_lang"] if r["verdict"] == "wrong" and r["correct_lang"] else (r["lang"] if r["state"] == "held" else None)
     return lang if lang in TAG_OF and lang != r["zd_lang"] else None
 

@@ -69,7 +69,8 @@
   function zdCell(r) {
     var z = r.zd_lang ? esc(r.zd_lang) : '<span class="muted">—</span>';
     if (r.match === 'differs') z = '<span class="at-diff">' + z + '</span>';
-    if (r.applied_ms) z += ' <span class="at-conf at-applied" title="Tag added from SplashHub Centre ' + esc(when(r.applied_ms)) + '">from Centre</span>';
+    if (r.applied_ms) z += r.applied_tag ? ' <span class="at-conf at-applied" title="Tag added from SplashHub Centre ' + esc(when(r.applied_ms)) + '">from Centre</span>'
+      : ' <span class="at-conf" title="Language tag cleared from SplashHub Centre ' + esc(when(r.applied_ms)) + '">cleared</span>';
     return z;
   }
   function checkCell(r) {
@@ -79,6 +80,7 @@
   }
   // the language a mass Add tags would give: the team's correction, else Spark's (as autotag._target)
   function target(r) {
+    if (r.applied_ms && !r.applied_tag) return null;        // someone cleared its tag on purpose: not put back by a mass add
     var lang = r.verdict === 'wrong' && r.correct_lang ? r.correct_lang : (r.state === 'held' ? r.lang : null);
     return lang && lang !== 'None' && lang !== r.zd_lang ? lang : null;
   }
@@ -126,8 +128,9 @@
     var said = r.state === 'held' ? '<b>' + esc(r.lang) + '</b> · ' + esc(r.confidence || '') + ' confidence' + (r.reason ? ' · ' + esc(r.reason) : '') :
       r.state === 'none' ? '<b>No text</b> — no real customer text, so no tag' + (r.reason ? ' · ' + esc(r.reason) : '') :
       r.state === 'skipped' ? '<b>Skipped</b> — ' + esc(r.reason) : '<b>Waiting</b> for Spark';
-    var applied = r.applied_ms ? '<div class="at-note">Tag <code>' + esc(r.applied_tag) + '</code> added from SplashHub Centre ' + esc(when(r.applied_ms)) +
-      (r.applied_from ? ' (took off <code>' + esc(r.applied_from) + '</code>)' : '') + '.</div>' : '';
+    var applied = !r.applied_ms ? '' : r.applied_tag ? '<div class="at-note">Tag <code>' + esc(r.applied_tag) + '</code> added from SplashHub Centre ' + esc(when(r.applied_ms)) +
+      (r.applied_from ? ' (took off <code>' + esc(r.applied_from) + '</code>)' : '') + '.</div>'
+      : '<div class="at-note">Language tag <code>' + esc(r.applied_from || '') + '</code> cleared from SplashHub Centre ' + esc(when(r.applied_ms)) + '.</div>';
     return '<div class="at-d">' +
       '<div class="at-dh"><div class="at-dt">' + ticketLink(r.ticket_id) + ' · ' + esc(r.subject || '(no subject)') + '</div>' +
       '<div class="muted">' + esc(when(r.created_ms)) + (r.channel ? ' · ' + esc(r.channel) : '') + (r.requester ? ' · ' + esc(r.requester) : '') + (r.status ? ' · ' + esc(r.status) : '') + '</div></div>' +
@@ -142,10 +145,11 @@
         '<button type="button" class="btn btn-sm' + (r.verdict === 'wrong' ? ' on-bad' : '') + '" data-v="wrong">✗ Wrong</button>' +
         (r.verdict === 'wrong' ? '<label class="at-lbl">It is <select class="sel" id="atCorrect"><option value="">choose…</option>' + options(r.correct_lang) +
           '<option value="None"' + (r.correct_lang === 'None' ? ' selected' : '') + '>No text (no tag)</option></select></label>' : '') +
-        (r.verdict ? '<button type="button" class="btn btn-sm btn-link" data-v="">Clear</button>' : '') + '</div>' +
+        (r.verdict ? '<button type="button" class="btn btn-sm btn-link" data-v="">Undo</button>' : '') + '</div>' +
       '<div class="at-k">Tag in Zendesk</div>' +
       '<div class="frow at-act"><select class="sel" id="atLang"><option value="">Language…</option>' + options(want) + '</select>' +
-        '<button type="button" class="btn btn-primary btn-sm" id="atApply" disabled>Add tag</button></div>' +
+        '<button type="button" class="btn btn-primary btn-sm" id="atApply" disabled>Add tag</button>' +
+        (r.zd_lang ? '<button type="button" class="btn btn-sm" id="atClear" title="Take the language tag off this ticket in Zendesk">Clear tag</button>' : '') + '</div>' +
       '<div class="at-hint" id="atHint"></div><div class="sc-msg" id="atMsg" aria-live="polite"></div>' + applied +
       '</div>';
   }
@@ -184,6 +188,21 @@
     if (v) {
       post('/api/autotag/verdict', { ticket_id: CUR, verdict: v.getAttribute('data-v') }).then(function (r) { swap(r); hint(); loadStatus(); })
         .catch(function (e) { $('atMsg').textContent = 'Could not save: ' + e.message; });
+      return;
+    }
+    if (ev.target.id === 'atClear') {
+      var cb = ev.target, cid = CUR, cr = find(cid);
+      if (!cb.getAttribute('data-sure')) {
+        cb.setAttribute('data-sure', '1'); cb.classList.add('on-bad');
+        cb.textContent = 'Yes, clear ' + tagOf(cr && cr.zd_lang);
+        $('atHint').innerHTML = 'Takes <code>' + esc(tagOf(cr && cr.zd_lang)) + '</code> off ticket #' + cid + ' in Zendesk &mdash; tags only: the status stays as it is.';
+        return;
+      }
+      cb.disabled = true; $('atMsg').textContent = 'Clearing the tag in Zendesk…';
+      post('/api/autotag/clear', { ticket_id: cid }).then(function (r) {
+        swap(r); hint(); loadStatus();
+        if (CUR === cid) $('atMsg').textContent = 'Done — ticket #' + cid + ' has no language tag now.';
+      }).catch(function (e) { $('atMsg').textContent = 'Could not clear: ' + e.message; cb.disabled = false; });
       return;
     }
     if (ev.target.id === 'atApply') {
@@ -237,7 +256,12 @@
       el.innerHTML = '<span class="at-spin"></span> Adding tags in Zendesk… ' + b.done + ' of ' + b.total;
       return;
     }
-    if (!n) { el.hidden = true; confirming = false; return; }
+    if (!n) {
+      confirming = false;
+      el.hidden = !all.length;
+      if (all.length) el.innerHTML = '<button type="button" class="btn btn-sm" id="bulkAll">Add tags to all on this page (' + all.length + ')</button>';
+      return;
+    }
     el.hidden = false;
     if (confirming) {
       var by = {};
@@ -278,6 +302,11 @@
   $('bulk').addEventListener('click', function (ev) {
     var id = ev.target.id;
     if (id === 'bulkGo') { confirming = true; drawBulk(); }
+    else if (id === 'bulkAll') {                         // every ticket on this page that can be tagged, then the usual confirm
+      S.rows.filter(target).forEach(function (r) { S.sel[r.ticket_id] = true; });
+      [].forEach.call(document.querySelectorAll('[data-ck]:not([disabled])'), function (c) { c.checked = true; });
+      confirming = true; drawBulk();
+    }
     else if (id === 'bulkNo') { confirming = false; drawBulk(); }
     else if (id === 'bulkClear') { S.sel = {}; confirming = false; load(); }
     else if (id === 'bulkYes') {
