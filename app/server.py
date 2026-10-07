@@ -446,13 +446,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 row = store.sso_get(int(m.group(1)))
                 if not row:
                     return self.json({"error": "not found"}, 404)
-                for k in ("last_result_json", "history_json", "note_json"):
+                for k in ("last_result_json", "history_json", "note_json", "records_json"):
                     try:
                         row[k[:-5]] = json.loads(row.pop(k) or "null")
                     except ValueError:
                         row[k[:-5]] = None
                 row["fields"] = sosscan.parse_request(row.get("description") or "")["fields"]
-                row["parse"] = ssocheck.parse(row.get("description") or "")["note"]
+                row["parse"] = row.get("parse_note") or ssocheck.parse(row.get("description") or "")["note"]
                 row["zendesk_url"] = zendesk.base_url()
                 return self.json(row)
             if u.path == "/api/sso-import":
@@ -863,6 +863,7 @@ def main():
     sosscan.start_retries()           # and waiting ones, every 10 minutes
     sosscan.resume_import()           # an import a restart interrupted carries on
     ssocheck.resume_import()
+    ssocheck.boot()                   # SSO requests: found by tag / challenge record every 15 min, DNS checked hourly
     import cases
     cases.boot()                      # a download a restart interrupted carries on; hourly updates
     import kb

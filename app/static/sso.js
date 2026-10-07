@@ -89,7 +89,7 @@
   Object.keys(JOBS).forEach(function (k) {
     var j = JOBS[k];
     $(j.btn).addEventListener('click', function () {
-      if (k === 'import' && !confirm('Import past SSO requests?\n\nSplashHub Centre searches Zendesk for every past “Here comes a new request to validate SSO method” ticket and lists it here. Tickets already listed are skipped.')) return;
+      if (k === 'import' && !confirm('Import past SSO requests?\n\nSplashHub Centre searches Zendesk for every 2026 SSO ticket (tagged single_sign-on__sso_, or with a splashtop-sso-challenge record), reads each conversation and lists it here. Tickets already listed are skipped.')) return;
       post(j.url).then(function (st) { drawJob(k, st); }).catch(function (e) { if (e.message !== 'login') $(j.msg).textContent = e.message; });
     });
     $(j.stop).addEventListener('click', function () {
@@ -150,14 +150,14 @@
     $('count').textContent = res.total ? 'newest first · ' + res.total + (res.total === 1 ? ' request' : ' requests') : '';
     if (!res.rows.length) {
       $('rows').innerHTML = '<tr class="empty-row"><td colspan="6">' + (S.status || S.q ? 'No requests match.' :
-        'No SSO requests yet. They appear here when Zendesk sends one, when you add a ticket above, or with Import past SSO requests.') + '</td></tr>';
+        'No SSO requests yet. SplashHub Centre looks for them every 15 minutes (tickets tagged single_sign-on__sso_ or with a splashtop-sso-challenge record); Import past SSO requests finds the ones from 2026.') + '</td></tr>';
     } else {
       $('rows').innerHTML = res.rows.map(function (r) {
         return '<tr class="sc-row" data-id="' + r.id + '" tabindex="0">' +
           '<td class="when">' + esc(whenTxt(r.requested_ms)) + '</td>' +
           '<td><a href="' + esc(ZD) + '/agent/tickets/' + r.ticket_id + '" target="_blank" rel="noopener" class="tlink">#' + r.ticket_id + '</a></td>' +
           '<td>' + pill(r.status) + (r.note_json ? ' <span class="noted" title="An internal note was added">&#10003; note</span>' : '') + '</td>' +
-          '<td class="topic">' + (r.domain ? esc(r.domain) : '<span class="muted">—</span>') + '</td>' +
+          '<td class="topic">' + (r.domain ? esc(r.domain) + more(r) : '<span class="muted">—</span>') + '</td>' +
           '<td>' + (r.requester_email ? esc(r.requester_email) : '<span class="muted">—</span>') + '</td>' +
           '<td class="when">' + (r.last_checked_ms ? esc(whenTxt(r.last_checked_ms)) : '<span class="muted">never</span>') + '</td></tr>';
       }).join('');
@@ -190,13 +190,21 @@
     return v ? ' <button type="button" class="link-btn copy-btn" data-copy="' + esc(v) + '" title="Copy">Copy</button>' : '';
   }
 
+  // a ticket with several challenge records: "+2" after the first domain
+  function recsOf(x) { try { return (typeof x.records_json === 'string' ? JSON.parse(x.records_json || '[]') : x.records) || []; } catch (e) { return []; } }
+  function more(r) {
+    var n = recsOf(r).length;
+    return n > 1 ? ' <span class="muted" title="' + esc(recsOf(r).map(function (x) { return x.domain; }).join(', ')) + '">+' + (n - 1) + '</span>' : '';
+  }
+
   function render(s) {
     var r = s.last_result || null;
     var title = s.domain || 'No domain yet';
     var h = '<div class="pn-cols"><div class="pn-main">';
     // header
     h += '<header class="pn-head"><div class="pn-meta">' + pill(s.status) + '<span>' + esc(whenTxt(s.requested_ms)) + '</span>' +
-      (s.source === 'import' ? '<span>· imported</span>' : s.source === 'webhook' ? '<span>· from Zendesk trigger</span>' : '<span>· added by hand</span>') + '</div>' +
+      (s.source === 'import' ? '<span>· imported</span>' : s.source === 'search' ? '<span>· found in Zendesk</span>' : s.source === 'webhook' ? '<span>· from Zendesk trigger</span>' : '<span>· added by hand</span>') +
+      (s.ticket_status ? '<span>· ticket ' + esc(s.ticket_status) + '</span>' : '') + '</div>' +
       '<h2 class="pn-title">' + esc(title) + '</h2>' +
       '<div class="pn-facts">' +
         kv('Requested', esc(fullWhen(s.requested_ms))) +
@@ -213,6 +221,19 @@
         '<label class="wide"><span class="pn-k">Expected TXT value' + copyBtn(s.txt_value) + '</span><input class="sc-input" name="txt_value" value="' + esc(s.txt_value || '') + '" placeholder="the value the customer was asked to add" autocomplete="off" spellcheck="false"></label>' +
         '<div class="sso-rec-act"><button type="submit" class="btn btn-sm">Save</button><span class="sc-msg" id="recMsg"></span></div>' +
       '</form></section>';
+    // every challenge record in the ticket (more than one domain)
+    var all = recsOf(s);
+    if (all.length > 1) {
+      var lastAll = (r && r.all) || [];
+      h += '<section class="pn-sec"><div class="pn-h">All records in the ticket (' + all.length + ')</div><ul class="sso-all">' +
+        all.map(function (x) {
+          var c = lastAll.filter(function (a) { return a.host === x.host; })[0] || x;
+          var st = c.error ? ['s-error', 'couldn’t check'] : c.found ? ['s-verified', 'in place'] : c.exists === undefined && !c.checked_ms && !lastAll.length ? ['', 'not checked'] :
+            !x.value ? ['s-needs_details', 'no value in the ticket'] : ['s-not_found', 'not there yet'];
+          return '<li><b>' + esc(x.domain) + '</b> <span class="sso-st ' + st[0] + '">' + st[1] + '</span><div class="muted">TXT on ' + esc(x.host) +
+            (x.value ? ' · ' + esc(x.value) + copyBtn(x.value) : '') + '</div></li>';
+        }).join('') + '</ul></section>';
+    }
     // what the ticket said
     var fields = (s.fields || []).filter(function (f) { return f.value; });
     if (fields.length) {
@@ -232,7 +253,10 @@
     if (!r) {
       h += '<div class="pn-why">' + (s.domain ? 'Not checked yet. Check DNS looks the TXT record up now.' : 'Add the domain (and the expected value) on the left first.') + '</div>';
     } else {
+      var okN = (r.all || []).filter(function (a) { return a.found; }).length;
       var head = r.error ? ['s-error', 'Couldn’t check: ' + esc(r.error)]
+        : r.all && r.found ? ['s-verified', 'Verified — all ' + r.all.length + ' TXT records are in place']
+        : r.all ? ['s-not_found', okN + ' of ' + r.all.length + ' records in place — see All records']
         : r.found ? ['s-verified', 'Verified — the TXT record is in place']
         : !r.exists ? ['s-not_found', esc(r.name) + ' does not exist in DNS']
         : !r.expected ? ['s-needs_details', 'Add the expected value to compare']

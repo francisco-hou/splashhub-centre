@@ -8,9 +8,22 @@ presses Check DNS (one request, or every request still waiting) -- looks the
 record up and says whether it is there yet. An agent can then add the result
 to the ticket as an internal note. Everything is manual for now.
 
-Arrive by the same Zendesk trigger + webhook as SOS packages (feed.py routes
-by subject, or by kind=sso in the trigger's body), or by "Import past SSO
-requests", which searches Zendesk by subject.
+How requests are found -- the way the team really handles them (SplashHub's
+SSO tool, Workspace/assets/sso.js): the customer asks in their own words; the
+agent creates the records in the sidebar and sends them in a reply -- a TXT
+record on splashtop-sso-challenge.<domain> (or -MM-DD-YYYY. / -YYYYMMDD.<domain>)
+with a 32-character value -- and SplashHub's Insert Reply tags the ticket
+single_sign-on__sso_ (+ enterprise). So every 15 minutes a Zendesk search finds
+tickets with that tag, or with "splashtop-sso-challenge" in them, or with the old
+form's subject; each one's whole conversation is read the way sso.js reads it
+(HOST / Value blocks, hosts paired with the value after them), every domain on
+the ticket kept. "Import past SSO requests" does the same for all of 2026, and
+the webhook (feed.py: kind=sso or the form's subject) still works.
+
+Checks: every hour, each request with its records and an open ticket is looked
+up by itself (all of its records); Check DNS on the page does it at once. A
+request is verified when every record carries its value. Reads only -- adding
+the result to the ticket stays the page's button.
 
 DNS: a small TXT lookup of our own (dns_txt), asking the resolver the
 container already uses -- no extra dependency, no extra network grant.
@@ -42,6 +55,89 @@ OUR_HOSTS = ("splashtop.com", "splashtop.eu", "zendesk.com", "zdusercontent.com"
 def _ours(d):
     d = d.lower()
     return any(d == h or d.endswith("." + h) for h in OUR_HOSTS)
+
+
+SSO_TAG = "single_sign-on__sso_"
+# Host formats: splashtop-sso-challenge.<domain> | -05-13-2026.<domain> | -20260520.<domain>
+HOST_RE = re.compile(r"(?:https?://)?(splashtop-sso-challenge(?:\.[a-z0-9][a-z0-9._-]*|-(?:\d{2}-\d{2}-\d{4}|\d{8})\.[a-z0-9][a-z0-9._-]*))", re.I)
+VALUE_RE = re.compile(r"Value\s*:?\s*[\"']?([a-z0-9]{32})\b", re.I)
+BARE_RE = re.compile(r"^([a-z0-9]{32})$", re.I)
+
+
+def _host(raw):
+    h = re.sub(r"^https?://", "", str(raw or ""), flags=re.I).replace("\u00a0", " ").strip().lower()
+    return re.sub(r"[.,;:!?)>\]/]+$", "", h)
+
+
+def _is_host(h):
+    return bool(re.match(r"^splashtop-sso-challenge(?:\.|-(?:\d{2}-\d{2}-\d{4}|\d{8})\.)", h or "", re.I))
+
+
+def base_domain(host):
+    """The customer's domain from a challenge host (all three formats)."""
+    m = re.match(r"^splashtop-sso-challenge(?:-\d{2}-\d{2}-\d{4}|-\d{8})?\.(.+)$", host or "", re.I)
+    return m.group(1) if m else host
+
+
+def _pick(fragment):
+    m = HOST_RE.search(str(fragment or "").replace("\u00a0", " "))
+    return _host(m.group(1)) if m else None
+
+
+def _plain(raw):
+    """A comment's HTML / markdown as lines of text (sso.js ticketContentToPlain)."""
+    import html as _html
+    t = _html.unescape(str(raw or ""))
+    t = re.sub(r"\[([^\]]*)\]\(([^)]+)\)", lambda m: _pick(m.group(1)) or _pick(m.group(2)) or m.group(1).strip() or m.group(2).strip(), t)
+    t = re.sub(r"<a\b[^>]*href\s*=\s*[\"']([^\"']+)[\"'][^>]*>([\s\S]*?)</a>",
+               lambda m: _pick(m.group(1)) or _pick(re.sub(r"<[^>]+>", " ", m.group(2))) or re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", m.group(2))).strip() or m.group(1).strip(),
+               t, flags=re.I)
+    t = re.sub(r"<br\s*/?>|</p>|</div>|</li>", "\n", t, flags=re.I)
+    t = re.sub(r"<[^>]+>", " ", t).replace("**", "").replace("\u00a0", " ")
+    t = re.sub(r"[ \t]+\n", "\n", t)
+    return re.sub(r"\n{3,}", "\n\n", t).strip()
+
+
+def _value_after(lines, i, text, host):
+    m = VALUE_RE.search(lines[i])
+    if m:
+        return m.group(1).lower()
+    for line in lines[i + 1:i + 7]:
+        m = VALUE_RE.search(line) or BARE_RE.match(line.strip())
+        if m:
+            return m.group(1).lower()
+    at = text.lower().find(host.lower())
+    if at >= 0:
+        m = VALUE_RE.search(text[at:at + 800])
+        if m:
+            return m.group(1).lower()
+    return ""
+
+
+def records_in(texts):
+    """[{host, domain, value}] -- every challenge record in these comments
+    (sso.js parseChallengeRecordsFromTicket: HOST/Value blocks, then every
+    host paired with the value after it; a host seen twice keeps a value)."""
+    import html as _html
+    out = {}
+    for raw in texts:
+        raw = str(raw or "")
+        if "splashtop-sso-challenge" not in raw.lower():
+            continue
+        for text in {raw, _html.unescape(raw), _plain(raw)}:
+            lines = text.split("\n")
+            for i, line in enumerate(lines):
+                hm = re.search(r"HOST\s*:?\s*(.+)", line, re.I)
+                cands = [_pick(hm.group(1))] if hm else []
+                cands += [_host(m.group(1)) for m in HOST_RE.finditer(line)]
+                for h in cands:
+                    if not h or not _is_host(h):
+                        continue
+                    v = _value_after(lines, i, text, h)
+                    r = out.setdefault(h, {"host": h, "domain": base_domain(h), "value": ""})
+                    if v and not r["value"]:
+                        r["value"] = v
+    return list(out.values())
 
 
 def parse(text):
@@ -188,28 +284,59 @@ def _norm(v):
     return re.sub(r"\s+", "", (v or "").strip().strip('"')).lower()
 
 
+def _look(name, want):
+    """One record: {host, value, exists, records, found} or {host, value, error}."""
+    out = {"host": name, "value": want}
+    try:
+        recs = dns_txt(name)
+        out["exists"] = recs is not None
+        out["records"] = recs or []
+        out["found"] = bool(want) and any(_norm(want) == _norm(r) or _norm(want) in _norm(r) for r in recs or [])
+    except DnsError as e:
+        out["error"] = str(e)
+    return out
+
+
 def check(sso_id, by="Centre admin"):
-    """Look the TXT record up now; record and return the result."""
+    """Look the TXT record(s) up now; record and return the result. A ticket
+    with several challenge records is verified when every one carries its value."""
     row = store.sso_get(sso_id, fresh=True)
     if not row:
         raise sosscan.ScanError("That request is gone.")
     name, want = (row.get("txt_name") or row.get("domain") or "").strip(), (row.get("txt_value") or "").strip()
     if not name:
         raise sosscan.ScanError("Add the domain first.")
-    res = {"ms": _now(), "name": name, "expected": want, "by": by}
     try:
-        recs = dns_txt(name)
-        res["exists"] = recs is not None
-        res["records"] = recs or []
-        res["found"] = bool(want) and any(_norm(want) == _norm(r) or _norm(want) in _norm(r) for r in recs or [])
-        status = "verified" if res["found"] else ("not_found" if want else "needs_details")
-    except DnsError as e:
-        res["error"] = str(e)
+        recs_saved = json.loads(row.get("records_json") or "[]") or []
+    except ValueError:
+        recs_saved = []
+    extra = [r for r in recs_saved if r.get("host") and r["host"] != name]
+    first = _look(name, want)
+    res = dict(first, ms=_now(), name=name, expected=want, by=by)
+    res.pop("host", None); res.pop("value", None)
+    if extra:
+        alls = [dict(first, domain=row.get("domain"))] + [dict(_look(r["host"], r.get("value") or ""), domain=r.get("domain")) for r in extra]
+        res["all"] = [{k: a.get(k) for k in ("host", "domain", "value", "exists", "found", "error")} for a in alls]
+        with_value = [a for a in alls if a.get("value")]
+        res["found"] = bool(with_value) and all(a.get("found") for a in with_value)
+        if all(a.get("error") for a in alls):
+            res["error"] = alls[0]["error"]
+        else:
+            res.pop("error", None)
+        for r in recs_saved:                                  # each record's own last result, for the page
+            hit = next((a for a in alls if a["host"] == r.get("host")), None)
+            if hit:
+                r.update(found=hit.get("found"), exists=hit.get("exists"), error=hit.get("error"), checked_ms=res["ms"])
+    if res.get("error"):
         status = "error"
+    else:
+        status = "verified" if res.get("found") else ("not_found" if want else "needs_details")
     hist = json.loads(row.get("history_json") or "[]")
     hist = ([{k: res.get(k) for k in ("ms", "found", "error", "by")}] + hist)[:20]
     upd = dict(status=status, last_checked_ms=res["ms"], last_result_json=json.dumps(res), history_json=json.dumps(hist),
                checks=(row.get("checks") or 0) + 1)
+    if extra:
+        upd["records_json"] = json.dumps(recs_saved)
     newly = res.get("found") and not row.get("verified_ms")
     if newly:
         upd["verified_ms"] = res["ms"]
@@ -278,13 +405,53 @@ def _fill(sso_id, subject, description, requester="", organization=""):
                      status="pending" if p["domain"] and p["txt_value"] else "needs_details")
 
 
+def read_ticket(sso_id, ticket_id, t=None):
+    """The whole ticket: its first message, requester, status, and every
+    splashtop-sso-challenge record anywhere in the conversation. The first
+    record fills the request's domain / TXT host / value (the page's fields);
+    all of them are kept in records_json."""
+    d = zendesk.get_json("/api/v2/tickets/%d.json?include=users,organizations" % int(ticket_id))
+    t = d.get("ticket") or t or {}
+    users = {u.get("id"): u for u in d.get("users") or []}
+    orgs = {o.get("id"): o for o in d.get("organizations") or []}
+    comments = zendesk.comments(int(ticket_id), max_pages=5)
+    texts = [x for c in comments for x in (c.get("html_body"), c.get("body"), c.get("plain_body")) if x] + [t.get("description") or ""]
+    recs = records_in(texts)
+    row = store.sso_get(sso_id, fresh=True) or {}
+    upd = dict(subject=(t.get("subject") or "")[:300] or None, description=(t.get("description") or "")[:20000] or None,
+               requester_email=(users.get(t.get("requester_id")) or {}).get("email") or row.get("requester_email"),
+               organization=(orgs.get(t.get("organization_id")) or {}).get("name") or row.get("organization"),
+               ticket_status=t.get("status"), ticket_updated=t.get("updated_at"))
+    if recs:
+        try:
+            old = {r.get("host"): r for r in json.loads(row.get("records_json") or "[]") or []}
+        except ValueError:
+            old = {}
+        for r in recs:                                      # keep each record's last check
+            r.update({k: v for k, v in (old.get(r["host"]) or {}).items() if k in ("found", "exists", "error", "checked_ms")})
+        main = next((r for r in recs if r["value"]), recs[0])
+        upd.update(records_json=json.dumps(recs), domain=main["domain"], txt_name=main["host"], txt_value=main["value"] or None,
+                   parse_note="%d challenge record%s in the ticket (%s)" % (len(recs), "" if len(recs) == 1 else "s",
+                                                                          ", ".join(r["domain"] for r in recs)))
+        if not row.get("status") or row.get("status") == "needs_details":
+            upd["status"] = "pending" if main["value"] else "needs_details"
+    elif not row.get("txt_value"):
+        p = parse(t.get("description") or "")              # the old form's request, if that's what it is
+        if p["domain"] and p["txt_value"]:
+            upd.update(domain=p["domain"], txt_name=p["txt_name"] or p["domain"], txt_value=p["txt_value"], status="pending")
+        else:
+            upd.update(status="needs_details", parse_note="No splashtop-sso-challenge record in the ticket yet -- "
+                       "the records go out in the agent's reply (SplashHub's SSO tool).")
+    store.sso_update(sso_id, **upd)
+    return recs
+
+
 def _fetch(sso_id, ticket_id):
-    """Read the ticket from Zendesk when the trigger did not send its text."""
+    """Read the ticket from Zendesk (the trigger sends only its start)."""
     try:
-        t = zendesk.ticket(ticket_id)
-        _fill(sso_id, t["subject"], t["description"], t["requester_email"], t["organization"])
+        read_ticket(sso_id, ticket_id)
     except zendesk.ZendeskError as e:
-        store.sso_update(sso_id, status="needs_details", parse_note="Could not read the ticket yet: %s" % e)
+        store.sso_update(sso_id, parse_note="Could not read the ticket yet: %s" % e)
 
 
 def request(ticket_id, source, data=None):
@@ -294,7 +461,7 @@ def request(ticket_id, source, data=None):
     sid = store.sso_upsert(int(ticket_id), source, _now())
     if data.get("description"):
         _fill(sid, data.get("subject"), data.get("description"), data.get("requester"))
-    elif not zendesk.configured():
+    if not zendesk.configured():                          # then the whole conversation (the records are in replies)
         threading.Thread(target=_fetch, args=(sid, int(ticket_id)), daemon=True).start()
     return sid
 
@@ -343,20 +510,28 @@ def _run_import():
                 else:
                     created = sosscan._ms(t.get("created_at")) or _now()
                     sid = store.sso_upsert(int(t["id"]), "import", created)
-                    _fill(sid, t.get("subject"), t.get("description"))
+                    try:
+                        read_ticket(sid, int(t["id"]), t)
+                    except zendesk.ZendeskError:
+                        _fill(sid, t.get("subject"), t.get("description"))
+                    time.sleep(0.3)                        # gentle on Zendesk
                     IMPORT["added"] += 1
                 IMPORT["done"] += 1
 
-        for t in zendesk.search_tickets('type:ticket subject:"%s"' % SSO_SUBJECT):
+        seen = set()
+        for t in find_tickets("created>=2026-01-01"):
             if IMPORT.get("stop"):
                 break
-            if is_sso(t.get("subject")):
-                IMPORT["found"] += 1
-                batch.append(t)
+            if int(t["id"]) in seen:
+                continue
+            seen.add(int(t["id"]))
+            IMPORT["found"] += 1
+            batch.append(t)
             if len(batch) >= 100:
                 add(batch); batch = []
         if batch and not IMPORT.get("stop"):
             add(batch)
+        store.set_setting("sso_found_2026", "yes", "import")
     except (sosscan.ScanError, zendesk.ZendeskError) as e:
         IMPORT["error"] = str(e)[:400]
     except Exception as e:
@@ -417,6 +592,14 @@ def note_text(row):
         head = "NOT FOUND -- %s does not exist in DNS" % res["name"]
     else:
         head = "NOT FOUND YET -- the expected TXT record is not on %s" % res["name"]
+    if res.get("all") and not res.get("error"):
+        lines = ["SplashHub Centre — SSO domain check: " + ("VERIFIED -- every TXT record is in place" if res.get("found")
+                                                             else "NOT ALL FOUND YET"), ""]
+        for a in res["all"]:
+            mark = "OK" if a.get("found") else ("lookup failed" if a.get("error") else ("missing" if a.get("value") else "no value in the ticket"))
+            lines.append("%s -- %s (TXT on %s)" % (a.get("domain") or "?", mark, a.get("host")))
+        lines += ["", "Checked %s (DNS lookup by SplashHub Centre)." % when]
+        return "\n".join(lines)
     lines = ["SplashHub Centre — SSO domain check: " + head, "",
              "Domain: %s" % (row.get("domain") or "?"),
              "TXT record on: %s" % res["name"],
@@ -439,3 +622,79 @@ def add_note(sso_id):
     store.sso_update(sso_id, note_json=json.dumps(info))
     sys.stderr.write("[sso] #%s internal note added\n" % row["ticket_id"])
     return info
+
+
+# ---- by itself: finding new requests, re-reading updated ones, checking DNS ---------------------------
+
+FIND_EVERY = 900            # the Zendesk search
+CHECK_EVERY_MS = 3600000    # each waiting request's DNS, at most hourly
+
+
+def find_tickets(cond):
+    """SSO tickets matching cond (e.g. "updated>=2026-10-05"): SplashHub's SSO
+    tag, a challenge record anywhere in the ticket, or the old form's subject."""
+    for q in ('type:ticket tags:%s %s' % (SSO_TAG, cond), 'type:ticket "splashtop-sso-challenge" %s' % cond,
+              'type:ticket subject:"%s" %s' % (SSO_SUBJECT, cond)):
+        for t in zendesk.search_tickets(q, max_pages=50):
+            yield t
+
+
+def _known():
+    return {int(r[0]): (r[1], r[2]) for r in store._read("SELECT ticket_id, id, ticket_updated FROM sso_requests", [], fresh=True)}
+
+
+def sync():
+    """New SSO tickets, and the ones updated since their conversation was read
+    (a reply with the records, a status change). The first time: all of 2026."""
+    if zendesk.configured():
+        return
+    first = store.get_setting("sso_found_2026", "") != "yes"
+    cond = "created>=2026-01-01" if first else "updated>=" + time.strftime("%Y-%m-%d", time.gmtime(time.time() - 2 * 86400))
+    known, seen, added = _known(), set(), 0
+    for t in find_tickets(cond):
+        tid = int(t["id"])
+        if tid in seen:
+            continue
+        seen.add(tid)
+        have = known.get(tid)
+        if have and have[1] == t.get("updated_at"):
+            continue
+        sid = have[0] if have else store.sso_upsert(tid, "search", sosscan._ms(t.get("created_at")) or _now())
+        try:
+            read_ticket(sid, tid, t)
+        except zendesk.ZendeskError as e:
+            sys.stderr.write("[sso] reading #%d: %s\n" % (tid, e))
+        added += not have
+        time.sleep(0.3)
+    if first:
+        store.set_setting("sso_found_2026", "yes", "sso")
+    if seen:
+        sys.stderr.write("[sso] search: %d SSO ticket(s) looked at, %d new\n" % (len(seen), added))
+
+
+def auto_check():
+    """Each request that has its records and an open ticket, not verified, not
+    looked up in the last hour: checked now (all of its records)."""
+    cutoff = _now() - CHECK_EVERY_MS
+    rows = store._read("SELECT id FROM sso_requests WHERE txt_value IS NOT NULL AND status IN ('pending', 'not_found', 'error') "
+                       "AND coalesce(ticket_status, '') NOT IN ('solved', 'closed') "
+                       "AND (last_checked_ms IS NULL OR last_checked_ms < %s) ORDER BY requested_ms DESC", [cutoff], fresh=True)
+    for (sid,) in rows:
+        try:
+            check(sid, "Automatic")
+        except Exception as e:
+            sys.stderr.write("[sso] automatic check %s: %s\n" % (sid, type(e).__name__))
+        time.sleep(0.2)
+
+
+def boot():
+    def loop():
+        time.sleep(45)
+        while True:
+            for f in (sync, auto_check):
+                try:
+                    f()
+                except Exception as e:
+                    sys.stderr.write("[sso] %s skipped: %s\n" % (f.__name__, type(e).__name__))
+            time.sleep(FIND_EVERY)
+    threading.Thread(target=loop, name="sso-loop", daemon=True).start()

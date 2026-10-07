@@ -65,11 +65,15 @@ on Logs under the agent's name -- "brand scan (sidebar)" when it ran a review, "
 showed an existing one. SplashHub's Settings > AI Provider shows SOS scan as "N/A - SplashHub Centre". SplashHub also
 sends a copy of every run it logs to SplashHub Centre (Logs).""",
 
-    "sso requests": """SSO Requests: Zendesk tickets "Here comes a new request to validate SSO method". SplashHub Centre
-reads the domain and the TXT record the customer must add, and Check DNS looks the TXT record up (Check all waiting does
-every waiting one). Statuses: Needs details, Not checked, Waiting, Not found yet, Verified, Check failed. Add a ticket by
-number; Import past SSO requests brings in old ones. A result can be added to the ticket as an internal note. Checks
-are by hand for now.""",
+    "sso requests": """SSO Requests: SSO method validation tickets. Every 15 minutes SplashHub Centre searches Zendesk for
+tickets tagged single_sign-on__sso_ (SplashHub's SSO tool adds it with Insert Reply), or with a splashtop-sso-challenge
+record anywhere in the conversation, or with the old form's subject; it reads the whole conversation the way SplashHub's
+SSO tool does and keeps every record: a TXT record on splashtop-sso-challenge.<domain> (or a dated host) with a
+32-character value -- several domains per ticket are fine. Every hour each waiting request with an open ticket is looked
+up by itself (all its records); Check DNS does it at once, Check all waiting does every waiting one. Verified when every
+record carries its value; Teams can announce it. Statuses: Needs details (no record in the ticket yet -- the agent sends
+them), Not checked, Waiting, Not found yet, Verified, Check failed. Add a ticket by number; Import past SSO requests
+finds all of 2026. A result can be added to the ticket as an internal note (a button).""",
 
     "pricebook": """PriceBook: Splashtop list prices per market (USA, Canada, EU, UK, Brazil, Mexico, Japan, Taiwan,
 China, Switzerland, Denmark, Sweden, Norway) for Remote Access (Solo, Pro, Performance), Remote Support (SOS+10,

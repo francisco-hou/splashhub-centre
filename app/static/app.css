@@ -1045,3 +1045,13 @@ main.page:not([hidden]) { animation: none; }
 .at-ck input { cursor: pointer; }
 .at-bulk { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; margin-left: auto; margin-right: 12px; }
 .at-spin { width: 13px; height: 13px; border: 2px solid #d6e6f5; border-top-color: #0071ce; border-radius: 50%; animation: spin .75s linear infinite; display: inline-block; }
+
+/* SSO: every challenge record on a ticket */
+.sso-all { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sso-all li { font-size: 13px; }
+.sso-all .muted { font-size: 12px; word-break: break-all; }
+.sso-st { font-size: 11.5px; font-weight: 600; padding: 0 7px; border-radius: 999px; background: #f0f2f4; color: #55606b; }
+.sso-st.s-verified { background: #e7f6ec; color: #1e7a43; }
+.sso-st.s-not_found { background: #fdf0e6; color: #9a4a08; }
+.sso-st.s-error { background: #fdeeee; color: #c62d2d; }
+.sso-st.s-needs_details { background: #fff6e0; color: #8a5a00; }

@@ -121,6 +121,9 @@ ADDED_COLUMNS = [
     ("sos_scans", "ticket_status", "TEXT"),   # the Zendesk ticket's own status (new/open/pending/hold/solved/closed)
     ("sos_scans", "ticket_status_ms", "BIGINT"),  # when that was last read
     ("sos_scans", "sidebar_json", "TEXT"),    # who pressed Scan in SplashHub's sidebar, when, and what it did
+    ("sso_requests", "records_json", "TEXT"),   # every splashtop-sso-challenge record in the ticket + its last check
+    ("sso_requests", "ticket_status", "TEXT"),  # the Zendesk ticket's status (solved/closed: no automatic checks)
+    ("sso_requests", "ticket_updated", "TEXT"), # the ticket's updated_at when its conversation was last read
 ]
 
 
@@ -533,9 +536,9 @@ def scans(q=None, verdict=None, page=0, per_page=50):
 
 SSO_COLS = ("id", "ticket_id", "requested_ms", "source", "subject", "description", "requester_email", "organization",
             "domain", "txt_name", "txt_value", "parse_note", "status", "checks", "last_checked_ms", "verified_ms",
-            "last_result_json", "history_json", "note_json")
+            "last_result_json", "history_json", "note_json", "records_json", "ticket_status", "ticket_updated")
 SSO_LIST_COLS = ("id", "ticket_id", "requested_ms", "source", "subject", "requester_email", "organization",
-                 "domain", "status", "checks", "last_checked_ms", "verified_ms", "note_json")
+                 "domain", "status", "checks", "last_checked_ms", "verified_ms", "note_json", "records_json", "ticket_status")
 
 
 def sso_upsert(ticket_id, source, requested_ms):
