@@ -588,3 +588,39 @@
   fromHash();
   if (!S.ticket) load();
 })();
+
+
+/* Settings > AutoTag > Ad filter: on / off and the example ads Spark compares with. */
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  if (!$('adOn')) return;
+  function call(path, body) {
+    return fetch(path, { method: body ? 'POST' : 'GET', credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); });
+  }
+  function draw(s) {
+    [].forEach.call($('adOn').querySelectorAll('button'), function (b) {
+      var on = (b.getAttribute('data-on') === '1') === s.on;
+      b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+    });
+    $('adState').innerHTML = (s.on ? 'On' : 'Off') + ' · tickets created since ' + s.since + ', whatever their status · ' + s.checked.toLocaleString() +
+      ' scanned, ' + s.ads.toLocaleString() + ' were ads (<a href="/adfilter">Ad filter page</a>). Nothing is changed in Zendesk.' +
+      (s.error ? ' Last round: ' + s.error : '');
+    if (document.activeElement !== $('adEx')) $('adEx').value = s.examples.join('\n\n---\n\n');
+  }
+  function save(body, msg) {
+    $('adMsg').textContent = 'Saving…';
+    call('/api/adfilter/settings', body).then(function (s) { draw(s); $('adMsg').textContent = msg; })
+      .catch(function (e) { $('adMsg').textContent = 'Could not save: ' + e.message; });
+  }
+  $('adOn').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-on]'); if (b) save({ on: b.getAttribute('data-on') === '1' }, 'Saved.');
+  });
+  $('adSave').addEventListener('click', function () { save({ examples: $('adEx').value }, 'Saved — used from the next scan.'); });
+  $('adRun').addEventListener('click', function () {
+    call('/api/adfilter/run', {}).then(function () { $('adMsg').textContent = 'Scanning now — ads show on the Ad filter page in a minute.'; })
+      .catch(function (e) { $('adMsg').textContent = 'Could not start: ' + e.message; });
+  });
+  call('/api/adfilter').then(draw).catch(function () {});
+})();

@@ -7,8 +7,8 @@ reasoning when Settings > Spark lets it think, how long it took -- and what
 SplashHub Centre then did with it (decide()), e.g. "Not SSO: moved out of the
 list" or "#90001 Japanese (held)".
 
-Areas: sso_relevance, sso_stage, autotag, teams_languages, sos_translate,
-sos_dashboard, customers.
+Areas: sso_relevance, sso_stage, autotag, ad_filter, teams_languages,
+sos_translate, sos_dashboard, customers.
 """
 import json, re, sys, threading, time
 
@@ -18,7 +18,7 @@ KEEP_DAYS = 30
 AREAS = {"sso_relevance": "SSO · is it an SSO request?", "sso_stage": "SSO · where it stands",
          "autotag": "AutoTag · language", "teams_languages": "Teams · language routing",
          "sos_translate": "SOS Scans · translation", "sos_dashboard": "SOS Scans · dashboard notes",
-         "customers": "Customers · summary"}
+         "customers": "Customers · summary", "ad_filter": "Ad filter · ad or spam?"}
 DDL = """CREATE TABLE IF NOT EXISTS spark_log (
     id {ID}, ts_ms {INT} NOT NULL, area TEXT NOT NULL, tickets TEXT, question TEXT, input TEXT, answer TEXT,
     thinking TEXT, decision TEXT, changed {INT} NOT NULL DEFAULT 0, ms {INT}, model TEXT, error TEXT,

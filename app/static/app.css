@@ -1081,3 +1081,17 @@ main.page:not([hidden]) { animation: none; }
 .sl-areas { margin-bottom: 12px; }
 .sl-areas td.n, .sl-areas th.r { text-align: right; }
 .sl-table td:nth-child(3) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Ad filter page (adfilter.js) */
+.ad-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) { .ad-stats { grid-template-columns: 1fr; } }
+.ad-table { table-layout: fixed; }
+.ad-table th:nth-child(1) { width: 100px; } .ad-table th:nth-child(2) { width: 84px; } .ad-table th:nth-child(3) { width: 110px; }
+.ad-table th:nth-child(5) { width: 230px; } .ad-table th:nth-child(6) { width: 210px; }
+.ad-subj .link-btn { text-align: left; font-weight: 500; color: #1d242c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: block; }
+.ad-subj .muted { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-b { background: #fdeeee; color: #a3262b; }
+.ad-chk { display: flex; gap: 6px; flex-wrap: wrap; }
+.ad-more > td { background: #fafbfc; padding: 10px 16px 14px; }
+.ad-ta { max-width: 640px; font-size: 12.5px; }
+textarea.ad-ta { min-height: 230px; height: auto; }

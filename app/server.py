@@ -51,7 +51,7 @@ ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/se
 ADMIN_POST = {"/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
               "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop", "/api/po/import", "/api/po/update", "/api/po/stop", "/api/notify",
               "/api/notify/test", "/api/notify/run", "/api/notify/languages", "/api/teams-ask", "/api/teams-ask/key", "/api/theme",
-              "/api/autotag/settings", "/api/autotag/run"}
+              "/api/autotag/settings", "/api/autotag/run", "/api/adfilter/settings", "/api/adfilter/run"}
 # Local preview fills an empty database with sample runs. Never on Spluki.
 SAMPLE = store.backend() == "sqlite" and os.environ.get("SAMPLE_DATA", "1") != "0"
 
@@ -186,6 +186,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("tags.html", "text/html; charset=utf-8")
             if u.path in ("/autotag", "/autotag.html"):
                 return self.static("autotag.html", "text/html; charset=utf-8")
+            if u.path in ("/adfilter", "/adfilter.html"):
+                return self.static("adfilter.html", "text/html; charset=utf-8")
             if u.path in ("/me", "/me.html"):
                 return self.static("me.html", "text/html; charset=utf-8")
             if u.path in ("/overview", "/overview.html"):
@@ -207,7 +209,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path in ("/customers", "/customers.html"):
                 return self.static("customers.html", "text/html; charset=utf-8")
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/splashtop-icon.png"):
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -335,6 +337,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 import sparklog
                 row = sparklog.get(int(m.group(1)))
                 return self.json(row) if row else self.json({"error": "not found"}, 404)
+            if u.path == "/api/adfilter":
+                # Ad filter: tickets Spark thinks are ads / spam, held here to be checked.
+                import adfilter
+                return self.json(adfilter.status())
+            if u.path == "/api/adfilter/list":
+                import adfilter
+                g = lambda k: (qs.get(k) or [""])[0]
+                try:
+                    pg = max(0, int(g("page") or 0))
+                except ValueError:
+                    pg = 0
+                return self.json(adfilter.search(view=g("view") or "open", q=g("q") or None, page=pg))
             if u.path == "/api/autotag":
                 # AutoTag: Spark's language for each new ticket, held here to be checked.
                 import autotag
@@ -609,6 +623,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except ValueError as e:
                 return self.json({"error": str(e) or "bad request"}, 400)
             return self.json(notify.settings())
+        if u.path.startswith("/api/adfilter/"):
+            import adfilter
+            try:
+                data = json.loads(raw or b"{}") or {}
+                if u.path == "/api/adfilter/verdict":
+                    return self.json(adfilter.set_verdict(int(data.get("ticket_id")), str(data.get("verdict") or "")))
+                if u.path == "/api/adfilter/settings":
+                    return self.json(adfilter.save_settings(data, "admin"))
+                if u.path == "/api/adfilter/run":
+                    adfilter.kick()
+                    return self.json({"ok": True})
+            except (ValueError, TypeError) as e:
+                return self.json({"error": str(e) or "bad request"}, 400)
+            return self.json({"error": "not found"}, 404)
         if u.path.startswith("/api/autotag/"):
             import autotag
             try:
@@ -895,7 +923,9 @@ def main():
     import notify
     notify.boot()
     import autotag
-    autotag.boot()                    # AutoTag: new tickets' languages by Spark, every 2 minutes (held here, not written)                     # Teams: spike and overdue-PO checks (only what's switched on)
+    autotag.boot()
+    import adfilter
+    adfilter.boot()                   # Ad filter: Spark asks "ad / spam?" of what AutoTag read (held, nothing changed in Zendesk)                    # AutoTag: new tickets' languages by Spark, every 2 minutes (held here, not written)                     # Teams: spike and overdue-PO checks (only what's switched on)
     _spark_hello()
     srv = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
     print("SplashHub Centre on http://%s:%d  (backend: %s%s)" % (HOST, PORT, store.backend(), ", sample data" if SAMPLE else ""))
