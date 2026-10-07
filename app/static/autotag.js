@@ -50,7 +50,7 @@
         return '<div class="stat"><div class="stat-label">' + label + '</div><div class="stat-value ' + (cls || '') + '">' + value + '</div><div class="stat-sub">' + sub + '</div></div>';
       };
       $('stats').innerHTML =
-        tile('Tickets read', int(s.total), int(s.last_24h) + ' in the last 24 h · since ' + esc(s.since)) +
+        tile('Tickets read', int(s.total), int(s.last_24h) + ' in the last 24 h' + (s.skipped ? ' · ' + int(s.skipped) + ' skipped (provisioning, calls)' : '')) +
         tile('Would tag', int(s.held), s.languages.slice(0, 3).map(function (l) { return esc(l.lang) + ' ' + l.n; }).join(' · ') || 'none yet') +
         tile('Same as Zendesk', compared ? Math.round(100 * s.same / compared) + '%' : '—', int(s.same) + ' of ' + int(compared) + ' that have a language tag') +
         tile('Differs', int(s.differs), int(s.no_tag) + ' more have no language tag', s.differs ? 'ov-o' : '') +

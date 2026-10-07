@@ -431,7 +431,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     page = int(one("page") or 0)
                 except ValueError:
                     page = 0
-                return self.json(store.sso_list(one("q")[:80] or None, one("status") or None, page, 50, one("tview") or "open"))
+                return self.json(store.sso_list(one("q")[:80] or None, one("status") or None, page, 50, one("tview") or "tasks"))
             m = re.match(r"^/api/sso/(\d+)/note$", u.path)
             if m:
                 row = store.sso_get(int(m.group(1)))
@@ -819,9 +819,12 @@ def _sso_post(self, u, raw):
             return self.json(dict(ssocheck.check_all_status(), started=ssocheck.start_check_all()))
         if u.path == "/api/sso-check-all/stop":
             return self.json({"ok": ssocheck.stop("check")})
-        m = re.match(r"^/api/sso/(\d+)/(check|details|note)$", u.path)
+        m = re.match(r"^/api/sso/(\d+)/(check|details|note|relevance)$", u.path)
         if m:
             sid, what = int(m.group(1)), m.group(2)
+            if what == "relevance":                     # Not an SSO request / It is an SSO request
+                ssocheck.set_relevance(sid, bool(data.get("sso")))
+                return self.json({"ok": True})
             if what == "check":
                 return self.json({"ok": True, "result": ssocheck.check(sid)})
             if what == "details":

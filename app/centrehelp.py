@@ -72,7 +72,8 @@ SSO tool does and keeps every record: a TXT record on splashtop-sso-challenge.<d
 32-character value -- several domains per ticket are fine. Every hour each waiting request with an open ticket is looked
 up by itself (all its records); Check DNS does it at once, Check all waiting does every waiting one. Verified when every
 record carries its value; Teams can announce it. Statuses: Needs details (no record in the ticket yet -- the agent sends
-them), Not checked, Waiting, Not found yet, Verified, Check failed. Add a ticket by number; Import past SSO requests
+them), Not checked, Waiting, Not found yet, Verified, Enabled (an agent sent the "verified the DNS record and enabled
+the SSO method" reply -- done), Check failed. Add a ticket by number; Import past SSO requests
 finds all of 2026. A result can be added to the ticket as an internal note (a button).""",
 
     "pricebook": """PriceBook: Splashtop list prices per market (USA, Canada, EU, UK, Brazil, Mexico, Japan, Taiwan,

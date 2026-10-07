@@ -8,9 +8,9 @@
 (function () {
   'use strict';
 
-  var S = { status: '', q: '', page: 0, open: null, tview: 'open' };   // opens on the tickets that need action
-  var LABEL = { needs_details: 'Needs details', pending: 'Not checked', not_found: 'Not found yet', verified: 'Verified', error: 'Check failed' };
-  var CHIPS = [['', 'All'], ['waiting', 'Waiting'], ['verified', 'Verified'], ['not_found', 'Not found yet'],
+  var S = { status: '', q: '', page: 0, open: null, tview: 'tasks' };   // opens on Open tasks: solved / closed need no action
+  var LABEL = { needs_details: 'Needs details', pending: 'Not checked', not_found: 'Not found yet', verified: 'Verified', enabled: 'Enabled', error: 'Check failed' };
+  var CHIPS = [['', 'Any status'], ['waiting', 'Waiting'], ['verified', 'Verified'], ['enabled', 'Enabled'], ['not_found', 'Not found yet'],
                ['pending', 'Not checked'], ['needs_details', 'Needs details'], ['error', 'Check failed']];
   var ICON_OUT = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>';
   var ZD = '';
@@ -47,6 +47,7 @@
     return t;
   }
   function stageLine(r) {
+    if (r.stage === 'enabled' && r.status === 'enabled') return '';     // the pill says it
     var t = stageTxt(r); if (!t) return '';
     var warn = r.stage === 'stuck' || (r.stage === 'says_done' && r.status !== 'verified');
     return '<div class="sso-stage' + (warn ? ' warn' : r.stage === 'enabled' || r.stage === 'says_done' ? ' ok' : '') + '" title="' +
@@ -131,7 +132,23 @@
       .then(function () { $('addBtn').disabled = false; });
   });
 
-  $('tview').addEventListener('change', function () { S.tview = this.value; S.page = 0; lastSig = ''; load(); });
+  // by the Zendesk ticket's status; Solved / closed last (no further action, kept to look things up)
+  var TCHIPS = [['tasks', 'Open tasks'], ['open', 'Open'], ['pending', 'Pending'], ['hold', 'On-hold'], ['done', 'Solved / closed'], ['notsso', 'Not SSO']];
+  function drawTChips(tc) {
+    tc = tc || {};
+    var n = function (k) { return tc[k] || 0; };
+    var all = Object.keys(tc).reduce(function (a, k) { return a + tc[k]; }, 0);
+    all -= n('notsso');                         // the Not SSO ones are counted on their own chip
+    var num = { tasks: all - n('solved') - n('closed'), open: n('open'), pending: n('pending'), hold: n('hold'), done: n('solved') + n('closed'), notsso: n('notsso') };
+    $('tchips').innerHTML = TCHIPS.map(function (c) {
+      return '<button type="button" class="chip' + (S.tview === c[0] ? ' active' : '') + (num[c[0]] ? '' : ' empty') + (c[0] === 'done' || c[0] === 'notsso' ? ' chip-quiet' : '') +
+        '" data-t="' + c[0] + '">' + esc(c[1]) + ' <span class="chip-n">' + num[c[0]] + '</span></button>';
+    }).join('');
+  }
+  $('tchips').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-t]'); if (!b) return;
+    S.tview = b.getAttribute('data-t'); S.page = 0; lastSig = ''; load();
+  });
 
   // ---- list --------------------------------------------------------------------------
   var seq = 0, lastSig = '';
@@ -153,8 +170,8 @@
     api('/api/sso?' + p).then(function (res) {
       spinOff();
       if (my !== seq) return;
-      var sig = JSON.stringify([p, res.total, res.counts, res.rows.map(function (r) { return [r.id, r.status, r.domain, r.last_checked_ms, r.note_json, r.ticket_status, r.stage, r.stage_note]; })]);
-      if (sig !== lastSig) { lastSig = sig; drawChips(res.counts); drawRows(res); }
+      var sig = JSON.stringify([p, res.total, res.counts, res.tcounts, res.rows.map(function (r) { return [r.id, r.status, r.domain, r.last_checked_ms, r.note_json, r.ticket_status, r.stage, r.stage_note]; })]);
+      if (sig !== lastSig) { lastSig = sig; drawTChips(res.tcounts); drawChips(res.counts); drawRows(res); }
       var d = new Date();
       $('stamp').textContent = 'Updated ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     }).catch(function (e) { spinOff(); if (e.message !== 'login') $('stamp').textContent = 'Could not load: ' + e.message; });
@@ -162,7 +179,7 @@
   function drawChips(counts) {
     var n = function (k) { return counts[k] || 0; };
     var total = Object.keys(counts).reduce(function (a, k) { return a + counts[k]; }, 0);
-    var num = { '': total, waiting: n('pending') + n('not_found') + n('error'), verified: n('verified'), not_found: n('not_found'),
+    var num = { '': total, waiting: n('pending') + n('not_found') + n('error'), verified: n('verified'), enabled: n('enabled'), not_found: n('not_found'),
                 pending: n('pending'), needs_details: n('needs_details'), error: n('error') };
     $('chips').innerHTML = CHIPS.map(function (c) {
       return '<button type="button" class="chip' + (S.status === c[0] ? ' active' : '') + (num[c[0]] ? '' : ' empty') +
@@ -173,8 +190,10 @@
     $('count').textContent = res.total ? 'newest first · ' + res.total + (res.total === 1 ? ' request' : ' requests') : '';
     if (!res.rows.length) {
       $('rows').innerHTML = '<tr class="empty-row"><td colspan="7">' + (S.status || S.q ? 'No requests match.' :
-        S.tview === 'open' ? 'Nothing needs action right now. Solved and closed tickets are under the ticket-status filter.' :
+        S.tview === 'tasks' ? 'No open tasks right now. Solved and closed tickets are under Solved / closed.' :
         S.tview === 'done' ? 'No solved or closed SSO tickets yet.' :
+        S.tview === 'notsso' ? 'Nothing here: every tagged ticket Spark has read is an SSO request.' :
+        S.tview !== 'all' ? 'No SSO tickets with this ticket status.' :
         'No SSO requests yet. SplashHub Centre looks for them every 15 minutes (tickets tagged single_sign-on__sso_ or with a splashtop-sso-challenge record); Import past SSO requests finds the ones from 2026.') + '</td></tr>';
     } else {
       $('rows').innerHTML = res.rows.map(function (r) {
@@ -272,6 +291,13 @@
       h += '<section class="pn-sec"><button type="button" class="link-btn rq-raw-btn" data-raw="1" aria-expanded="false">Show original text</button>' +
         '<pre class="rq-raw" hidden>' + esc(s.description) + '</pre></section>';
     }
+    // Is it an SSO request? (Spark reads tickets that only have the tag; a person's choice wins)
+    var notSso = s.relevance === 'not_sso';
+    h += '<section class="pn-sec sso-rel' + (notSso ? ' is-not' : '') + '">' +
+      (notSso ? '<div class="pn-ai-warn">Not an SSO request' + (s.relevance_by === 'spark' ? ' (Spark)' : '') + (s.relevance_note ? ': ' + esc(s.relevance_note) : '') +
+        ' — kept out of the list.</div><button type="button" class="btn btn-sm" data-rel="1">It is an SSO request</button>'
+        : '<button type="button" class="link-btn" data-rel="0">Not an SSO request</button>' +
+          (s.relevance_by === 'spark' && s.relevance_note ? ' <span class="muted">Spark: ' + esc(s.relevance_note) + '</span>' : '')) + '</section>';
     h += '<div class="pn-foot">Request ' + s.id + (s.checks ? ' · checked ' + s.checks + (s.checks === 1 ? ' time' : ' times') : '') + '</div>';
     // right: the DNS check card
     h += '</div><div class="pn-side"><div class="pn-side-in">' +
@@ -440,6 +466,12 @@
       NOTE.busy = true; redraw();
       post('/api/sso/' + s.id + '/note').then(function (r) { s.note = r.note; NOTE.open = null; NOTE.busy = false; lastSig = ''; load(); if (CUR === s) redraw(); })
         .catch(function (e) { NOTE.busy = false; redraw(); if (e.message !== 'login') msg(e.message); });
+      return;
+    }
+    if ((b = ev.target.closest('[data-rel]'))) {             // Not an SSO request / It is an SSO request
+      b.disabled = true;
+      post('/api/sso/' + s.id + '/relevance', { sso: b.getAttribute('data-rel') === '1' }).then(function () { lastSig = ''; load(); loadDetail(s.id); })
+        .catch(function (e) { b.disabled = false; if (e.message !== 'login') msg(e.message); });
       return;
     }
     var raw = ev.target.closest('[data-raw]');

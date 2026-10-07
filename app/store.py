@@ -128,6 +128,9 @@ ADDED_COLUMNS = [
     ("sso_requests", "stage_note", "TEXT"),
     ("sso_requests", "stage_ms", "BIGINT"),
     ("sso_requests", "stage_for", "TEXT"),      # the customer comment Spark read (asked once per reply)
+    ("sso_requests", "relevance", "TEXT"),      # sso | not_sso (ssocheck._relevance); empty: not decided
+    ("sso_requests", "relevance_note", "TEXT"),
+    ("sso_requests", "relevance_by", "TEXT"),   # rule | spark | person (a person's choice is never overridden)
 ]
 
 
@@ -541,10 +544,10 @@ def scans(q=None, verdict=None, page=0, per_page=50):
 SSO_COLS = ("id", "ticket_id", "requested_ms", "source", "subject", "description", "requester_email", "organization",
             "domain", "txt_name", "txt_value", "parse_note", "status", "checks", "last_checked_ms", "verified_ms",
             "last_result_json", "history_json", "note_json", "records_json", "ticket_status", "ticket_updated",
-            "stage", "stage_note", "stage_ms", "stage_for")
+            "stage", "stage_note", "stage_ms", "stage_for", "relevance", "relevance_note", "relevance_by")
 SSO_LIST_COLS = ("id", "ticket_id", "requested_ms", "source", "subject", "requester_email", "organization",
                  "domain", "status", "checks", "last_checked_ms", "verified_ms", "note_json", "records_json", "ticket_status",
-                 "stage", "stage_note")
+                 "stage", "stage_note", "relevance")
 
 
 def sso_upsert(ticket_id, source, requested_ms):
@@ -603,21 +606,30 @@ def sso_ticket_ids(ticket_ids):
 def sso_waiting_ids():
     """Requests 'Check all waiting' looks at: a domain, and not verified yet."""
     ensure_schema()
-    return [r[0] for r in _read("SELECT id FROM sso_requests WHERE domain IS NOT NULL AND status <> 'verified' "
+    return [r[0] for r in _read("SELECT id FROM sso_requests WHERE domain IS NOT NULL AND status NOT IN ('verified', 'enabled') "
+                                "AND coalesce(relevance, '') <> 'not_sso' "
                                 "ORDER BY requested_ms DESC", [], fresh=True)]
 
 
-def sso_list(q=None, status=None, page=0, per_page=50, tview="open"):
-    """tview: open (the default -- every ticket not solved or closed: those need
-    no further action), done (solved / closed) or all."""
+def sso_list(q=None, status=None, page=0, per_page=50, tview="tasks"):
+    """tview, by the Zendesk ticket's status: tasks (the default, "Open tasks" --
+    every ticket not solved or closed: those need no further action), open,
+    pending, hold, done (solved / closed), all, or notsso (the ones found not to
+    be SSO requests -- kept out of every other view)."""
     ensure_schema()
     where, args = [], []
-    if tview == "done":
+    if tview == "notsso":
+        where.append("relevance = 'not_sso'")
+    else:
+        where.append("coalesce(relevance, '') <> 'not_sso'")
+    if tview in ("open", "pending", "hold", "new"):
+        where.append("ticket_status = '%s'" % tview)
+    elif tview == "done":
         where.append("ticket_status IN ('solved', 'closed')")
-    elif tview != "all":
+    elif tview not in ("all", "notsso"):
         where.append("coalesce(ticket_status, '') NOT IN ('solved', 'closed')")
-    view = list(where)
-    if status in ("needs_details", "pending", "not_found", "verified", "error"):
+    view = " AND ".join(where)
+    if status in ("needs_details", "pending", "not_found", "verified", "enabled", "error"):
         where.append("status = %s"); args.append(status)
     elif status == "waiting":
         where.append("status IN ('pending', 'not_found', 'error')")
@@ -632,9 +644,12 @@ def sso_list(q=None, status=None, page=0, per_page=50, tview="open"):
     page = max(0, int(page))
     rows = _read("SELECT " + ", ".join(SSO_LIST_COLS) + " FROM sso_requests" + w +
                  " ORDER BY requested_ms DESC, id DESC LIMIT %d OFFSET %d" % (per_page, page * per_page), args)
-    counts = dict(_read("SELECT status, count(*) FROM sso_requests" + ((" WHERE " + view[0]) if view else "") + " GROUP BY status", []))
+    counts = dict(_read("SELECT status, count(*) FROM sso_requests WHERE " + view + " GROUP BY status", []))
+    tcounts = dict(_read("SELECT coalesce(ticket_status, ''), count(*) FROM sso_requests WHERE coalesce(relevance, '') <> 'not_sso' "
+                         "GROUP BY coalesce(ticket_status, '')", []))
+    tcounts["notsso"] = _read("SELECT count(*) FROM sso_requests WHERE relevance = 'not_sso'", [])[0][0]
     return {"total": total, "page": page, "per_page": per_page,
-            "rows": [dict(zip(SSO_LIST_COLS, r)) for r in rows], "counts": counts}
+            "rows": [dict(zip(SSO_LIST_COLS, r)) for r in rows], "counts": counts, "tcounts": tcounts}
 
 
 # ---- settings (small team-wide switches set from the pages) ---------------------------

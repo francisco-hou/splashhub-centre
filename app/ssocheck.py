@@ -331,6 +331,8 @@ def check(sso_id, by="Centre admin"):
         status = "error"
     else:
         status = "verified" if res.get("found") else ("not_found" if want else "needs_details")
+    if row.get("status") == "enabled":                    # the SSO method is on: a DNS check doesn't undo that
+        status = "enabled"
     hist = json.loads(row.get("history_json") or "[]")
     hist = ([{k: res.get(k) for k in ("ms", "found", "error", "by")}] + hist)[:20]
     upd = dict(status=status, last_checked_ms=res["ms"], last_result_json=json.dumps(res), history_json=json.dumps(hist),
@@ -419,6 +421,7 @@ def read_ticket(sso_id, ticket_id, t=None):
     recs = records_in(texts)
     row = store.sso_get(sso_id, fresh=True) or {}
     stage_upd, says_done = _stage(t, comments, recs, row)
+    rel_upd = _relevance(t, comments, recs, row)
     upd = dict(subject=(t.get("subject") or "")[:300] or None, description=(t.get("description") or "")[:20000] or None,
                requester_email=(users.get(t.get("requester_id")) or {}).get("email") or row.get("requester_email"),
                organization=(orgs.get(t.get("organization_id")) or {}).get("name") or row.get("organization"),
@@ -444,6 +447,11 @@ def read_ticket(sso_id, ticket_id, t=None):
             upd.update(status="needs_details", parse_note="No splashtop-sso-challenge record in the ticket yet -- "
                        "the records go out in the agent's reply (SplashHub's SSO tool).")
     upd.update(stage_upd)
+    upd.update(rel_upd)
+    if (rel_upd.get("relevance") or row.get("relevance")) == "not_sso":
+        says_done = False                               # not an SSO request: no DNS look-ups
+    if (stage_upd.get("stage") or row.get("stage")) == "enabled":
+        upd["status"] = "enabled"                       # the agent's verified & enabled reply: done
     store.sso_update(sso_id, **upd)
     if says_done and (not row.get("last_checked_ms") or _now() - row["last_checked_ms"] > 300000) and (upd.get("txt_value") or row.get("txt_value")):
         try:                                               # the customer says it's added: look now, not in an hour
@@ -455,7 +463,52 @@ def read_ticket(sso_id, ticket_id, t=None):
 
 # ---- where it stands: plain rules for the facts, Spark only for the customer's latest reply -----------
 
+def _relevance(t, comments, recs, row):
+    """Is this really an SSO request? A challenge record or the old form's
+    subject: yes, by rule. Only the tag (it lands on tickets that merely mention
+    SSO): Spark reads the subject and the first messages, once. A person's
+    choice on the page is never overridden -- except by a record turning up."""
+    if recs or is_sso(t.get("subject")):
+        if row.get("relevance") == "sso" and row.get("relevance_by") in ("rule", "person"):
+            return {}
+        return dict(relevance="sso", relevance_by="rule",
+                    relevance_note="DNS challenge records in the ticket" if recs else "The SSO validation form")
+    if row.get("relevance_by") == "person" or (row.get("relevance") and row.get("relevance_by") == "spark"):
+        return {}                                        # decided already
+    try:
+        import spark
+        if not spark.available():
+            return {}                                    # stays on the list; asked when Spark is there
+        req = t.get("requester_id")
+        first = " ".join(_text(c) for c in comments[:3])[:1800]
+        system = ("A support ticket was picked up as a possible SSO (single sign-on) request because of its tag. Decide if it "
+                  "really is a request to set up SSO for the customer's team -- enabling an SSO method (Azure AD / Entra, "
+                  "Okta, Google...), verifying their domain with a DNS TXT record -- or the follow-up of one. Answer with JSON "
+                  'only: {"sso": true or false, "why": "<at most 10 words>"}. false: anything else, e.g. one user who cannot '
+                  "sign in, billing, a licence, or a different problem that only mentions SSO.")
+        raw = spark.chat(system, "Subject: %s\n\n%s" % ((t.get("subject") or "")[:200], first), max_tokens=150)
+        got = json.loads(raw[raw.find("{"):raw.rfind("}") + 1] or "{}")
+    except Exception as e:
+        sys.stderr.write("[sso] Spark relevance skipped: %s\n" % type(e).__name__)
+        return {}
+    yes = got.get("sso") in (True, "true", "yes")
+    return dict(relevance="sso" if yes else "not_sso", relevance_by="spark", relevance_note=str(got.get("why") or "")[:120] or None)
+
+
+def set_relevance(sso_id, is_sso_request):
+    """The page's buttons: Not an SSO request / It is an SSO request -- kept over Spark's reading."""
+    row = store.sso_get(sso_id, fresh=True)
+    if not row:
+        raise sosscan.ScanError("That request is gone.")
+    store.sso_update(sso_id, relevance="sso" if is_sso_request else "not_sso", relevance_by="person",
+                     relevance_note="Marked on the SSO page")
+    return store.sso_get(sso_id, fresh=True)
+
+
 STAGES = ("enabled", "no_records", "sent", "says_done", "stuck", "waiting", "replied")
+# SplashHub's "verified & enabled" reply: "We have verified the DNS record(s) and enabled the SSO method."
+VERIFIED_RE = re.compile(r"verified the dns\b")
+ENABLED_RE = re.compile(r"enabled the sso method|sso method (?:has been|is now) enabled")
 
 
 def _text(c):
@@ -484,7 +537,7 @@ def _stage(t, comments, recs, row):
     req = t.get("requester_id")
     pub = [c for c in comments if c.get("public", True)]
     agent_text = " ".join(_text(c).lower() for c in pub if c.get("author_id") != req)
-    if "verified the dns" in agent_text and "enabled the sso method" in agent_text:
+    if VERIFIED_RE.search(agent_text) and ENABLED_RE.search(agent_text):
         return dict(stage="enabled", stage_note="The agent sent the verified & enabled reply", stage_ms=_now(), stage_for=None), False
     if not recs:
         return dict(stage="no_records", stage_note="The agent hasn't sent the DNS records yet", stage_ms=_now(), stage_for=None), False
@@ -591,7 +644,7 @@ def _run_import():
                 add(batch); batch = []
         if batch and not IMPORT.get("stop"):
             add(batch)
-        store.set_setting("sso_found_2026_v2", "yes", "import")
+        store.set_setting("sso_found_2026_v3", "yes", "import")
     except (sosscan.ScanError, zendesk.ZendeskError) as e:
         IMPORT["error"] = str(e)[:400]
     except Exception as e:
@@ -701,16 +754,27 @@ def find_tickets(cond):
 
 def _known():
     """{ticket: (request id, updated_at when read -- None when it has no stage yet, so it is read again)}"""
-    return {int(r[0]): (r[1], r[2] if r[3] else None)
-            for r in store._read("SELECT ticket_id, id, ticket_updated, stage FROM sso_requests", [], fresh=True)}
+    return {int(r[0]): (r[1], r[2] if r[3] and r[4] else None)
+            for r in store._read("SELECT ticket_id, id, ticket_updated, stage, relevance FROM sso_requests", [], fresh=True)}
+
+
+def _enabled_status():
+    """Requests whose stage is enabled carry the Enabled status (once, for the ones read before it existed)."""
+    c = store.connect(True)
+    try:
+        c.cursor().execute("UPDATE sso_requests SET status = 'enabled' WHERE stage = 'enabled' AND status <> 'enabled'")
+        c.commit()
+    finally:
+        c.close()
 
 
 def sync():
     """New SSO tickets, and the ones updated since their conversation was read
     (a reply with the records, a status change). The first time: all of 2026."""
+    _enabled_status()
     if zendesk.configured():
         return
-    first = store.get_setting("sso_found_2026_v2", "") != "yes"
+    first = store.get_setting("sso_found_2026_v3", "") != "yes"
     cond = "created>=2026-01-01" if first else "updated>=" + time.strftime("%Y-%m-%d", time.gmtime(time.time() - 2 * 86400))
     known, seen, added = _known(), set(), 0
     for t in find_tickets(cond):
@@ -729,7 +793,7 @@ def sync():
         added += not have
         time.sleep(0.3)
     if first:
-        store.set_setting("sso_found_2026_v2", "yes", "sso")
+        store.set_setting("sso_found_2026_v3", "yes", "sso")
     if seen:
         sys.stderr.write("[sso] search: %d SSO ticket(s) looked at, %d new\n" % (len(seen), added))
 
@@ -739,7 +803,7 @@ def auto_check():
     looked up in the last hour: checked now (all of its records)."""
     cutoff = _now() - CHECK_EVERY_MS
     rows = store._read("SELECT id FROM sso_requests WHERE txt_value IS NOT NULL AND status IN ('pending', 'not_found', 'error') "
-                       "AND coalesce(ticket_status, '') NOT IN ('solved', 'closed') "
+                       "AND coalesce(ticket_status, '') NOT IN ('solved', 'closed') AND coalesce(relevance, '') <> 'not_sso' "
                        "AND (last_checked_ms IS NULL OR last_checked_ms < %s) ORDER BY requested_ms DESC", [cutoff], fresh=True)
     for (sid,) in rows:
         try:

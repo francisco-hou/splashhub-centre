@@ -236,6 +236,34 @@ def _refresh(tickets):
         c.close()
 
 
+CALL_SUBJECT = re.compile(r"^(?:call|voicemail|missed call|incoming call|outbound call|inbound call)\b", re.I)
+CALL_TAGS = {"voicemail", "hangup", "zopim_chat_ended_call"}
+
+
+def _is_call(channel, subject, tags):
+    """A phone call (Zendesk Talk): the voice channel, a "Call from / Voicemail
+    from ..." subject, or the voicemail / hangup tags. Not read: no customer text."""
+    tags = set((tags or "").split()) if isinstance(tags, str) else set(tags or [])
+    return (channel or "").lower() in ("voice", "phone") or bool(CALL_SUBJECT.match((subject or "").strip())) or bool(tags & CALL_TAGS)
+
+
+def _hide_old_calls():
+    """Calls read before they were skipped: out of the list too (never one a person tagged)."""
+    rows = store._read("SELECT ticket_id, channel, subject, zd_tags FROM autotag WHERE state <> 'skipped' AND applied_ms IS NULL", [], fresh=True)
+    ids = [int(r[0]) for r in rows if _is_call(r[1], r[2], r[3])]
+    if not ids:
+        return
+    c = store.connect(True)
+    try:
+        cur = c.cursor()
+        for tid in ids:
+            cur.execute(store._q("UPDATE autotag SET state = 'skipped', method = 'skip', reason = 'phone call', lang = NULL, tag = NULL, "
+                                 "confidence = NULL WHERE ticket_id = %s"), (tid,))
+        c.commit()
+    finally:
+        c.close()
+
+
 def run_once(force=False, limit=PER_ROUND):
     import spark, zendesk
     ensure()
@@ -247,6 +275,7 @@ def run_once(force=False, limit=PER_ROUND):
     since = max(s["since"], time.strftime("%Y-%m-%d", time.gmtime(time.time() - 3 * 86400)))
     found = list(zendesk.search_tickets("type:ticket created>=%s" % since, max_pages=20))
     found = [t for t in found if (t.get("created_at") or "")[:10] >= s["since"]]
+    _hide_old_calls()
     known = _known([int(t["id"]) for t in found])
     _refresh([t for t in found if int(t["id"]) in known and known[int(t["id"])] != "waiting"])
     todo = sorted([t for t in found if int(t["id"]) not in known or known[int(t["id"])] == "waiting"], key=lambda t: t.get("created_at") or "")
@@ -258,6 +287,13 @@ def run_once(force=False, limit=PER_ROUND):
     for i in range(0, min(len(todo), limit), BATCH):
         batch, rows, ask = todo[i:i + BATCH], {}, []
         for t in batch:
+            channel = ((t.get("via") or {}).get("channel") or "")
+            if _is_call(channel, t.get("subject"), t.get("tags")):     # a phone call: skipped, its comments not even read
+                rows[int(t["id"])] = {"ticket_id": int(t["id"]), "created_ms": _ms(t.get("created_at")), "subject": (t.get("subject") or "")[:300],
+                                      "status": t.get("status"), "channel": channel, "requester": "", "sample": "",
+                                      "zd_tags": " ".join(t.get("tags") or []), "checked_ms": _now(), "seen_ms": _now(),
+                                      "lang": None, "tag": None, "confidence": None, "method": "skip", "state": "skipped", "reason": "phone call"}
+                continue
             text, email = _first_message(t)
             subject = t.get("subject") or ""
             if re.match(r"^(chat|conversation) with\b", subject.strip(), re.I):
@@ -268,7 +304,8 @@ def run_once(force=False, limit=PER_ROUND):
                    "checked_ms": _now(), "seen_ms": _now()}
             hit = next((p for p in skip if p and (p in text.lower() or p in (t.get("description") or "").lower())), None)
             if hit:
-                row.update(lang=None, tag=None, confidence=None, method="skip", state="skipped", reason='skip phrase "%s"' % hit)
+                row.update(lang=None, tag=None, confidence=None, method="skip", state="skipped",
+                           reason="provisioning request" if "provision" in hit else 'skip phrase "%s"' % hit)
             elif email and email in s["jp_emails"]:
                 row.update(lang="Japanese", tag=TAG_OF["Japanese"], confidence="high", method="requester", state="held",
                            reason="always-Japanese requester")
@@ -375,6 +412,8 @@ def search(q=None, lang=None, state=None, match=None, verdict=None, page=0, per_
     if state:
         where.append("state = %s")
         args.append(state)
+    else:
+        where.append("state <> 'skipped'")              # provisioning requests and phone calls: not on the list
     if verdict == "unchecked":
         where.append("verdict IS NULL AND state IN ('held', 'none')")
     elif verdict:
@@ -395,7 +434,7 @@ def status():
     rows = store._read("SELECT lang, state, zd_tags, verdict, created_ms FROM autotag", [], fresh=True)
     by_lang, held, none, skipped, waiting, same, differs, no_tag, right, wrong, today = {}, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     for lang, state, zd, verdict, cms in rows:
-        if cms and cms >= now - 86400000:
+        if state != "skipped" and cms and cms >= now - 86400000:
             today += 1
         if state == "held":
             held += 1
@@ -413,7 +452,7 @@ def status():
             no_tag += m == "no_tag"
         right += verdict == "right"
         wrong += verdict == "wrong"
-    return dict(s, total=len(rows), last_24h=today, held=held, none=none, skipped=skipped, waiting=waiting,
+    return dict(s, total=len(rows) - skipped, last_24h=today, held=held, none=none, skipped=skipped, waiting=waiting,
                 same=same, differs=differs, no_tag=no_tag, right=right, wrong=wrong,
                 languages=sorted(({"lang": k, "n": v} for k, v in by_lang.items()), key=lambda x: -x["n"]),
                 choices=[l for l, _ in LANGS], last_ms=STATE["last_ms"], error=STATE["error"], busy=STATE["busy"], bulk=dict(BULK))
