@@ -438,6 +438,8 @@ def search(q=None, status=None, region=None, when=None, year=None, page=0, per_p
         where.append("status = %s"); args.append(status)
     if region in ("US", "EMEA", "JP", "On-Prem"):
         where.append("region = %s"); args.append(region)
+    elif region == "intl":                                  # the US / EMEA menu: every order that isn't JP
+        where.append("coalesce(region, '') <> 'JP'")
     today = time.strftime("%Y-%m-%d", time.gmtime())
     if when == "upcoming":
         where.append("expected >= %s"); args.append(today)
@@ -463,18 +465,21 @@ def search(q=None, status=None, region=None, when=None, year=None, page=0, per_p
     return {"total": int(total or 0), "page": page, "per_page": per_page, "rows": [_card(r) for r in rows]}
 
 
-def overview():
+def overview(scope=None):
+    """The numbers at the top -- for every order, or one menu's: scope jp (JP
+    orders) or intl (US, EMEA, On-Prem)."""
     ensure()
     today = time.strftime("%Y-%m-%d", time.gmtime())
     week = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 7 * 86400))
-    one = lambda sql, a=(): int(store._read(sql, list(a))[0][0] or 0)
+    sc = {"jp": "region = 'JP'", "intl": "coalesce(region, '') <> 'JP'"}.get(scope, "1 = 1")
+    one = lambda sql, a=(): int(store._read(sql.replace("po_requests WHERE ", "po_requests WHERE " + sc + " AND "), list(a))[0][0] or 0)
     years = [{"year": y, "n": int(n)} for y, n in store._read(
-        "SELECT %s AS y, count(*) FROM po_requests WHERE created_ms IS NOT NULL GROUP BY y ORDER BY y DESC" % (
+        "SELECT %s AS y, count(*) FROM po_requests WHERE %s AND created_ms IS NOT NULL GROUP BY y ORDER BY y DESC" % (
             "to_char(to_timestamp(created_ms / 1000), 'YYYY')" if store.backend() == "postgres"
-            else "strftime('%Y', created_ms / 1000, 'unixepoch')"), [])]
+            else "strftime('%Y', created_ms / 1000, 'unixepoch')", sc), [])]
     regions = [{"region": r, "n": int(n)} for r, n in store._read(
-        "SELECT region, count(*) FROM po_requests GROUP BY region ORDER BY count(*) DESC", [])]
-    return {"total": one("SELECT count(*) FROM po_requests"),
+        "SELECT region, count(*) FROM po_requests WHERE %s GROUP BY region ORDER BY count(*) DESC" % sc, [])]
+    return {"total": one("SELECT count(*) FROM po_requests WHERE 1 = 1"),
             "open": one("SELECT count(*) FROM po_requests WHERE status IN ('new', 'open', 'pending', 'hold')"),
             "due_week": one("SELECT count(*) FROM po_requests WHERE expected >= %s AND expected <= %s AND status IN "
                             "('new', 'open', 'pending', 'hold')", (today, week)),

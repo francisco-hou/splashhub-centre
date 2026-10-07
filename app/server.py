@@ -405,7 +405,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(po.status())
             if u.path == "/api/po/overview":
                 import po
-                return self.json(po.overview())
+                return self.json(po.overview(((qs.get("scope") or [""])[0]).strip() or None))
             if u.path == "/api/po/search":
                 import po
                 one = lambda k: ((qs.get(k) or [""])[0]).strip()

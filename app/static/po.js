@@ -8,6 +8,20 @@
   'use strict';
 
   var S = { q: '', status: '', region: '', when: '', year: '', page: 0, rows: [], open: null };
+  // which menu this is: ?r=jp (JP POs) or ?r=intl (US / EMEA POs: everything but JP); none = every order
+  var SCOPE = (/[?&]r=(jp|intl)\b/.exec(location.search) || [])[1] || '';
+  (function () {
+    var a = document.querySelector('.snav-item[data-po="' + SCOPE + '"]');
+    if (a) { a.classList.add('active'); a.setAttribute('aria-current', 'page'); }
+    var title = { jp: 'JP POs', intl: 'US / EMEA POs' }[SCOPE];
+    if (title) {
+      document.querySelector('.hdr-title').textContent = title;
+      document.title = title + ' · SplashHub Centre';
+    }
+    var reg = document.getElementById('region');
+    if (SCOPE === 'jp') reg.hidden = true;                         // all JP already
+    if (SCOPE === 'intl') [].forEach.call(reg.options, function (o) { if (o.value === 'JP') o.remove(); });
+  })();
   var seq = 0;           // the newest list request; an older answer is dropped
   var ZD = '';
   var OPEN = { new: 1, open: 1, pending: 1, hold: 1 };
@@ -49,7 +63,7 @@
   load();
 
   function overview() {
-    api('/api/po/overview').then(function (o) {
+    api('/api/po/overview' + (SCOPE ? '?scope=' + SCOPE : '')).then(function (o) {
       $('empty').hidden = o.total > 0;
       var stat = function (label, value, sub, cls) {
         return '<div class="stat"><div class="stat-label">' + label + '</div><div class="stat-value ' + (cls || '') + '">' + value + '</div><div class="stat-sub">' + sub + '</div></div>';
@@ -71,6 +85,7 @@
     var my = ++seq;
     var p = ['page=' + S.page];
     ['q', 'status', 'region', 'when', 'year'].forEach(function (k) { if (S[k]) p.push(k + '=' + encodeURIComponent(S[k])); });
+    if (!S.region && SCOPE) p.push('region=' + (SCOPE === 'jp' ? 'JP' : 'intl'));     // the menu's own orders
     api('/api/po/search?' + p.join('&')).then(function (d) {
       if (my !== seq) return;
       S.rows = d.rows;

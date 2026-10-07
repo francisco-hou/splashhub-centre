@@ -1172,3 +1172,12 @@ textarea.ad-ta { min-height: 230px; height: auto; }
 .wiki-hit { background: #fff3b0; border-radius: 2px; }
 .wiki-none { color: #78838f; padding: 16px 4px; }
 @media (max-width: 900px) { .wiki { grid-template-columns: 1fr; } .wiki-toc { position: static; max-height: none; } .wiki-t td:first-child { white-space: normal; } }
+.wiki-fig { margin: 12px 0 14px; padding: 12px 12px 8px; border: 1px solid #e4e6ea; border-radius: 10px; background: #fbfcfd; }
+.wiki-fig svg { width: 100%; height: auto; display: block; font-family: inherit; }
+.wiki-fig figcaption { font-size: 12px; color: #78838f; margin-top: 6px; text-align: center; }
+.wiki-pager { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.wiki-pager a { display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border: 1px solid #e4e6ea; border-radius: 10px; background: #fff; color: #1d242c; text-decoration: none; }
+.wiki-pager a:hover { border-color: #9cc3e8; background: #f7fbff; }
+.wiki-pager a span { font-size: 12px; color: #78838f; }
+.wiki-pager .wp-next { text-align: right; grid-column: 2; }
+.wiki-sec { margin-bottom: 0; }
