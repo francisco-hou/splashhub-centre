@@ -111,7 +111,7 @@
         '<div class="muted">' + esc(when(r.created_ms)) + (r.requester ? ' · ' + esc(r.requester) : '') + (r.channel ? ' · ' + esc(r.channel) : '') + ' · ' + tstatus(z.status || r.status) + '</div></div>' +
       silent +
       '<div class="at-grid"><div class="at-box"><div class="at-k">Spark says</div><div><span class="at-b ad-b">Ad / spam</span> ' + esc(r.confidence || '') + ' confidence</div>' +
-        (r.why ? '<div>' + esc(r.why) + '</div>' : '') + '<div class="muted"><a href="/settings#sparklog-' + r.ticket_id + '">What Spark read and answered</a> (admins)</div></div>' +
+        (r.why ? '<div>' + esc(r.why) + '</div>' : '') + '<div class="muted"><a href="/sparklog#t-' + r.ticket_id + '">What Spark read and answered</a> (admins)</div></div>' +
       '<div class="at-box"><div class="at-k">In Zendesk now</div><div>' + tstatus(z.status || r.status) + '</div>' +
         '<div class="muted ad-tags">' + (z.tags && z.tags.length ? z.tags.map(function (t) { return '<code>' + esc(t) + '</code>'; }).join(' ') : 'no tags') + '</div></div></div>' +
       convo(z, r) +

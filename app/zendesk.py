@@ -201,6 +201,33 @@ def change_tags(ticket_id, add=(), remove=()):
     return tags
 
 
+def conversation(ticket_id, max_pages=3):
+    """(ticket, [messages]) -- the ticket as Zendesk has it now, and every reply
+    and internal note, oldest first: {kind: customer | agent | note, who, ms, text}."""
+    import calendar, time as _t
+    tid = int(ticket_id)
+    t = (get_json("/api/v2/tickets/%d.json?include=users" % tid).get("ticket") or {})
+    out, users, url, pages = [], {}, "/api/v2/tickets/%d/comments.json?page[size]=100&include=users" % tid, 0
+    while url and pages < max_pages:
+        d = get_json(url)
+        pages += 1
+        users.update({u.get("id"): u for u in d.get("users") or []})
+        for c in d.get("comments") or []:
+            u = users.get(c.get("author_id")) or {}
+            kind = "note" if c.get("public") is False else (
+                "customer" if c.get("author_id") == t.get("requester_id") or u.get("role") == "end-user" else "agent")
+            try:
+                ms = int(calendar.timegm(_t.strptime((c.get("created_at") or "")[:19], "%Y-%m-%dT%H:%M:%S")) * 1000)
+            except ValueError:
+                ms = None
+            out.append({"kind": kind, "who": u.get("name") or u.get("email") or "", "ms": ms,
+                        "text": (c.get("plain_body") or c.get("body") or "")[:8000]})
+        nxt = (d.get("links") or {}).get("next") if (d.get("meta") or {}).get("has_more") else None
+        url = nxt[len(base_url()):] if nxt and nxt.startswith(base_url()) else None
+    t["_requester"] = (users.get(t.get("requester_id")) or {}).get("email") or ""
+    return t, out
+
+
 _FIELD_OPTS = {}
 
 

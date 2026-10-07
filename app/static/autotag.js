@@ -136,7 +136,7 @@
       '<div class="muted">' + esc(when(r.created_ms)) + (r.channel ? ' · ' + esc(r.channel) : '') + (r.requester ? ' · ' + esc(r.requester) : '') + (r.status ? ' · ' + esc(r.status) : '') + '</div></div>' +
       '<div class="at-grid"><div class="at-box"><div class="at-k">Spark says</div><div>' + said + '</div>' +
         (r.tag ? '<div class="muted">Would add <code>' + esc(r.tag) + '</code></div>' : '') +
-        (r.method === 'spark' ? '<div class="muted"><a href="/settings#sparklog-' + r.ticket_id + '">See what Spark read and answered</a> (admins)</div>' : '') + '</div>' +
+        (r.method === 'spark' ? '<div class="muted"><a href="/sparklog#t-' + r.ticket_id + '">See what Spark read and answered</a> (admins)</div>' : '') + '</div>' +
       '<div class="at-box"><div class="at-k">In Zendesk now</div><div>' + (r.zd_lang ? '<b>' + esc(r.zd_lang) + '</b> <code>' + esc(tagOf(r.zd_lang)) + '</code>' : 'No language tag') + '</div>' +
         (r.match === 'differs' ? '<div class="at-diff">Differs from Spark</div>' : r.match === 'same' ? '<div class="at-ok">Same as Spark</div>' : '') + '</div></div>' +
       '<div class="at-k">What Spark read <span class="muted">(subject + the customer&rsquo;s first message)</span></div>' +

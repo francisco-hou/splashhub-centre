@@ -186,6 +186,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("tags.html", "text/html; charset=utf-8")
             if u.path in ("/autotag", "/autotag.html"):
                 return self.static("autotag.html", "text/html; charset=utf-8")
+            if u.path in ("/sparklog", "/sparklog.html"):
+                return self.static("sparklog.html", "text/html; charset=utf-8")
             if u.path in ("/adfilter", "/adfilter.html"):
                 return self.static("adfilter.html", "text/html; charset=utf-8")
             if u.path in ("/me", "/me.html"):
@@ -209,7 +211,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path in ("/customers", "/customers.html"):
                 return self.static("customers.html", "text/html; charset=utf-8")
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/splashtop-icon.png"):
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/sparklog.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -330,6 +332,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 except ValueError:
                     pg = 0
                 return self.json(sparklog.search(area=g("area") or None, ticket=g("ticket") or None, changed=g("changed") or None, page=pg))
+            m = re.match(r"^/api/ticket-preview/(\d+)$", u.path)
+            if m:                                       # Spark activity's pop-up: one ticket and its whole conversation (admin)
+                if not self.authed():
+                    return self.json({"error": "login required"}, 401)
+                try:
+                    t, convo = zendesk.conversation(int(m.group(1)))
+                except zendesk.ZendeskError as e:
+                    return self.json({"error": str(e)}, 502)
+                return self.json({"id": t.get("id"), "subject": t.get("subject") or "", "status": t.get("status") or "",
+                                  "tags": t.get("tags") or [], "requester": t.get("_requester") or "", "created_at": t.get("created_at"),
+                                  "conversation": convo, "zendesk_url": zendesk.base_url()})
             m = re.match(r"^/api/spark-log/(\d+)$", u.path)
             if m:
                 if not self.authed():
