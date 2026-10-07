@@ -124,6 +124,10 @@ ADDED_COLUMNS = [
     ("sso_requests", "records_json", "TEXT"),   # every splashtop-sso-challenge record in the ticket + its last check
     ("sso_requests", "ticket_status", "TEXT"),  # the Zendesk ticket's status (solved/closed: no automatic checks)
     ("sso_requests", "ticket_updated", "TEXT"), # the ticket's updated_at when its conversation was last read
+    ("sso_requests", "stage", "TEXT"),          # where it stands in the conversation (ssocheck._stage)
+    ("sso_requests", "stage_note", "TEXT"),
+    ("sso_requests", "stage_ms", "BIGINT"),
+    ("sso_requests", "stage_for", "TEXT"),      # the customer comment Spark read (asked once per reply)
 ]
 
 
@@ -536,9 +540,11 @@ def scans(q=None, verdict=None, page=0, per_page=50):
 
 SSO_COLS = ("id", "ticket_id", "requested_ms", "source", "subject", "description", "requester_email", "organization",
             "domain", "txt_name", "txt_value", "parse_note", "status", "checks", "last_checked_ms", "verified_ms",
-            "last_result_json", "history_json", "note_json", "records_json", "ticket_status", "ticket_updated")
+            "last_result_json", "history_json", "note_json", "records_json", "ticket_status", "ticket_updated",
+            "stage", "stage_note", "stage_ms", "stage_for")
 SSO_LIST_COLS = ("id", "ticket_id", "requested_ms", "source", "subject", "requester_email", "organization",
-                 "domain", "status", "checks", "last_checked_ms", "verified_ms", "note_json", "records_json", "ticket_status")
+                 "domain", "status", "checks", "last_checked_ms", "verified_ms", "note_json", "records_json", "ticket_status",
+                 "stage", "stage_note")
 
 
 def sso_upsert(ticket_id, source, requested_ms):
@@ -601,9 +607,16 @@ def sso_waiting_ids():
                                 "ORDER BY requested_ms DESC", [], fresh=True)]
 
 
-def sso_list(q=None, status=None, page=0, per_page=50):
+def sso_list(q=None, status=None, page=0, per_page=50, tview="open"):
+    """tview: open (the default -- every ticket not solved or closed: those need
+    no further action), done (solved / closed) or all."""
     ensure_schema()
     where, args = [], []
+    if tview == "done":
+        where.append("ticket_status IN ('solved', 'closed')")
+    elif tview != "all":
+        where.append("coalesce(ticket_status, '') NOT IN ('solved', 'closed')")
+    view = list(where)
     if status in ("needs_details", "pending", "not_found", "verified", "error"):
         where.append("status = %s"); args.append(status)
     elif status == "waiting":
@@ -619,7 +632,7 @@ def sso_list(q=None, status=None, page=0, per_page=50):
     page = max(0, int(page))
     rows = _read("SELECT " + ", ".join(SSO_LIST_COLS) + " FROM sso_requests" + w +
                  " ORDER BY requested_ms DESC, id DESC LIMIT %d OFFSET %d" % (per_page, page * per_page), args)
-    counts = dict(_read("SELECT status, count(*) FROM sso_requests GROUP BY status", []))
+    counts = dict(_read("SELECT status, count(*) FROM sso_requests" + ((" WHERE " + view[0]) if view else "") + " GROUP BY status", []))
     return {"total": total, "page": page, "per_page": per_page,
             "rows": [dict(zip(SSO_LIST_COLS, r)) for r in rows], "counts": counts}
 

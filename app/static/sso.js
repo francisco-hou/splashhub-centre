@@ -8,7 +8,7 @@
 (function () {
   'use strict';
 
-  var S = { status: '', q: '', page: 0, open: null };
+  var S = { status: '', q: '', page: 0, open: null, tview: 'open' };   // opens on the tickets that need action
   var LABEL = { needs_details: 'Needs details', pending: 'Not checked', not_found: 'Not found yet', verified: 'Verified', error: 'Check failed' };
   var CHIPS = [['', 'All'], ['waiting', 'Waiting'], ['verified', 'Verified'], ['not_found', 'Not found yet'],
                ['pending', 'Not checked'], ['needs_details', 'Needs details'], ['error', 'Check failed']];
@@ -35,6 +35,22 @@
   var TSTATUS = { new: 'New', open: 'Open', pending: 'Pending', hold: 'On-hold', solved: 'Solved', closed: 'Closed' };
   function tstatus(st) {
     return st ? '<span class="tst tst-' + esc(st) + '">' + esc(TSTATUS[st] || st) + '</span>' : '<span class="muted">—</span>';
+  }
+  // where it stands (ssocheck._stage): rules for the facts; the customer's latest reply read by Spark
+  var STAGE = { enabled: 'Verified & enabled', no_records: 'Records not sent yet', sent: 'Waiting for the customer',
+    says_done: 'Customer says it’s added', stuck: 'Customer has a question', waiting: 'Customer waiting on their side', replied: 'Customer replied' };
+  var BY_SPARK = { says_done: 1, stuck: 1, waiting: 1, replied: 1 };
+  function stageTxt(r) {
+    if (!r.stage) return '';
+    var t = STAGE[r.stage] || r.stage;
+    if (r.stage === 'says_done' && r.status !== 'verified' && r.last_checked_ms) t += ' — not in DNS yet';
+    return t;
+  }
+  function stageLine(r) {
+    var t = stageTxt(r); if (!t) return '';
+    var warn = r.stage === 'stuck' || (r.stage === 'says_done' && r.status !== 'verified');
+    return '<div class="sso-stage' + (warn ? ' warn' : r.stage === 'enabled' || r.stage === 'says_done' ? ' ok' : '') + '" title="' +
+      esc((r.stage_note || '') + (BY_SPARK[r.stage] ? ' (read by Spark)' : '')) + '">' + esc(t) + '</div>';
   }
   function api(path, opts) {
     return fetch(path, Object.assign({ credentials: 'same-origin' }, opts || {})).then(function (r) {
@@ -115,6 +131,8 @@
       .then(function () { $('addBtn').disabled = false; });
   });
 
+  $('tview').addEventListener('change', function () { S.tview = this.value; S.page = 0; lastSig = ''; load(); });
+
   // ---- list --------------------------------------------------------------------------
   var seq = 0, lastSig = '';
   // The refresh icon (top right) turns while the list is being checked: on a
@@ -131,11 +149,11 @@
   function load() {
     var my = ++seq;
     spinOn();
-    var p = 'page=' + S.page + (S.status ? '&status=' + encodeURIComponent(S.status) : '') + (S.q ? '&q=' + encodeURIComponent(S.q) : '');
+    var p = 'page=' + S.page + '&tview=' + S.tview + (S.status ? '&status=' + encodeURIComponent(S.status) : '') + (S.q ? '&q=' + encodeURIComponent(S.q) : '');
     api('/api/sso?' + p).then(function (res) {
       spinOff();
       if (my !== seq) return;
-      var sig = JSON.stringify([p, res.total, res.counts, res.rows.map(function (r) { return [r.id, r.status, r.domain, r.last_checked_ms, r.note_json, r.ticket_status]; })]);
+      var sig = JSON.stringify([p, res.total, res.counts, res.rows.map(function (r) { return [r.id, r.status, r.domain, r.last_checked_ms, r.note_json, r.ticket_status, r.stage, r.stage_note]; })]);
       if (sig !== lastSig) { lastSig = sig; drawChips(res.counts); drawRows(res); }
       var d = new Date();
       $('stamp').textContent = 'Updated ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
@@ -155,6 +173,8 @@
     $('count').textContent = res.total ? 'newest first · ' + res.total + (res.total === 1 ? ' request' : ' requests') : '';
     if (!res.rows.length) {
       $('rows').innerHTML = '<tr class="empty-row"><td colspan="7">' + (S.status || S.q ? 'No requests match.' :
+        S.tview === 'open' ? 'Nothing needs action right now. Solved and closed tickets are under the ticket-status filter.' :
+        S.tview === 'done' ? 'No solved or closed SSO tickets yet.' :
         'No SSO requests yet. SplashHub Centre looks for them every 15 minutes (tickets tagged single_sign-on__sso_ or with a splashtop-sso-challenge record); Import past SSO requests finds the ones from 2026.') + '</td></tr>';
     } else {
       $('rows').innerHTML = res.rows.map(function (r) {
@@ -162,7 +182,7 @@
           '<td class="when">' + esc(whenTxt(r.requested_ms)) + '</td>' +
           '<td><a href="' + esc(ZD) + '/agent/tickets/' + r.ticket_id + '" target="_blank" rel="noopener" class="tlink">#' + r.ticket_id + '</a></td>' +
           '<td>' + tstatus(r.ticket_status) + '</td>' +
-          '<td>' + pill(r.status) + (r.note_json ? ' <span class="noted" title="An internal note was added">&#10003; note</span>' : '') + '</td>' +
+          '<td>' + pill(r.status) + (r.note_json ? ' <span class="noted" title="An internal note was added">&#10003; note</span>' : '') + stageLine(r) + '</td>' +
           '<td class="topic">' + (r.domain ? esc(r.domain) + more(r) : '<span class="muted">—</span>') + '</td>' +
           '<td>' + (r.requester_email ? esc(r.requester_email) : '<span class="muted">—</span>') + '</td>' +
           '<td class="when">' + (r.last_checked_ms ? esc(whenTxt(r.last_checked_ms)) : '<span class="muted">never</span>') + '</td></tr>';
@@ -217,6 +237,7 @@
         kv('Requester', s.requester_email ? esc(s.requester_email) : '<span class="muted">—</span>') +
         '<div><span class="pn-k">Ticket</span><a class="pn-v" href="' + esc(s.zendesk_url) + '/agent/tickets/' + s.ticket_id + '" target="_blank" rel="noopener">#' + s.ticket_id + '</a></div>' +
         kv('Ticket status', tstatus(s.ticket_status)) +
+        (s.stage ? kv('Where it stands', esc(stageTxt(s)) + (s.stage_note ? '<div class="muted">' + esc(s.stage_note) + (BY_SPARK[s.stage] ? ' · read by Spark' : '') + '</div>' : '')) : '') +
         (s.organization ? kv('Organization', esc(s.organization)) : '') +
       '</div></header>';
     // the record, correctable

@@ -418,6 +418,7 @@ def read_ticket(sso_id, ticket_id, t=None):
     texts = [x for c in comments for x in (c.get("html_body"), c.get("body"), c.get("plain_body")) if x] + [t.get("description") or ""]
     recs = records_in(texts)
     row = store.sso_get(sso_id, fresh=True) or {}
+    stage_upd, says_done = _stage(t, comments, recs, row)
     upd = dict(subject=(t.get("subject") or "")[:300] or None, description=(t.get("description") or "")[:20000] or None,
                requester_email=(users.get(t.get("requester_id")) or {}).get("email") or row.get("requester_email"),
                organization=(orgs.get(t.get("organization_id")) or {}).get("name") or row.get("organization"),
@@ -442,8 +443,67 @@ def read_ticket(sso_id, ticket_id, t=None):
         else:
             upd.update(status="needs_details", parse_note="No splashtop-sso-challenge record in the ticket yet -- "
                        "the records go out in the agent's reply (SplashHub's SSO tool).")
+    upd.update(stage_upd)
     store.sso_update(sso_id, **upd)
+    if says_done and (not row.get("last_checked_ms") or _now() - row["last_checked_ms"] > 300000) and (upd.get("txt_value") or row.get("txt_value")):
+        try:                                               # the customer says it's added: look now, not in an hour
+            check(sso_id, "Customer says it's added")
+        except Exception as e:
+            sys.stderr.write("[sso] check after the customer's reply: %s\n" % type(e).__name__)
     return recs
+
+
+# ---- where it stands: plain rules for the facts, Spark only for the customer's latest reply -----------
+
+STAGES = ("enabled", "no_records", "sent", "says_done", "stuck", "waiting", "replied")
+
+
+def _text(c):
+    return _plain(c.get("html_body") or c.get("body") or c.get("plain_body") or "")
+
+
+def _ask_stage(reply):
+    """Spark reads the customer's latest reply: (stage, short note)."""
+    import spark
+    system = ("A support ticket about verifying a domain for single sign-on (SSO). The agent sent DNS TXT records for the "
+              "customer to add. Read the CUSTOMER's latest reply and answer with JSON only: "
+              '{"stage": "says_done|stuck|waiting|replied", "note": "<at most 10 words>"}. '
+              "says_done: they say the record is added, or ask us to check / verify now. stuck: a problem, an error, or a "
+              "question about adding it. waiting: they need time, or someone else (their IT, DNS provider, manager) is doing it. "
+              "replied: anything else. Ignore signatures and quoted earlier messages.")
+    raw = spark.chat(system, reply[:1500], max_tokens=200)
+    got = json.loads(raw[raw.find("{"):raw.rfind("}") + 1] or "{}")
+    st = str(got.get("stage") or "").strip().lower()
+    return (st if st in ("says_done", "stuck", "waiting", "replied") else "replied"), str(got.get("note") or "")[:120]
+
+
+def _stage(t, comments, recs, row):
+    """({stage, stage_note, stage_ms, stage_for}, says_done now?) -- the
+    verified-and-enabled reply and the records are spotted by rule; only a
+    customer reply after the records goes to Spark, once per reply."""
+    req = t.get("requester_id")
+    pub = [c for c in comments if c.get("public", True)]
+    agent_text = " ".join(_text(c).lower() for c in pub if c.get("author_id") != req)
+    if "verified the dns" in agent_text and "enabled the sso method" in agent_text:
+        return dict(stage="enabled", stage_note="The agent sent the verified & enabled reply", stage_ms=_now(), stage_for=None), False
+    if not recs:
+        return dict(stage="no_records", stage_note="The agent hasn't sent the DNS records yet", stage_ms=_now(), stage_for=None), False
+    sent = next((i for i, c in enumerate(pub) if "splashtop-sso-challenge" in (str(c.get("html_body") or "") + str(c.get("body") or "")).lower()), None)
+    last = pub[-1] if pub else None
+    if last is None or sent is None or len(pub) - 1 <= sent or last.get("author_id") != req:
+        return dict(stage="sent", stage_note="Waiting for the customer to add the DNS record", stage_ms=_now(), stage_for=None), False
+    key = str(last.get("id") or len(pub))
+    if row.get("stage_for") == key and row.get("stage"):     # this reply was read already
+        return {}, False
+    try:
+        import spark
+        if not spark.available():
+            raise RuntimeError("Spark isn't set up")
+        st, note = _ask_stage(_text(last))
+    except Exception as e:                                  # no Spark: say so plainly; asked again on the next update
+        sys.stderr.write("[sso] Spark stage skipped: %s\n" % type(e).__name__)
+        return dict(stage="replied", stage_note="The customer replied", stage_ms=_now(), stage_for=None), False
+    return dict(stage=st, stage_note=note or None, stage_ms=_now(), stage_for=key), st == "says_done"
 
 
 def _fetch(sso_id, ticket_id):
@@ -531,7 +591,7 @@ def _run_import():
                 add(batch); batch = []
         if batch and not IMPORT.get("stop"):
             add(batch)
-        store.set_setting("sso_found_2026", "yes", "import")
+        store.set_setting("sso_found_2026_v2", "yes", "import")
     except (sosscan.ScanError, zendesk.ZendeskError) as e:
         IMPORT["error"] = str(e)[:400]
     except Exception as e:
@@ -640,7 +700,9 @@ def find_tickets(cond):
 
 
 def _known():
-    return {int(r[0]): (r[1], r[2]) for r in store._read("SELECT ticket_id, id, ticket_updated FROM sso_requests", [], fresh=True)}
+    """{ticket: (request id, updated_at when read -- None when it has no stage yet, so it is read again)}"""
+    return {int(r[0]): (r[1], r[2] if r[3] else None)
+            for r in store._read("SELECT ticket_id, id, ticket_updated, stage FROM sso_requests", [], fresh=True)}
 
 
 def sync():
@@ -648,7 +710,7 @@ def sync():
     (a reply with the records, a status change). The first time: all of 2026."""
     if zendesk.configured():
         return
-    first = store.get_setting("sso_found_2026", "") != "yes"
+    first = store.get_setting("sso_found_2026_v2", "") != "yes"
     cond = "created>=2026-01-01" if first else "updated>=" + time.strftime("%Y-%m-%d", time.gmtime(time.time() - 2 * 86400))
     known, seen, added = _known(), set(), 0
     for t in find_tickets(cond):
@@ -667,7 +729,7 @@ def sync():
         added += not have
         time.sleep(0.3)
     if first:
-        store.set_setting("sso_found_2026", "yes", "sso")
+        store.set_setting("sso_found_2026_v2", "yes", "sso")
     if seen:
         sys.stderr.write("[sso] search: %d SSO ticket(s) looked at, %d new\n" % (len(seen), added))
 

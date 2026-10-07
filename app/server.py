@@ -431,7 +431,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     page = int(one("page") or 0)
                 except ValueError:
                     page = 0
-                return self.json(store.sso_list(one("q")[:80] or None, one("status") or None, page, 50))
+                return self.json(store.sso_list(one("q")[:80] or None, one("status") or None, page, 50, one("tview") or "open"))
             m = re.match(r"^/api/sso/(\d+)/note$", u.path)
             if m:
                 row = store.sso_get(int(m.group(1)))
