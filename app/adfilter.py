@@ -3,8 +3,10 @@ is unsolicited marketing / spam -- someone selling a service to Splashtop (SEO,
 backlinks, website traffic, ads, development...) -- or a real request. The ones
 it calls ads are listed on the Ad filter page to be checked (Right / Wrong).
 
-HELD, NOT ACTED ON: nothing is changed in Zendesk. Later, once the checks show
-it is reliable, these could be silently closed.
+HELD: nothing is changed in Zendesk by itself. A person can open a ticket's
+preview and press Silent close (confirmed twice): one Zendesk update adds a
+private note "Silent-Close" and the silent_close tag -- nothing is sent to the
+customer; Zendesk's own triggers do the rest.
 
 Its own Zendesk search, every 2 minutes: tickets created from the start day
 (the day before it was first switched on), whatever their status. Each new
@@ -47,10 +49,11 @@ We help businesses improve rankings, increase website authority, and generate mo
 Would you like me to share our SEO packages and a few suggestions for your websites?""",
 ]
 COLS = ("ticket_id", "created_ms", "subject", "requester", "sample", "spam", "confidence", "why", "checked_ms",
-        "verdict", "reviewed_ms", "status", "channel")
+        "verdict", "reviewed_ms", "status", "channel", "silent_ms")
 DDL = """CREATE TABLE IF NOT EXISTS adfilter (
     ticket_id BIGINT PRIMARY KEY, created_ms BIGINT, subject TEXT, requester TEXT, sample TEXT, spam INTEGER,
-    confidence TEXT, why TEXT, checked_ms BIGINT, verdict TEXT, reviewed_ms BIGINT, status TEXT, channel TEXT)"""
+    confidence TEXT, why TEXT, checked_ms BIGINT, verdict TEXT, reviewed_ms BIGINT, status TEXT, channel TEXT,
+    silent_ms BIGINT)"""
 DONE = ("solved", "closed")
 _ready = False
 _lock = threading.Lock()
@@ -70,6 +73,12 @@ def ensure():
     try:
         cur = c.cursor()
         cur.execute(DDL)
+        if store.backend() == "postgres":                  # added after the table first shipped (0.12.7)
+            cur.execute("ALTER TABLE adfilter ADD COLUMN IF NOT EXISTS silent_ms BIGINT")
+        else:
+            cur.execute("PRAGMA table_info(adfilter)")
+            if "silent_ms" not in [r[1] for r in cur.fetchall()]:
+                cur.execute("ALTER TABLE adfilter ADD COLUMN silent_ms BIGINT")
         cur.execute("CREATE INDEX IF NOT EXISTS adfilter_created ON adfilter (created_ms)")
         c.commit()
     finally:
@@ -281,12 +290,13 @@ def search(view="open", q=None, page=0, per_page=50):
 def status():
     ensure()
     s = settings()
-    n, ads, open_ads, right, wrong = store._read(
+    n, ads, open_ads, right, wrong, silent = store._read(
         "SELECT count(*), sum(spam), sum(CASE WHEN spam = 1 AND coalesce(status, '') NOT IN ('solved', 'closed') THEN 1 ELSE 0 END), "
-        "sum(CASE WHEN verdict = 'right' THEN 1 ELSE 0 END), sum(CASE WHEN verdict = 'wrong' THEN 1 ELSE 0 END) FROM adfilter",
-        [], fresh=True)[0]
+        "sum(CASE WHEN verdict = 'right' THEN 1 ELSE 0 END), sum(CASE WHEN verdict = 'wrong' THEN 1 ELSE 0 END), "
+        "sum(CASE WHEN silent_ms IS NOT NULL THEN 1 ELSE 0 END) FROM adfilter", [], fresh=True)[0]
     return dict(s, checked=int(n or 0), ads=int(ads or 0), open_ads=int(open_ads or 0), done_ads=int(ads or 0) - int(open_ads or 0),
-                right=int(right or 0), wrong=int(wrong or 0), last_ms=STATE["last_ms"], error=STATE["error"], busy=STATE["busy"])
+                right=int(right or 0), wrong=int(wrong or 0), silent=int(silent or 0),
+                last_ms=STATE["last_ms"], error=STATE["error"], busy=STATE["busy"])
 
 
 def set_verdict(ticket_id, verdict):
@@ -303,3 +313,52 @@ def set_verdict(ticket_id, verdict):
         c.close()
     r = store._read("SELECT %s FROM adfilter WHERE ticket_id = %%s" % ", ".join(COLS), [int(ticket_id)], fresh=True)
     return dict(zip(COLS, r[0])) if r else None
+
+
+# ---- the preview, and Silent close ------------------------------------------------------------------
+
+def _get(tid):
+    r = store._read("SELECT %s FROM adfilter WHERE ticket_id = %%s" % ", ".join(COLS), [int(tid)], fresh=True)
+    return dict(zip(COLS, r[0])) if r else None
+
+
+def preview(ticket_id):
+    """What the page's preview shows: the row, and the ticket as Zendesk has it
+    now (its whole first message, status, tags)."""
+    import zendesk
+    ensure()
+    row = _get(ticket_id)
+    if not row:
+        raise ValueError("the Ad/Spam Filter hasn't read this ticket")
+    try:
+        t = (zendesk.get_json("/api/v2/tickets/%d.json" % int(ticket_id)).get("ticket") or {})
+        row.update(description=(t.get("description") or "")[:12000], tags=t.get("tags") or [], status=t.get("status") or row["status"],
+                   live=True)
+    except Exception as e:                       # Zendesk out of reach: what was kept
+        row.update(description=row.get("sample") or "", tags=[], live=False, live_error=str(e)[:200])
+    return row
+
+
+def silent_close(ticket_id):
+    """Silent close (a person, twice confirmed): a private note "Silent-Close"
+    and the silent_close tag on the Zendesk ticket, in one update. Marked here
+    (silent_ms) and counted as Spark being right."""
+    import zendesk
+    ensure()
+    tid = int(ticket_id)
+    row = _get(tid)
+    if not row:
+        raise ValueError("the Ad/Spam Filter hasn't read this ticket")
+    if row.get("silent_ms"):
+        raise ValueError("this ticket was silently closed already")
+    t = zendesk.silent_close(tid)
+    c = store.connect(True)
+    try:
+        c.cursor().execute(store._q("UPDATE adfilter SET silent_ms = %s, status = coalesce(%s, status), verdict = coalesce(verdict, 'right'), "
+                                    "reviewed_ms = coalesce(reviewed_ms, %s) WHERE ticket_id = %s"),
+                           (_now(), t.get("status"), _now(), tid))
+        c.commit()
+    finally:
+        c.close()
+    sys.stderr.write("[adfilter] #%d silently closed (private note + silent_close tag)\n" % tid)
+    return _get(tid)

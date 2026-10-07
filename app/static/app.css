@@ -1095,3 +1095,16 @@ main.page:not([hidden]) { animation: none; }
 .ad-more > td { background: #fafbfc; padding: 10px 16px 14px; }
 .ad-ta { max-width: 640px; font-size: 12.5px; }
 textarea.ad-ta { min-height: 230px; height: auto; }
+.ad-row { cursor: pointer; }
+.ad-row:hover { background: #f7fbff; }
+.ad-s { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-silent { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: #2f3941; color: #fff; }
+.ad-full { max-height: 340px; }
+.ad-tags code { margin: 0 2px 2px 0; display: inline-block; }
+.ad-act { gap: 8px; align-items: center; flex-wrap: wrap; }
+.ad-confirm { border: 1px solid #f3c2c2; background: #fff6f6; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.ad-sure { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+.btn.ad-danger { background: #c62d2d; border-color: #c62d2d; color: #fff; }
+.btn.ad-danger:disabled { opacity: .45; }
+.btn.ad-danger-o { border-color: #e5a3a3; color: #a3262b; }
+.ad-done { font-size: 13px; color: #2f3941; background: #eef1f4; border-radius: 8px; padding: 8px 12px; }

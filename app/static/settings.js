@@ -590,7 +590,7 @@
 })();
 
 
-/* Settings > AutoTag > Ad filter: on / off and the example ads Spark compares with. */
+/* Settings > AutoTag > Ad/Spam Filter: on / off and the example ads Spark compares with. */
 (function () {
   'use strict';
   function $(id) { return document.getElementById(id); }
@@ -605,7 +605,7 @@
       b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
     });
     $('adState').innerHTML = (s.on ? 'On' : 'Off') + ' · tickets created since ' + s.since + ', whatever their status · ' + s.checked.toLocaleString() +
-      ' scanned, ' + s.ads.toLocaleString() + ' were ads (<a href="/adfilter">Ad filter page</a>). Nothing is changed in Zendesk.' +
+      ' scanned, ' + s.ads.toLocaleString() + ' were ads (<a href="/adfilter">Ad/Spam Filter page</a>). Nothing is changed in Zendesk.' +
       (s.error ? ' Last round: ' + s.error : '');
     if (document.activeElement !== $('adEx')) $('adEx').value = s.examples.join('\n\n---\n\n');
   }
@@ -619,7 +619,7 @@
   });
   $('adSave').addEventListener('click', function () { save({ examples: $('adEx').value }, 'Saved — used from the next scan.'); });
   $('adRun').addEventListener('click', function () {
-    call('/api/adfilter/run', {}).then(function () { $('adMsg').textContent = 'Scanning now — ads show on the Ad filter page in a minute.'; })
+    call('/api/adfilter/run', {}).then(function () { $('adMsg').textContent = 'Scanning now — ads show on the Ad/Spam Filter page in a minute.'; })
       .catch(function (e) { $('adMsg').textContent = 'Could not start: ' + e.message; });
   });
   call('/api/adfilter').then(draw).catch(function () {});

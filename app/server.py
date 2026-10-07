@@ -341,6 +341,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # Ad filter: tickets Spark thinks are ads / spam, held here to be checked.
                 import adfilter
                 return self.json(adfilter.status())
+            m = re.match(r"^/api/adfilter/ticket/(\d+)$", u.path)
+            if m:                                       # the preview: the ticket as Zendesk has it now
+                import adfilter
+                try:
+                    return self.json(adfilter.preview(int(m.group(1))))
+                except ValueError as e:
+                    return self.json({"error": str(e)}, 404)
             if u.path == "/api/adfilter/list":
                 import adfilter
                 g = lambda k: (qs.get(k) or [""])[0]
@@ -627,6 +634,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             import adfilter
             try:
                 data = json.loads(raw or b"{}") or {}
+                if u.path == "/api/adfilter/silent-close":
+                    # Silent close (confirmed twice on the page): a private note "Silent-Close" + the silent_close tag.
+                    import zendesk
+                    try:
+                        return self.json(adfilter.silent_close(int(data.get("ticket_id"))))
+                    except zendesk.ZendeskError as e:
+                        return self.json({"error": str(e)}, 502)
                 if u.path == "/api/adfilter/verdict":
                     return self.json(adfilter.set_verdict(int(data.get("ticket_id")), str(data.get("verdict") or "")))
                 if u.path == "/api/adfilter/settings":

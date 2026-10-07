@@ -201,6 +201,19 @@ def change_tags(ticket_id, add=(), remove=()):
     return tags
 
 
+def silent_close(ticket_id, note="Silent-Close", tag="silent_close"):
+    """The Ad/Spam Filter's Silent close: ONE ticket update -- a private note
+    (public: false, never sent to the requester) and the silent_close tag added
+    to the ticket's tags. Nothing else changes here; what the tag then does is
+    Zendesk's own (its triggers). Returns the ticket as Zendesk has it after."""
+    body = json.dumps({"ticket": {"comment": {"body": note, "public": False}, "additional_tags": [tag]}}).encode("utf-8")
+    data, _ = _open(base_url() + "/api/v2/tickets/%d.json" % int(ticket_id), method="PUT", body=body)
+    try:
+        return (json.loads(data or b"{}") or {}).get("ticket") or {}
+    except ValueError:
+        return {}
+
+
 def download(url):
     """An attachment's bytes. Tried first without credentials, the way the
     sidebar's browser fetch does (content_url is a signed link); with them only
