@@ -50,7 +50,7 @@ ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/se
              "/api/kb", "/api/po", "/api/notify", "/api/teams-ask", "/api/overview"}
 ADMIN_POST = {"/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
               "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop", "/api/po/import", "/api/po/update", "/api/po/stop", "/api/notify",
-              "/api/notify/test", "/api/notify/run", "/api/notify/languages", "/api/teams-ask", "/api/teams-ask/key"}
+              "/api/notify/test", "/api/notify/run", "/api/notify/languages", "/api/teams-ask", "/api/teams-ask/key", "/api/theme"}
 # Local preview fills an empty database with sample runs. Never on Spluki.
 SAMPLE = store.backend() == "sqlite" and os.environ.get("SAMPLE_DATA", "1") != "0"
 
@@ -455,6 +455,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json(dict(sp, ai_review="on" if sosscan.ai_review_on() else "off",
                                       auto_note="on" if sosscan.auto_note() else "off",
                                       translate_engine=sosscan.translate_engine()))
+            if u.path == "/api/theme":
+                # The holiday theme every page shows (Settings > Look > Theme).
+                import theme
+                return self.json(theme.current())
             if u.path == "/api/scan-setup":
                 missing = sosscan.missing_config()
                 if not (os.environ.get("ZENDESK_WEBHOOK_SECRET") or "").strip():
@@ -573,6 +577,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except ValueError as e:
                 return self.json({"error": str(e) or "bad request"}, 400)
             return self.json(notify.settings())
+        if u.path == "/api/theme":
+            import theme
+            try:
+                return self.json(theme.save(json.loads(raw or b"{}") or {}, "admin"))
+            except (ValueError, TypeError) as e:
+                return self.json({"error": str(e) or "bad request"}, 400)
         if u.path == "/api/notify":
             import notify
             try:

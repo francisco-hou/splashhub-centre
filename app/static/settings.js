@@ -412,3 +412,43 @@
     api('/api/import-past/stop', { method: 'POST' }).then(function () { setTimeout(pollImport, 800); });
   });
 })();
+
+/* Settings > Look > Theme: Automatic, Off, or one holiday kept on. A choice
+   is saved for everyone and shown on this page at once. */
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  if (!$('thGrid')) return;
+  var T = null;
+  function fmt(d) { var x = new Date(d + 'T12:00:00'); return x.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+  function send(body) {
+    $('thMsg').textContent = 'Saving…';
+    fetch('/api/theme', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
+      .then(function (t) { draw(t); if (window.shcTheme) window.shcTheme.apply(t); $('thMsg').textContent = 'Saved — everyone sees it on their next page.'; })
+      .catch(function (e) { $('thMsg').textContent = 'Could not save: ' + e.message; });
+  }
+  function draw(t) {
+    T = t;
+    var opts = [{ key: 'auto', label: 'Automatic', emoji: '📅' }, { key: 'off', label: 'Off', emoji: '⬜' }].concat(t.themes);
+    $('thGrid').innerHTML = opts.map(function (o) {
+      return '<button type="button" class="th-opt' + (o.key === t.choice ? ' on' : '') + '" data-k="' + o.key + '" aria-pressed="' + (o.key === t.choice) + '">' +
+        '<span class="th-e">' + o.emoji + '</span>' + o.label + '</button>';
+    }).join('');
+    var now = t.active ? 'Showing now: <b>' + t.active.emoji + ' ' + t.active.label + '</b>.' : 'No theme showing now.';
+    var next = t.choice === 'auto' && t.upcoming.length ? ' Next: ' + t.upcoming.filter(function (u) { return !t.active || u.key !== t.active.key; }).slice(0, 3)
+      .map(function (u) { return u.emoji + ' ' + u.label + ' (' + fmt(u.from) + ')'; }).join(', ') + '.' : '';
+    $('thNext').innerHTML = now + next;
+    [].forEach.call($('thFx').querySelectorAll('button'), function (b) {
+      var on = (b.getAttribute('data-fx') === '1') === t.fx;
+      b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+    });
+  }
+  $('thGrid').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-k]'); if (b && T && b.getAttribute('data-k') !== T.choice) send({ choice: b.getAttribute('data-k') });
+  });
+  $('thFx').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-fx]'); if (b) send({ fx: b.getAttribute('data-fx') === '1' });
+  });
+  fetch('/api/theme', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(draw).catch(function () {});
+})();

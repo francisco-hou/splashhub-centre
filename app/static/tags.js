@@ -55,10 +55,10 @@
       DATA = d;
       $('empty').hidden = d.ready;
       $('stamp').textContent = int(d.total.d7) + ' tickets in 7 days';
-      if (d.choices && !S.select) {           // first visit: the groups plus the busiest topics
-        S.select = d.rows.slice().sort(function (a, b) { return b.d30 - a.d30; }).filter(function (r) { return r.d30; })
-          .slice(0, 10).map(function (r) { return r.label; });
-        save();
+      if (d.choices && !(S.select && S.select.length)) {   // first visit: the busiest topics (or the first ones, before any tickets)
+        var busy = d.rows.slice().sort(function (a, b) { return b.d30 - a.d30; }).filter(function (r) { return r.d30; });
+        S.select = (busy.length ? busy : d.rows).slice(0, 10).map(function (r) { return r.label; });
+        if (busy.length) save();
       }
       draw();
     }).catch(function (e) { $('rows').innerHTML = '<tr class="empty-row"><td colspan="5">Could not load: ' + esc(e.message) + '</td></tr>'; });

@@ -883,10 +883,18 @@ a.ov-tile:hover { text-decoration: none; border-color: #9bb4ce; box-shadow: 0 2p
 ::view-transition-group(snav), ::view-transition-group(topbar),
 ::view-transition-old(snav), ::view-transition-new(snav),
 ::view-transition-old(topbar), ::view-transition-new(topbar) { animation: none; }
-::view-transition-old(root) { animation: shcOut .12s ease both; }
-::view-transition-new(root) { animation: shcFade .18s ease both; }
-@keyframes shcOut { to { opacity: 0; } }
+/* page to page: the old page eases out while the new one drifts up into place */
+::view-transition-old(root) { animation: shcOut .26s cubic-bezier(.4, 0, 1, 1) both; }
+::view-transition-new(root) { animation: shcRise .42s cubic-bezier(.22, .61, .36, 1) .06s both; }
+@keyframes shcOut { to { opacity: 0; transform: translateY(-4px); } }
+@keyframes shcRise { from { opacity: 0; transform: translateY(10px); } }
 @keyframes shcFade { from { opacity: 0; } }
+/* the boxes of a page rising in one after another (nav.js marks them) */
+[data-in] { animation: shcRise .5s cubic-bezier(.22, .61, .36, 1) both; animation-delay: calc(.08s + var(--in, 0) * .05s); }
+@media (prefers-reduced-motion: reduce) {
+  [data-in] { animation: none; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+}
 main.page:not([hidden]) { animation: none; }
 
 /* ---- Tags page ---- */
@@ -924,3 +932,37 @@ main.page:not([hidden]) { animation: none; }
 .me-links { display: flex; gap: 8px; margin-top: 4px; }
 .snav-beta { margin-left: auto; flex: none; font-size: 9px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #7d3f98; background: #f2e7f9; border-radius: 4px; padding: 2px 5px; }
 .nav-mini .snav-beta { display: none; }
+
+/* ---- holiday themes (theme.py; nav.js sets data-theme on <html>) ----
+   Only the frame changes: the top bar and the menu get a light tint, a thin
+   festive stripe and a greeting; decorations drift behind the boxes. Text and
+   data keep their usual colours. */
+[data-theme="new_year"]       { --th-a: #c9a227; --th-b: #1f2a44; --th-tint: #fbf6e6; --th-ink: #6b5410; }
+[data-theme="lunar_new_year"] { --th-a: #d7263d; --th-b: #f2b705; --th-tint: #fdeeee; --th-ink: #9b1426; }
+[data-theme="valentines"]     { --th-a: #e0457b; --th-b: #f7a8c4; --th-tint: #fdeef4; --th-ink: #a3214f; }
+[data-theme="st_patricks"]    { --th-a: #1e9e5a; --th-b: #8fd19e; --th-tint: #eaf7ef; --th-ink: #146b3d; }
+[data-theme="sakura"]         { --th-a: #e98aab; --th-b: #f9d3e0; --th-tint: #fdf1f5; --th-ink: #9c3d62; }
+[data-theme="easter"]         { --th-a: #9c7be0; --th-b: #f4d35e; --th-tint: #f5f0fd; --th-ink: #5e3fa3; }
+[data-theme="july_4"]         { --th-a: #c8102e; --th-b: #1f4e9c; --th-tint: #eef3fb; --th-ink: #1f3f7a; }
+[data-theme="mid_autumn"]     { --th-a: #d9902f; --th-b: #6b4fa0; --th-tint: #fcf3e4; --th-ink: #8a5410; }
+[data-theme="halloween"]      { --th-a: #f07a1a; --th-b: #6b3fa0; --th-tint: #fff1e4; --th-ink: #9a4a08; }
+[data-theme="diwali"]         { --th-a: #f2a516; --th-b: #c2185b; --th-tint: #fff6e0; --th-ink: #8a5a00; }
+[data-theme="thanksgiving"]   { --th-a: #c4622d; --th-b: #8a5a2b; --th-tint: #fbefe5; --th-ink: #874015; }
+[data-theme="christmas"]      { --th-a: #c62d2d; --th-b: #1f7a43; --th-tint: #f1f8f3; --th-ink: #8f1d1d; }
+[data-theme] .topbar { background: linear-gradient(90deg, var(--th-tint), #fff 60%); }
+[data-theme] .topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; pointer-events: none;
+  background: repeating-linear-gradient(90deg, var(--th-a) 0 18px, #fff 18px 21px, var(--th-b) 21px 39px, #fff 39px 42px); }
+[data-theme] .snav { background: linear-gradient(180deg, #fff 62%, var(--th-tint)); }
+[data-theme] .snav-item.active { background: var(--th-tint); color: var(--th-ink); border-left-color: var(--th-a); }
+.th-greet { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+  color: var(--th-ink); background: #fff; border: 1px solid var(--th-b); white-space: nowrap; animation: shcIn .5s cubic-bezier(.22, .61, .36, 1) both; }
+.th-fx { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }   /* under every box, above the page background */
+@media (max-width: 600px) { .th-greet { display: none; } }
+/* Settings > Look > Theme */
+.th-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+.th-opt { display: flex; align-items: center; gap: 8px; padding: 9px 11px; border: 1px solid #d9e0e8; border-radius: 8px; background: #fff;
+  font: inherit; font-size: 13px; color: #1d242c; cursor: pointer; text-align: left; }
+.th-opt:hover { border-color: #9cc3e8; }
+.th-opt.on { border-color: #0071ce; box-shadow: 0 0 0 2px #cfe5f9; font-weight: 600; }
+.th-opt .th-e { font-size: 17px; width: 22px; text-align: center; }
+.th-next { font-size: 12.5px; color: #55606b; margin-top: 8px; }

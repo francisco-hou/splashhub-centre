@@ -111,3 +111,103 @@
     document.getElementById('signOut').hidden = !admin;
   }).catch(function () {});
 })();
+
+/* Arriving on a page: the header, cards and tiles rise in one after another.
+   Only for what appears in the first moments after the page opens -- a later
+   refresh of the same boxes (the Dashboard reloads its numbers) stays still. */
+(function () {
+  if (!window.MutationObserver || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var PICK = 'main.page .hdr, main.page .card, main.page .stat, main.page .me-wrap';
+  function stagger() {
+    var i = 0;
+    Array.prototype.forEach.call(document.querySelectorAll(PICK), function (el) {
+      if (el.hasAttribute('data-in') || (el.parentElement && el.parentElement.closest('[data-in]'))) return;
+      el.setAttribute('data-in', '');
+      el.style.setProperty('--in', Math.min(i++, 9));
+    });
+  }
+  var mo = new MutationObserver(stagger);
+  mo.observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener('DOMContentLoaded', stagger);
+  setTimeout(function () { mo.disconnect(); }, 1500);
+})();
+
+/* Holiday theme (Settings > Look > Theme): a tinted top bar and menu, a thin
+   festive stripe, a greeting, and a few decorations drifting behind the boxes
+   (never over the text). Shown at once from this browser's last copy, then
+   checked with SplashHub Centre. window.shcTheme.apply() is used by Settings. */
+(function () {
+  var root = document.documentElement, KEY = 'shcThemeNow';
+  var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var FX = {
+    christmas: { g: ['❄', '❅', '❆'], c: ['#9db8d6', '#b9cde3'], n: 22 },
+    thanksgiving: { g: ['🍂', '🍁'], n: 12 },
+    halloween: { g: ['🍂', '🦇'], n: 10 },
+    sakura: { g: ['🌸'], n: 14 },
+    valentines: { g: ['💗', '♥'], c: ['#f29bbb'], n: 12 },
+    st_patricks: { g: ['☘'], c: ['#4fb276', '#7fcf98'], n: 14 },
+    new_year: { conf: ['#c9a227', '#e0457b', '#0071ce', '#1e9e5a', '#f07a1a'], n: 26 },
+    lunar_new_year: { conf: ['#d7263d', '#f2b705'], n: 20 },
+    july_4: { g: ['✦', '★'], c: ['#c8102e', '#1f4e9c', '#9aa6b2'], n: 18 },
+    easter: { conf: ['#c7b2f0', '#f4d35e', '#9fdcc0', '#f7b2c8'], n: 18 },
+    diwali: { g: ['✦', '✧'], c: ['#f2a516', '#e8c25a', '#f07a1a'], n: 18, up: true },
+    mid_autumn: { g: ['✦', '·'], c: ['#d9a441', '#e8c25a'], n: 16, up: true }
+  };
+  var canvas = null, raf = 0, parts = [];
+
+  function stopFx() { cancelAnimationFrame(raf); raf = 0; if (canvas) { canvas.remove(); canvas = null; } parts = []; }
+  function startFx(key) {
+    stopFx();
+    var f = FX[key]; if (!f || still) return;
+    canvas = document.createElement('canvas'); canvas.className = 'th-fx'; canvas.setAttribute('aria-hidden', 'true');
+    document.body.insertBefore(canvas, document.body.firstChild);
+    var ctx = canvas.getContext('2d'), W = 0, H = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
+    function size() { W = innerWidth; H = innerHeight; canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+    size(); window.addEventListener('resize', size);
+    function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+    function make(anyY) {
+      return { x: Math.random() * W, y: anyY ? Math.random() * H : (f.up ? H + 20 : -20), s: 10 + Math.random() * 10,
+        v: (f.up ? -1 : 1) * (0.25 + Math.random() * 0.45), sw: Math.random() * Math.PI * 2, r: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.02,
+        g: f.g ? pick(f.g) : null, c: pick(f.c || f.conf || ['#999']), a: 0.35 + Math.random() * 0.3 };
+    }
+    for (var i = 0; i < f.n; i++) parts.push(make(true));
+    var last = 0;
+    function frame(t) {
+      raf = requestAnimationFrame(frame);
+      if (document.hidden || t - last < 33) return;              // about 30 frames a second, nothing while hidden
+      last = t; ctx.clearRect(0, 0, W, H);
+      parts.forEach(function (p, i) {
+        p.y += p.v; p.sw += 0.012; p.x += Math.sin(p.sw) * 0.35; p.r += p.vr;
+        if (p.y > H + 30 || p.y < -30) parts[i] = p = make(false);
+        ctx.save(); ctx.globalAlpha = p.a; ctx.translate(p.x, p.y); ctx.rotate(p.r);
+        if (p.g) { ctx.fillStyle = p.c; ctx.font = p.s + 'px "Segoe UI Emoji","Apple Color Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.fillText(p.g, 0, 0); }
+        else { ctx.fillStyle = p.c; ctx.fillRect(-p.s / 4, -p.s / 8, p.s / 2, p.s / 4); }
+        ctx.restore();
+      });
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  function apply(t) {
+    var a = t && t.active;
+    if (a) root.setAttribute('data-theme', a.key); else root.removeAttribute('data-theme');
+    var bar = document.querySelector('.topbar'), pill = document.getElementById('thGreet');
+    if (bar && a) {
+      if (!pill) { pill = document.createElement('span'); pill.id = 'thGreet'; pill.className = 'th-greet'; bar.insertBefore(pill, bar.firstChild); }
+      pill.textContent = a.emoji + ' ' + a.greet;
+    } else if (pill) pill.remove();
+    if (a && t.fx !== false) { if (!canvas || canvas.getAttribute('data-k') !== a.key) { startFx(a.key); if (canvas) canvas.setAttribute('data-k', a.key); } }
+    else stopFx();
+    try { localStorage.setItem(KEY, JSON.stringify({ active: a || null, fx: t ? t.fx : true })); } catch (e) {}
+  }
+  window.shcTheme = { apply: apply };
+
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+  function go() {
+    if (saved) apply(saved);
+    fetch('/api/theme', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (t) { if (t) apply(t); }).catch(function () {});
+  }
+  if (document.body) go(); else document.addEventListener('DOMContentLoaded', go);
+})();
