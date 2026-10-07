@@ -31,6 +31,11 @@
     return ms ? new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
   }
   function pill(st) { return '<span class="vpill s-' + esc(st) + '">' + esc(LABEL[st] || st) + '</span>'; }
+  // the Zendesk ticket's own status, as on SOS Scans (read with the ticket, refreshed when it changes)
+  var TSTATUS = { new: 'New', open: 'Open', pending: 'Pending', hold: 'On-hold', solved: 'Solved', closed: 'Closed' };
+  function tstatus(st) {
+    return st ? '<span class="tst tst-' + esc(st) + '">' + esc(TSTATUS[st] || st) + '</span>' : '<span class="muted">—</span>';
+  }
   function api(path, opts) {
     return fetch(path, Object.assign({ credentials: 'same-origin' }, opts || {})).then(function (r) {
       if (r.status === 401) { location.href = '/logs?next=' + encodeURIComponent('/sso' + location.hash); throw new Error('login'); }
@@ -130,7 +135,7 @@
     api('/api/sso?' + p).then(function (res) {
       spinOff();
       if (my !== seq) return;
-      var sig = JSON.stringify([p, res.total, res.counts, res.rows.map(function (r) { return [r.id, r.status, r.domain, r.last_checked_ms, r.note_json]; })]);
+      var sig = JSON.stringify([p, res.total, res.counts, res.rows.map(function (r) { return [r.id, r.status, r.domain, r.last_checked_ms, r.note_json, r.ticket_status]; })]);
       if (sig !== lastSig) { lastSig = sig; drawChips(res.counts); drawRows(res); }
       var d = new Date();
       $('stamp').textContent = 'Updated ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
@@ -149,13 +154,14 @@
   function drawRows(res) {
     $('count').textContent = res.total ? 'newest first · ' + res.total + (res.total === 1 ? ' request' : ' requests') : '';
     if (!res.rows.length) {
-      $('rows').innerHTML = '<tr class="empty-row"><td colspan="6">' + (S.status || S.q ? 'No requests match.' :
+      $('rows').innerHTML = '<tr class="empty-row"><td colspan="7">' + (S.status || S.q ? 'No requests match.' :
         'No SSO requests yet. SplashHub Centre looks for them every 15 minutes (tickets tagged single_sign-on__sso_ or with a splashtop-sso-challenge record); Import past SSO requests finds the ones from 2026.') + '</td></tr>';
     } else {
       $('rows').innerHTML = res.rows.map(function (r) {
         return '<tr class="sc-row" data-id="' + r.id + '" tabindex="0">' +
           '<td class="when">' + esc(whenTxt(r.requested_ms)) + '</td>' +
           '<td><a href="' + esc(ZD) + '/agent/tickets/' + r.ticket_id + '" target="_blank" rel="noopener" class="tlink">#' + r.ticket_id + '</a></td>' +
+          '<td>' + tstatus(r.ticket_status) + '</td>' +
           '<td>' + pill(r.status) + (r.note_json ? ' <span class="noted" title="An internal note was added">&#10003; note</span>' : '') + '</td>' +
           '<td class="topic">' + (r.domain ? esc(r.domain) + more(r) : '<span class="muted">—</span>') + '</td>' +
           '<td>' + (r.requester_email ? esc(r.requester_email) : '<span class="muted">—</span>') + '</td>' +
@@ -204,12 +210,13 @@
     // header
     h += '<header class="pn-head"><div class="pn-meta">' + pill(s.status) + '<span>' + esc(whenTxt(s.requested_ms)) + '</span>' +
       (s.source === 'import' ? '<span>· imported</span>' : s.source === 'search' ? '<span>· found in Zendesk</span>' : s.source === 'webhook' ? '<span>· from Zendesk trigger</span>' : '<span>· added by hand</span>') +
-      (s.ticket_status ? '<span>· ticket ' + esc(s.ticket_status) + '</span>' : '') + '</div>' +
+      '</div>' +
       '<h2 class="pn-title">' + esc(title) + '</h2>' +
       '<div class="pn-facts">' +
         kv('Requested', esc(fullWhen(s.requested_ms))) +
         kv('Requester', s.requester_email ? esc(s.requester_email) : '<span class="muted">—</span>') +
         '<div><span class="pn-k">Ticket</span><a class="pn-v" href="' + esc(s.zendesk_url) + '/agent/tickets/' + s.ticket_id + '" target="_blank" rel="noopener">#' + s.ticket_id + '</a></div>' +
+        kv('Ticket status', tstatus(s.ticket_status)) +
         (s.organization ? kv('Organization', esc(s.organization)) : '') +
       '</div></header>';
     // the record, correctable
