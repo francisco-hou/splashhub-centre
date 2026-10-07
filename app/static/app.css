@@ -1181,3 +1181,18 @@ textarea.ad-ta { min-height: 230px; height: auto; }
 .wiki-pager a span { font-size: 12px; color: #78838f; }
 .wiki-pager .wp-next { text-align: right; grid-column: 2; }
 .wiki-sec { margin-bottom: 0; }
+
+/* Arrivals (nav.js): new rows slide in with a fading glow; a notice in the corner */
+@keyframes rowArrive { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+@keyframes rowGlow { 0% { background-color: #d6eafb; } 100% { background-color: transparent; } }
+tr.row-arrive { animation: rowArrive .45s cubic-bezier(.2, .7, .2, 1) both; }
+tr.row-arrive > td { animation: rowGlow 4s ease-out .45s both; }
+.row-new-tag { display: inline-block; margin-left: 4px; font-size: 10.5px; font-weight: 600; letter-spacing: .03em; padding: 0 6px; border-radius: 999px;
+  background: #e6f2fd; color: #0071ce; vertical-align: 1px; }
+.arrive-toast { position: fixed; top: 64px; right: 20px; z-index: 55; display: flex; align-items: center; gap: 8px; padding: 9px 14px;
+  border: 1px solid #b9d7f3; border-radius: 10px; background: #fff; color: #0b3d66; font: inherit; font-size: 13px; font-weight: 500;
+  box-shadow: 0 6px 18px rgba(16, 40, 70, .12); cursor: pointer; }
+.arrive-toast:hover { background: #f3f8fd; }
+.arrive-toast.arrive-in { animation: shcPop .3s cubic-bezier(.2, .7, .2, 1) both; }
+.arrive-dot { width: 8px; height: 8px; border-radius: 50%; background: #0071ce; }
+@media (prefers-reduced-motion: reduce) { tr.row-arrive, tr.row-arrive > td, .arrive-toast.arrive-in { animation: none; } }

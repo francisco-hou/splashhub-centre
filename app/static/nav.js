@@ -310,3 +310,65 @@
     });
   }).observe(document.documentElement, { childList: true, subtree: true });
 })();
+
+
+/* Arrivals: when new items come into a list you're looking at (SOS Scans, SSO
+   Requests, the PO menus, AutoTag, the Ad/Spam Filter), they slide in at the
+   top with a blue glow that fades and a small "New" tag, and a notice in the
+   corner says how many (click: go to the first). Only real arrivals: a filter,
+   a search or another page never counts, nor a big change at once. */
+(function () {
+ function start() {
+  var rows = document.getElementById('rows');
+  if (!rows || !window.MutationObserver) return;
+  var p = location.pathname.replace(/\/+$/, '');
+  var WHAT = { '/scans': ['SOS request', 'SOS requests'], '/sso': ['SSO request', 'SSO requests'], '/po': ['PO request', 'PO requests'],
+    '/autotag': ['ticket', 'tickets'], '/adfilter': ['ad / spam ticket', 'ad / spam tickets'] }[p];
+  if (!WHAT) return;
+  var known = null, act = Date.now(), still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  ['pointerdown', 'keydown', 'input', 'change'].forEach(function (e) { addEventListener(e, function () { act = Date.now(); }, true); });
+  function ids() { return [].map.call(rows.querySelectorAll('tr[data-id]'), function (tr) { return tr.getAttribute('data-id'); }); }
+
+  var toast = null, tT = 0;
+  function notice(n, first) {
+    if (!toast) {
+      toast = document.createElement('button');
+      toast.type = 'button';
+      toast.className = 'arrive-toast';
+      toast.addEventListener('click', function () {
+        var tr = rows.querySelector('tr[data-id="' + toast.getAttribute('data-first') + '"]');
+        if (tr) { tr.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' }); tr.focus({ preventScroll: true }); }
+        toast.hidden = true;
+      });
+      document.body.appendChild(toast);
+    }
+    toast.innerHTML = '<span class="arrive-dot" aria-hidden="true"></span>' + n + ' new ' + (n === 1 ? WHAT[0] : WHAT[1]);
+    toast.setAttribute('data-first', first);
+    toast.hidden = false;
+    toast.classList.remove('arrive-in'); void toast.offsetWidth; toast.classList.add('arrive-in');
+    clearTimeout(tT); tT = setTimeout(function () { toast.hidden = true; }, 6000);
+  }
+
+  new MutationObserver(function () {
+    var now = ids();
+    if (!now.length) return;
+    var before = known;
+    known = now;
+    if (!before || !before.length || Date.now() - act < 1500) return;      // first view, or a filter / page change
+    var was = {}; before.forEach(function (i) { was[i] = 1; });
+    var firstOld = -1;
+    for (var i = 0; i < now.length; i++) if (was[now[i]]) { firstOld = i; break; }
+    if (firstOld <= 0) return;                                             // nothing kept from before, or nothing above it
+    var fresh = now.slice(0, firstOld);
+    if (fresh.length > 10) return;                                         // a big change at once is not an arrival
+    fresh.forEach(function (id) {
+      var tr = rows.querySelector('tr[data-id="' + id + '"]'); if (!tr) return;
+      tr.classList.add('row-arrive');
+      var td = tr.querySelector('td');
+      if (td && !td.querySelector('.row-new-tag')) td.insertAdjacentHTML('beforeend', ' <span class="row-new-tag">New</span>');
+    });
+    notice(fresh.length, fresh[0]);
+  }).observe(rows, { childList: true });
+ }
+ if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();   // the list comes after this script
+})();

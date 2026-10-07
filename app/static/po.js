@@ -204,6 +204,7 @@
   $('prev').addEventListener('click', function () { if (S.page > 0) { S.page--; load(); } });
   $('next').addEventListener('click', function () { S.page++; load(); });
   $('refresh').addEventListener('click', function () { overview(); load(); });
+  setInterval(function () { if (document.visibilityState === 'visible' && $('pnWrap').hidden) { overview(); load(); } }, 120000);
   $('rows').addEventListener('click', function (ev) { var r = ev.target.closest('.po-row'); if (r) openPanel(+r.getAttribute('data-id')); });
   $('rows').addEventListener('keydown', function (ev) { var r = ev.target.closest('.po-row'); if (r && ev.key === 'Enter') openPanel(+r.getAttribute('data-id')); });
   $('detail').addEventListener('click', function (ev) {
