@@ -256,7 +256,7 @@
         kv('Requester', s.requester_email ? esc(s.requester_email) : '<span class="muted">—</span>') +
         '<div><span class="pn-k">Ticket</span><a class="pn-v" href="' + esc(s.zendesk_url) + '/agent/tickets/' + s.ticket_id + '" target="_blank" rel="noopener">#' + s.ticket_id + '</a></div>' +
         kv('Ticket status', tstatus(s.ticket_status)) +
-        (s.stage ? kv('Where it stands', esc(stageTxt(s)) + (s.stage_note ? '<div class="muted">' + esc(s.stage_note) + (BY_SPARK[s.stage] ? ' · read by Spark' : '') + '</div>' : '')) : '') +
+        (s.stage ? kv('Where it stands', esc(stageTxt(s)) + (s.stage_note ? '<div class="muted">' + esc(s.stage_note) + (BY_SPARK[s.stage] ? ' · read by Spark (<a href="/settings#sparklog-' + s.ticket_id + '">see why</a>)' : '') + '</div>' : '')) : '') +
         (s.organization ? kv('Organization', esc(s.organization)) : '') +
       '</div></header>';
     // the record, correctable
@@ -295,9 +295,9 @@
     var notSso = s.relevance === 'not_sso';
     h += '<section class="pn-sec sso-rel' + (notSso ? ' is-not' : '') + '">' +
       (notSso ? '<div class="pn-ai-warn">Not an SSO request' + (s.relevance_by === 'spark' ? ' (Spark)' : '') + (s.relevance_note ? ': ' + esc(s.relevance_note) : '') +
-        ' — kept out of the list.</div><button type="button" class="btn btn-sm" data-rel="1">It is an SSO request</button>'
+        ' — kept out of the list.' + (s.relevance_by === 'spark' ? ' <a href="/settings#sparklog-' + s.ticket_id + '">See why</a>' : '') + '</div><button type="button" class="btn btn-sm" data-rel="1">It is an SSO request</button>'
         : '<button type="button" class="link-btn" data-rel="0">Not an SSO request</button>' +
-          (s.relevance_by === 'spark' && s.relevance_note ? ' <span class="muted">Spark: ' + esc(s.relevance_note) + '</span>' : '')) + '</section>';
+          (s.relevance_by === 'spark' && s.relevance_note ? ' <span class="muted">Spark: ' + esc(s.relevance_note) + ' (<a href="/settings#sparklog-' + s.ticket_id + '">see why</a>)</span>' : '')) + '</section>';
     h += '<div class="pn-foot">Request ' + s.id + (s.checks ? ' · checked ' + s.checks + (s.checks === 1 ? ' time' : ' times') : '') + '</div>';
     // right: the DNS check card
     h += '</div><div class="pn-side"><div class="pn-side-in">' +

@@ -47,7 +47,7 @@ COOKIE = "shcadmin"
 # What needs the admin session: the Logs page's data and the Settings page's.
 # Everything else (SOS Scans, SSO Requests, PriceBook, AI) is open to the team.
 ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases",
-             "/api/kb", "/api/po", "/api/notify", "/api/teams-ask", "/api/overview"}
+             "/api/kb", "/api/po", "/api/notify", "/api/teams-ask", "/api/overview", "/api/spark-log"}
 ADMIN_POST = {"/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
               "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop", "/api/po/import", "/api/po/update", "/api/po/stop", "/api/notify",
               "/api/notify/test", "/api/notify/run", "/api/notify/languages", "/api/teams-ask", "/api/teams-ask/key", "/api/theme",
@@ -319,6 +319,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 import overview
                 return self.json(overview.build(fresh=(qs.get("fresh") or [""])[0] == "1",
                                                 agent=((qs.get("agent") or [""])[0])[:120] or None))
+            if u.path == "/api/spark-log":
+                # Settings > AI > Spark activity: every decision Spark made behind the scenes (admin).
+                import sparklog
+                g = lambda k: (qs.get(k) or [""])[0]
+                try:
+                    pg = max(0, int(g("page") or 0))
+                except ValueError:
+                    pg = 0
+                return self.json(sparklog.search(area=g("area") or None, ticket=g("ticket") or None, changed=g("changed") or None, page=pg))
+            m = re.match(r"^/api/spark-log/(\d+)$", u.path)
+            if m:
+                if not self.authed():
+                    return self.json({"error": "login required"}, 401)
+                import sparklog
+                row = sparklog.get(int(m.group(1)))
+                return self.json(row) if row else self.json({"error": "not found"}, 404)
             if u.path == "/api/autotag":
                 # AutoTag: Spark's language for each new ticket, held here to be checked.
                 import autotag

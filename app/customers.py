@@ -331,7 +331,7 @@ def summary(key, fresh=False):
 
     def run():
         try:
-            text = spark.chat(SUMMARY_PROMPT, _brief(p), max_tokens=500)
+            text = spark.chat(SUMMARY_PROMPT, _brief(p), max_tokens=500, log={"area": "customers"})
             pts = [l.strip()[2:].strip() for l in text.splitlines() if l.strip().startswith("- ")][:5] or [text.strip()]
             value = {"points": pts, "ms": _now()}
         except spark.SparkError as e:

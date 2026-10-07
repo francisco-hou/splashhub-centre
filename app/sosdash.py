@@ -204,13 +204,17 @@ def _spark_spike(rows, window):
         return {"off": True}
 
     def make():
+        lg = {"area": "sos_dashboard"}
         text = spark.chat(
             "You look at a burst of Custom SOS package requests (white-labelled remote-support builds) and say, in at most "
             "3 short bullet points, what they have in common: shared creator domains, generic email providers, trial vs "
             "paid, repeated or similar package names, time of day. Facts from the list only; no advice. Start each bullet with '- '.",
             "%d requests in the last %s:\n%s" % (len(rows), "24 hours" if window == "day" else "7 days",
-                                                  "\n".join(_brief(r) for r in rows[:60])), max_tokens=400)
-        return {"points": [l.strip()[2:].strip() for l in text.splitlines() if l.strip().startswith("- ")][:3] or [text.strip()]}
+                                                  "\n".join(_brief(r) for r in rows[:60])), max_tokens=400, log=lg)
+        pts = [l.strip()[2:].strip() for l in text.splitlines() if l.strip().startswith("- ")][:3] or [text.strip()]
+        import sparklog
+        sparklog.decide(lg.get("id"), "Spike notes on the SOS dashboard (%d point%s, %d requests read)" % (len(pts), "" if len(pts) == 1 else "s", len(rows)))
+        return {"points": pts}
     return _cached("spark_spike2_" + window, rows, make)
 
 
@@ -221,16 +225,20 @@ def _spark_lookalikes(rows):
         return {"items": []}
 
     def make():
+        lg = {"area": "sos_dashboard"}
         text = spark.chat(
             "From this list of package names, pick the ones that imitate or misspell a well-known brand or institution "
             "(banks, payment services, big tech, governments) that the creator domain does not belong to. Answer one "
             "per line as: name | brand it imitates. Answer NONE if there are none.",
-            "\n".join(_brief(r) for r in rows[-120:]), max_tokens=400)
+            "\n".join(_brief(r) for r in rows[-120:]), max_tokens=400, log=lg)
         items = []
         for line in text.splitlines():
             if "|" in line:
                 name, brand = [x.strip(" -*\"'") for x in line.split("|", 1)]
                 if name:
                     items.append({"name": name, "brand": brand})
+        import sparklog
+        sparklog.decide(lg.get("id"), "Look-alike names on the SOS dashboard: %s" % (
+            ", ".join("%s (%s)" % (i["name"], i["brand"]) for i in items[:5]) or "none found"), changed=bool(items))
         return {"items": items[:5]}
     return _cached("spark_lookalikes2", rows, make, max_age_ms=60 * 60000)

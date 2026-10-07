@@ -11,7 +11,7 @@ Until both are there, available() is False and callers carry on without it.
 
 Errors are worded here, never copied from the library (see zendesk.py).
 """
-import json, os, re, time, urllib.error, urllib.request
+import json, os, re, threading, time, urllib.error, urllib.request
 
 TIMEOUT = 60
 _MODELS = {"at": 0, "list": []}
@@ -113,6 +113,7 @@ def speed_test(m=None):
 # turns it off with chat_template_kwargs. A model or server that refuses the
 # switch gets one retry without it, and is not sent it again.
 _NO_THINK = {"ok": True}
+_LAST = threading.local()      # the last call's token counts on this thread (Spark activity reads them)
 
 
 def chat_raw(messages, tools=None, max_tokens=2000):
@@ -137,6 +138,7 @@ def chat_raw(messages, tools=None, max_tokens=2000):
         d = _call("/chat/completions", body)
     import sys
     u = d.get("usage") or {}
+    _LAST.usage = u
     sys.stderr.write("[spark] %s %.1fs%s%s\n" % (m, time.time() - t0, " +tools" if tools else "",
                                                 ", %s tokens out" % u["completion_tokens"] if u.get("completion_tokens") else ""))
     try:
@@ -145,10 +147,41 @@ def chat_raw(messages, tools=None, max_tokens=2000):
         raise SparkError("Spark's answer had no message")
 
 
-def chat(system, user, max_tokens=2000):     # room for a model that thinks first
-    """One short answer as plain text."""
-    text = clean(chat_raw([{"role": "system", "content": system}, {"role": "user", "content": user}],
-                          max_tokens=max_tokens).get("content"))
+def _thoughts(msg, raw):
+    """The model's reasoning, when it thought out loud (Settings > Spark: thinking on)."""
+    t = msg.get("reasoning_content") or msg.get("reasoning") or ""
+    if not t and "<think>" in (raw or ""):
+        t = raw.split("<think>", 1)[1].split("</think>", 1)[0]
+    return t.strip()
+
+
+def chat(system, user, max_tokens=2000, log=None):     # room for a model that thinks first
+    """One short answer as plain text. log={"area": ..., "tickets": id or [ids]}:
+    the call is kept in Spark activity (sparklog.py) -- the question, the text,
+    the answer, the reasoning -- and log["id"] is set for sparklog.decide()."""
+    t0 = time.time()
+    _LAST.usage = {}
+    try:
+        msg = chat_raw([{"role": "system", "content": system}, {"role": "user", "content": user}], max_tokens=max_tokens)
+    except Exception as e:
+        if log is not None:
+            _keep(log, system, user, "", "", t0, "%s" % e if isinstance(e, SparkError) else type(e).__name__)
+        raise
+    raw = msg.get("content") or ""
+    text = clean(raw)
+    if log is not None:
+        _keep(log, system, user, text, _thoughts(msg, raw), t0, None if text else "the answer had no text")
     if not text:
         raise SparkError("Spark's answer had no text")
     return text
+
+
+def _keep(log, system, user, answer, thinking, t0, error):
+    try:
+        import sparklog
+        u = getattr(_LAST, "usage", None) or {}
+        log["id"] = sparklog.record(log.get("area") or "other", log.get("tickets"), system, user, answer, thinking,
+                                    int((time.time() - t0) * 1000), model(), error,
+                                    u.get("prompt_tokens"), u.get("completion_tokens"))
+    except Exception:
+        log["id"] = None

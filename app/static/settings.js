@@ -34,7 +34,7 @@
   });
   // One section at a time, picked on the left (the link's #hash, so it can be shared and survives a reload).
   function showSect() {
-    var want = (location.hash || '').slice(1), items = document.querySelectorAll('.set-nav-item');
+    var want = (location.hash || '').slice(1).split('-')[0], items = document.querySelectorAll('.set-nav-item');   // #sparklog-12345: the section, then a ticket
     if (!document.getElementById('setSect-' + want)) want = items[0].getAttribute('data-sect');
     Array.prototype.forEach.call(items, function (a) { a.classList.toggle('active', a.getAttribute('data-sect') === want); });
     Array.prototype.forEach.call(document.querySelectorAll('.set-sect'), function (s) { s.classList.toggle('active', s.id === 'setSect-' + want); });
@@ -487,4 +487,104 @@
       .catch(function (e) { $('atMsg').textContent = 'Could not start: ' + e.message; });
   });
   call('/api/autotag').then(draw).catch(function () {});
+})();
+
+
+/* Settings > AI > Spark activity: every Spark decision (sparklog.py), newest
+   first; a row opens what Spark was given, its answer, its reasoning and what
+   Centre did. #sparklog-12345 opens it on that ticket. */
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  if (!$('slRows')) return;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  var S = { area: '', changed: '', ticket: '', page: 0 }, ZD = '', OPEN = null, seq = 0;
+  function when(ms) { var d = new Date(ms); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+  function get(p) { return fetch(p, { credentials: 'same-origin' }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); }); }
+  function tlinks(ts) {
+    return ts.length ? ts.slice(0, 2).map(function (t) { return ZD ? '<a href="' + esc(ZD) + '/agent/tickets/' + t + '" target="_blank" rel="noopener">#' + t + '</a>' : '#' + t; }).join(' ') +
+      (ts.length > 2 ? ' <span class="muted">+' + (ts.length - 2) + '</span>' : '') : '<span class="muted">—</span>';
+  }
+  function fromHash() {
+    var m = /^#sparklog-(\d+)/.exec(location.hash || '');
+    if (m && m[1] !== S.ticket) { S.ticket = m[1]; $('slTicket').value = m[1]; S.page = 0; load(); }
+  }
+  function load() {
+    var my = ++seq, q = ['page=' + S.page];
+    ['area', 'changed', 'ticket'].forEach(function (k) { if (S[k]) q.push(k + '=' + encodeURIComponent(S[k])); });
+    get('/api/spark-log?' + q.join('&')).then(function (d) {
+      if (my !== seq) return;
+      var sel = $('slArea');
+      if (sel.options.length <= 1) {
+        sel.innerHTML = '<option value="">Every area</option>' + Object.keys(d.areas).map(function (k) {
+          return '<option value="' + esc(k) + '">' + esc(d.areas[k]) + (d.counts[k] ? ' (' + d.counts[k] + ')' : '') + '</option>';
+        }).join('');
+        sel.value = S.area;
+      }
+      if (d.stats) drawStats(d.stats);
+      $('slCount').textContent = d.total ? d.total.toLocaleString() + (d.total === 1 ? ' decision' : ' decisions') : '';
+      $('slRows').innerHTML = d.rows.length ? d.rows.map(function (r) {
+        return '<tr class="sl-row' + (r.error ? ' sl-err' : '') + '" data-id="' + r.id + '" tabindex="0"><td class="when">' + esc(when(r.ts_ms)) + '</td>' +
+          '<td>' + esc(r.area_label) + '</td><td>' + tlinks(r.tickets) + '</td>' +
+          '<td class="sl-dec">' + (r.error ? '<span class="at-bad">Failed: ' + esc(r.error) + '</span>' : r.decision ? (r.changed ? '<b>' + esc(r.decision) + '</b>' : esc(r.decision)) : '<span class="muted">—</span>') + '</td>' +
+          '<td class="r muted">' + secs(r.ms) + '</td></tr>' +
+          (OPEN === r.id ? '<tr class="sl-open"><td colspan="5" id="slDetail"><div class="pn-loading">Loading…</div></td></tr>' : '');
+      }).join('') : '<tr class="empty-row"><td colspan="5">' + (S.area || S.changed || S.ticket ? 'Nothing matches.' : 'No Spark decisions yet.') + '</td></tr>';
+      var pages = Math.ceil(d.total / d.per_page);
+      $('slPager').hidden = pages <= 1;
+      $('slPagerTxt').textContent = 'Page ' + (d.page + 1) + ' of ' + pages;
+      $('slPrev').disabled = d.page <= 0; $('slNext').disabled = d.page + 1 >= pages;
+      if (OPEN) detail(OPEN);
+    }).catch(function (e) { $('slRows').innerHTML = '<tr class="empty-row"><td colspan="5">Could not load: ' + esc(e.message) + '</td></tr>'; });
+  }
+  function secs(ms) { return ms == null ? '—' : ms < 1000 ? ms + ' ms' : (ms / 1000).toFixed(1) + ' s'; }
+  function drawStats(st) {
+    var t = function (label, value, sub, cls) {
+      return '<div class="stat"><div class="stat-label">' + label + '</div><div class="stat-value ' + (cls || '') + '">' + value + '</div><div class="stat-sub">' + sub + '</div></div>';
+    };
+    var d = st.day;
+    $('slStats').innerHTML = t('Decisions · 24 h', d.n.toLocaleString(), d.tickets.toLocaleString() + ' tickets read · ' + d.changed + ' changed something') +
+      t('Average answer', secs(d.avg_ms), 'from asking to answer') + t('Slowest', secs(d.max_ms), 'in the last 24 h') +
+      t('Failed', d.failed, d.failed ? 'retried on the next round' : 'none', d.failed ? 'ov-o' : '');
+    var tb = $('slAreas');
+    tb.hidden = !st.areas.length;
+    tb.tBodies[0].innerHTML = st.areas.map(function (a) {
+      return '<tr><td>' + esc(a.label) + '</td><td class="n">' + a.n + '</td><td class="n">' + secs(a.avg_ms) + '</td><td class="n">' + (a.per_ticket_ms != null ? secs(a.per_ticket_ms) : '—') +
+        '</td><td class="n">' + secs(a.max_ms) + '</td><td class="n">' + a.changed + '</td><td class="n">' + (a.failed ? '<span class="at-bad">' + a.failed + '</span>' : '0') + '</td></tr>';
+    }).join('');
+  }
+  function block(title, body, open) {
+    return '<details class="sl-part"' + (open ? ' open' : '') + '><summary>' + title + '</summary><pre class="sl-pre">' + esc(body || '') + '</pre></details>';
+  }
+  function detail(id) {
+    get('/api/spark-log/' + id).then(function (r) {
+      var el = $('slDetail'); if (!el || OPEN !== id) return;
+      el.innerHTML = '<div class="sl-d">' +
+        '<div class="muted">' + esc(r.area_label) + ' · ' + esc(r.model || '') + ' · took ' + secs(r.ms) +
+          (r.n_tickets > 1 ? ' for ' + r.n_tickets + ' tickets (' + secs(Math.round(r.ms / r.n_tickets)) + ' each)' : '') +
+          (r.tokens_in ? ' · read ' + r.tokens_in.toLocaleString() + ' tokens, wrote ' + (r.tokens_out || 0).toLocaleString() : '') + '</div>' +
+        (r.decision ? '<div><span class="pn-k">What Centre did</span> ' + esc(r.decision) + '</div>' : '') +
+        (r.error ? '<div class="at-bad">' + esc(r.error) + '</div>' : '') +
+        block('Spark&rsquo;s answer', r.answer, true) +
+        (r.thinking ? block('How it was thinking', r.thinking, true)
+          : '<div class="sl-note">No reasoning kept &mdash; thinking is off in <a href="#spark">Settings &rsaquo; Spark</a>. The short reason inside the answer is what it gave.</div>') +
+        block('What it read', r.input, false) + block('The question it was asked', r.question, false) + '</div>';
+    }).catch(function (e) { var el = $('slDetail'); if (el) el.textContent = 'Could not load: ' + e.message; });
+  }
+  $('slRows').addEventListener('click', function (ev) {
+    if (ev.target.closest('a')) return;
+    var tr = ev.target.closest('.sl-row'); if (!tr) return;
+    var id = +tr.getAttribute('data-id');
+    OPEN = OPEN === id ? null : id; load();
+  });
+  $('slArea').addEventListener('change', function () { S.area = this.value; S.page = 0; OPEN = null; load(); });
+  $('slChanged').addEventListener('change', function () { S.changed = this.value; S.page = 0; OPEN = null; load(); });
+  var tT = 0;
+  $('slTicket').addEventListener('input', function () { clearTimeout(tT); var v = this.value.replace(/\D/g, ''); tT = setTimeout(function () { S.ticket = v; S.page = 0; OPEN = null; load(); }, 300); });
+  $('slPrev').addEventListener('click', function () { if (S.page > 0) { S.page--; OPEN = null; load(); } });
+  $('slNext').addEventListener('click', function () { S.page++; OPEN = null; load(); });
+  window.addEventListener('hashchange', fromHash);
+  fetch('/api/scan-setup', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : {}; }).then(function (x) { ZD = x.zendesk_url || ''; }).catch(function () {});
+  fromHash();
+  if (!S.ticket) load();
 })();

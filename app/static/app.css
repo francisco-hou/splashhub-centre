@@ -1062,3 +1062,22 @@ main.page:not([hidden]) { animation: none; }
 .chip.chip-quiet:not(.active) { color: #78838f; border-style: dashed; }
 .sso-rel { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .sso-rel .pn-ai-warn { align-self: stretch; }
+
+/* Settings > Spark activity */
+.sl-filters { gap: 8px; flex-wrap: wrap; align-items: center; margin: 4px 0 10px; }
+.sl-filters .search { max-width: 140px; }
+.sl-table { table-layout: fixed; }
+.sl-table th:nth-child(1) { width: 92px; } .sl-table th:nth-child(2) { width: 200px; } .sl-table th:nth-child(3) { width: 150px; } .sl-table th:nth-child(5) { width: 64px; }
+.sl-row { cursor: pointer; }
+.sl-row:hover { background: #f7fbff; }
+.sl-dec { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sl-open > td { background: #fafbfc; padding: 12px 16px 16px; }
+.sl-d { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.sl-part summary { cursor: pointer; font-weight: 600; font-size: 12.5px; color: #3d4650; }
+.sl-pre { white-space: pre-wrap; word-break: break-word; background: #fff; border: 1px solid #e4e6ea; border-radius: 6px; padding: 8px 10px; margin: 6px 0 0;
+  font-size: 12px; max-height: 260px; overflow: auto; font-family: ui-monospace, Consolas, monospace; }
+.sl-note { font-size: 12.5px; color: #78838f; }
+.sl-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 6px 0 12px; }
+.sl-areas { margin-bottom: 12px; }
+.sl-areas td.n, .sl-areas th.r { text-align: right; }
+.sl-table td:nth-child(3) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

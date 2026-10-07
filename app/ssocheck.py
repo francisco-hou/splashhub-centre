@@ -486,12 +486,15 @@ def _relevance(t, comments, recs, row):
                   "Okta, Google...), verifying their domain with a DNS TXT record -- or the follow-up of one. Answer with JSON "
                   'only: {"sso": true or false, "why": "<at most 10 words>"}. false: anything else, e.g. one user who cannot '
                   "sign in, billing, a licence, or a different problem that only mentions SSO.")
-        raw = spark.chat(system, "Subject: %s\n\n%s" % ((t.get("subject") or "")[:200], first), max_tokens=150)
+        lg = {"area": "sso_relevance", "tickets": t.get("id")}
+        raw = spark.chat(system, "Subject: %s\n\n%s" % ((t.get("subject") or "")[:200], first), max_tokens=150, log=lg)
         got = json.loads(raw[raw.find("{"):raw.rfind("}") + 1] or "{}")
     except Exception as e:
         sys.stderr.write("[sso] Spark relevance skipped: %s\n" % type(e).__name__)
         return {}
     yes = got.get("sso") in (True, "true", "yes")
+    import sparklog
+    sparklog.decide(lg.get("id"), "SSO request: stays on the list" if yes else "Not SSO: moved out of the list (Not SSO chip)", changed=not yes)
     return dict(relevance="sso" if yes else "not_sso", relevance_by="spark", relevance_note=str(got.get("why") or "")[:120] or None)
 
 
@@ -515,7 +518,7 @@ def _text(c):
     return _plain(c.get("html_body") or c.get("body") or c.get("plain_body") or "")
 
 
-def _ask_stage(reply):
+def _ask_stage(reply, ticket_id=None):
     """Spark reads the customer's latest reply: (stage, short note)."""
     import spark
     system = ("A support ticket about verifying a domain for single sign-on (SSO). The agent sent DNS TXT records for the "
@@ -524,10 +527,15 @@ def _ask_stage(reply):
               "says_done: they say the record is added, or ask us to check / verify now. stuck: a problem, an error, or a "
               "question about adding it. waiting: they need time, or someone else (their IT, DNS provider, manager) is doing it. "
               "replied: anything else. Ignore signatures and quoted earlier messages.")
-    raw = spark.chat(system, reply[:1500], max_tokens=200)
+    lg = {"area": "sso_stage", "tickets": ticket_id}
+    raw = spark.chat(system, reply[:1500], max_tokens=200, log=lg)
     got = json.loads(raw[raw.find("{"):raw.rfind("}") + 1] or "{}")
     st = str(got.get("stage") or "").strip().lower()
-    return (st if st in ("says_done", "stuck", "waiting", "replied") else "replied"), str(got.get("note") or "")[:120]
+    st = st if st in ("says_done", "stuck", "waiting", "replied") else "replied"
+    import sparklog
+    sparklog.decide(lg.get("id"), {"says_done": "Customer says it's added: DNS checked right away", "stuck": "Customer has a question",
+                                   "waiting": "Customer waiting on their side", "replied": "Customer replied"}[st])
+    return st, str(got.get("note") or "")[:120]
 
 
 def _stage(t, comments, recs, row):
@@ -552,7 +560,7 @@ def _stage(t, comments, recs, row):
         import spark
         if not spark.available():
             raise RuntimeError("Spark isn't set up")
-        st, note = _ask_stage(_text(last))
+        st, note = _ask_stage(_text(last), t.get("id"))
     except Exception as e:                                  # no Spark: say so plainly; asked again on the next update
         sys.stderr.write("[sso] Spark stage skipped: %s\n" % type(e).__name__)
         return dict(stage="replied", stage_note="The customer replied", stage_ms=_now(), stage_for=None), False

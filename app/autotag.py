@@ -186,7 +186,8 @@ def _ask_spark(items):
               "confidence is high, medium or low. Answer with JSON only, one entry per ticket: "
               '{"<ticket id>": {"lang": "<answer>", "confidence": "high|medium|low", "why": "<6 words at most>"}}') % ", ".join(names)
     text = "\n\n".join("Ticket %s\nSubject: %s\nCustomer wrote: %s" % (i, s[:160], re.sub(r"\s+", " ", x)[:900]) for i, s, x in items)
-    raw = spark.chat(system, text, max_tokens=900)
+    lg = {"area": "autotag", "tickets": [i for i, _, _ in items]}
+    raw = spark.chat(system, text, max_tokens=900, log=lg)
     got = json.loads(raw[raw.find("{"):raw.rfind("}") + 1] or "{}")
     allowed = dict({n.lower(): n for n in names}, other="Other", none="None")
     out = {}
@@ -197,6 +198,9 @@ def _ask_spark(items):
         lang = allowed.get(str(a.get("lang") or "").strip().lower(), "None")      # an answer off the list: no tag
         conf = str(a.get("confidence") or "").lower()
         out[i] = (lang, conf if conf in ("high", "medium", "low") else "medium", str(a.get("why") or "")[:80])
+    import sparklog
+    sparklog.decide(lg.get("id"), "; ".join("#%s %s%s" % (i, v[0], " (held %s)" % TAG_OF[v[0]] if v[0] in TAG_OF else " (no tag)")
+                                            for i, v in out.items()))
     return out
 
 

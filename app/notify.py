@@ -296,7 +296,8 @@ def _spark_languages(names, tickets):
                                                                        re.sub(r"\s+", " ", t.get("description") or "")[:600])
                                 for t in batch)
             try:
-                raw = spark.chat(system, text, max_tokens=600)
+                lg = {"area": "teams_languages", "tickets": [t["id"] for t in batch]}
+                raw = spark.chat(system, text, max_tokens=600, log=lg)
                 got = json.loads(raw[raw.find("{"):raw.rfind("}") + 1] or "{}")
             except Exception as e:                       # Spark down or an odd answer: ask again next time
                 sys.stderr.write("[notify] Spark language check skipped: %s\n" % type(e).__name__)
@@ -304,6 +305,8 @@ def _spark_languages(names, tickets):
             for t in batch:
                 ans = str(got.get(str(t["id"])) or "Other").strip().lower()
                 known[str(t["id"])] = allowed.get(ans, "Other")
+            import sparklog
+            sparklog.decide(lg.get("id"), "; ".join("#%s %s" % (t["id"], known[str(t["id"])]) for t in batch))
         cache["map"] = dict(list(known.items())[-3000:])
         store.set_setting("notify_langdet", json.dumps(cache), "notify")
     return {int(k): v for k, v in known.items()}
