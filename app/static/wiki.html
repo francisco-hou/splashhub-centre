@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wiki · SplashHub Centre</title>
+  <link rel="icon" href="splashtop-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css?v=1.12.1">
+</head>
+<body>
+  <nav class="snav" id="snav" aria-label="Pages">
+    <div class="snav-brand">
+      <span class="snav-logo"><img src="splashtop-icon.png" alt="" width="26" height="26"></span>
+      <span class="snav-name">SplashHub <span class="brand-sub">Centre</span></span>
+      <button type="button" class="snav-toggle" id="navToggle" title="Collapse the menu" aria-label="Collapse the menu"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9.5" y1="4" x2="9.5" y2="20"/><polyline points="16 9.5 13.5 12 16 14.5"/></svg></button>
+    </div>
+    <div class="snav-scroll">
+      <a class="snav-item" href="/me" title="My Dashboard"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg><span class="snav-label">My Dashboard</span><span class="snav-beta">Soon</span></a>
+      <a class="snav-item" href="/scans" title="SOS Scans"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg><span class="snav-label">SOS Scans</span></a>
+      <a class="snav-item" href="/sso" title="SSO Requests"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2"/><path d="M16 7l3 3"/><path d="M19 4l2 2"/></svg><span class="snav-label">SSO Requests</span></a>
+      <a class="snav-item" href="/po" title="PO Requests"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg><span class="snav-label">PO Requests</span></a>
+      <a class="snav-item" href="/customers" title="Customers"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="snav-label">Customers</span></a>
+      <a class="snav-item" href="/prices" title="PriceBook"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/></svg><span class="snav-label">PriceBook</span></a>
+      <a class="snav-item" href="/kb" title="Knowledge Base"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></svg><span class="snav-label">Knowledge Base</span></a>
+      <a class="snav-item" href="/tags" title="Tags"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg><span class="snav-label">Tags</span></a>
+      <a class="snav-item" href="/autotag" title="AutoTag"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><path d="M7 5.5l.6 1.4 1.4.6-1.4.6L7 9.5l-.6-1.4L5 7.5l1.4-.6z"/></svg><span class="snav-label">AutoTag</span><span class="snav-ai">Spark</span></a>
+      <a class="snav-item" href="/adfilter" title="Ad/Spam Filter"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 3H2l8 9.46V19l4 2v-8.54z"/></svg><span class="snav-label">Ad/Spam Filter</span><span class="snav-ai">Spark</span></a>
+      <a class="snav-item" href="/ask" title="AI"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg><span class="snav-label">AI</span><span class="snav-ai">Spark</span></a>
+      <div class="snav-adm-h" hidden>Admin</div>
+      <a class="snav-item snav-adm" href="/overview" title="Dashboard" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg><span class="snav-label">Dashboard</span></a>
+      <a class="snav-item snav-adm" href="/sparklog" title="Spark activity" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg><span class="snav-label">Spark activity</span></a>
+      <a class="snav-item snav-adm" href="/logs" title="Logs" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg><span class="snav-label">Logs</span></a>
+      <a class="snav-item snav-adm" href="/settings" title="Settings" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="snav-label">Settings</span></a>
+    </div>
+    <div class="snav-foot"><a class="snav-item active" href="/wiki" aria-current="page" title="Wiki"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="9" y1="7" x2="16" y2="7"/><line x1="9" y1="11" x2="14" y2="11"/></svg><span class="snav-label">Wiki</span></a></div>
+  </nav>
+  <script src="nav.js?v=1.7.1"></script>
+
+  <main class="page wiki-page" id="page">
+    <div class="hdr">
+      <div class="hdr-left">
+        <h1 class="hdr-title">Wiki</h1>
+        <div class="hdr-sub">Everything SplashHub Centre does, page by page: what you see, what each button does, what runs by itself in the background, and what it changes in Zendesk.</div>
+      </div>
+    </div>
+
+    <div class="wiki">
+      <aside class="wiki-toc" aria-label="Contents">
+        <div class="search wiki-search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" id="wq" placeholder="Search the wiki" autocomplete="off" spellcheck="false">
+        </div>
+        <nav id="toc"></nav>
+      </aside>
+
+      <article class="wiki-doc" id="doc">
+
+        <!-- ================= GETTING STARTED ================= -->
+        <section class="wiki-part" id="start" data-part="Getting started">
+          <h2>Getting started</h2>
+
+          <div class="wiki-sec" id="what">
+            <h3>What SplashHub Centre is</h3>
+            <p>SplashHub Centre is the Splashtop support team&rsquo;s web app, hosted on Spluki. It works next to <b>SplashHub</b>, the sidebar app inside Zendesk: SplashHub helps on the ticket you have open, Centre looks across all tickets &mdash; lists, dashboards, background checks and AI that runs by itself.</p>
+            <ul>
+              <li><b>Where:</b> <code>splashhub-37268f-dev.tperd.splashtop.dev</code>. It only opens inside the company network (office or VPN).</li>
+              <li><b>Zendesk:</b> Centre reads Zendesk with its own account. It changes Zendesk only in the few places listed in <a href="#writes">What Centre changes in Zendesk</a>, and almost always only when someone presses a button.</li>
+              <li><b>AI:</b> two kinds. <b>Spark</b> is Splashtop&rsquo;s own AI (free) and does most of the work. <b>Claude</b> does the SOS package image reviews (paid, a few cents each, shown on Logs).</li>
+            </ul>
+          </div>
+
+          <div class="wiki-sec" id="roles">
+            <h3>Member and Admin</h3>
+            <p>Top right shows <b>Splashtop Support</b> with your role under it.</p>
+            <table class="wiki-t">
+              <tr><th>Role</th><th>Who</th><th>Can use</th></tr>
+              <tr><td><b>Member</b></td><td>Everyone, without signing in</td><td>Every page in the main menu: My Dashboard, SOS Scans, SSO Requests, PO Requests, Customers, PriceBook, Knowledge Base, Tags, AutoTag, Ad/Spam Filter, AI, and this Wiki.</td></tr>
+              <tr><td><b>Admin</b></td><td>Whoever has the admin password</td><td>Also the <b>Admin</b> group in the menu: Dashboard, Logs, Settings, Spark activity.</td></tr>
+            </table>
+            <p><b>To sign in as admin:</b> click your name top right &rsaquo; <b>Admin login</b> &rsaquo; enter the password. The Admin group appears in the left menu. <b>Log out</b> is in the same menu. Personal sign-in with real names (SSO) is planned; until then everyone shows as &ldquo;Splashtop Support&rdquo;.</p>
+          </div>
+
+          <div class="wiki-sec" id="menu">
+            <h3>The menu and moving around</h3>
+            <ul>
+              <li><b>Left menu:</b> every page. The button next to the logo folds it into icons (remembered in your browser); on narrow windows it&rsquo;s always icons.</li>
+              <li><b>Pop-up panels:</b> most lists open an item in a panel over the page. <kbd>&uarr;</kbd> / <kbd>&darr;</kbd> move to the previous / next item, <kbd>Esc</kbd> closes.</li>
+              <li><b>Last view:</b> when you come back to a page, it shows what you saw last time (slightly faded) while fresh data loads, so nothing sits empty. Kept in your browser for 7 days.</li>
+              <li><b>Loading:</b> a thin moving line under the top bar means the page is fetching data after a click or search; grey shimmering blocks are placeholders on a first visit.</li>
+              <li><b>Holiday themes:</b> around holidays the top bar and menu get a light tint, a festive stripe and a greeting (admins choose in Settings &rsaquo; Look &rsaquo; Theme). Text and numbers never change colour.</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- ================= TEAM PAGES ================= -->
+        <section class="wiki-part" id="pages" data-part="Team pages">
+          <h2>Team pages</h2>
+
+          <div class="wiki-sec" id="me">
+            <h3>My Dashboard <span class="wiki-tag">Soon</span></h3>
+            <p>A placeholder for each support member&rsquo;s own page &mdash; your open and RR tickets, pins, Jira issues, tickets in your languages, the SOS and PO requests you&rsquo;re on, your AI usage. It needs personal sign-in (SSO), which is planned.</p>
+          </div>
+
+          <div class="wiki-sec" id="sos">
+            <h3>SOS Scans</h3>
+            <p>Custom SOS package requests &mdash; the Zendesk tickets &ldquo;New SOS package created by &hellip;&rdquo; &mdash; checked for brand misuse (someone white-labelling Splashtop to pose as a bank, Microsoft, a government&hellip;).</p>
+            <h4>How requests arrive</h4>
+            <ul>
+              <li>A Zendesk trigger sends each new request to Centre through a webhook the moment the ticket is created.</li>
+              <li>If <b>Settings &rsaquo; Reviews &amp; notes &rsaquo; AI review</b> is on, Claude reviews it right away; otherwise it&rsquo;s only listed. Reviews that fail are retried every 10 minutes.</li>
+              <li>Old requests can be brought in with <b>Settings &rsaquo; Import &rsaquo; Past requests</b> (listed, not reviewed).</li>
+            </ul>
+            <h4>Dashboard view</h4>
+            <ul>
+              <li><b>Tiles:</b> last 24 hours and last 7 days (against the usual), Needs review still open, High risk still open, share of generic e-mails over 7 days.</li>
+              <li><b>Requests per day</b> for 21 days, coloured by verdict, with the usual for that weekday.</li>
+              <li><b>Needs attention:</b> flagged or unreviewed requests whose ticket is still open, oldest first.</li>
+              <li><b>Spike alert:</b> the last 24 h / 7 days against the usual, and Spark&rsquo;s note on what the burst has in common (same domains, trials, similar names, time of day).</li>
+              <li><b>Who&rsquo;s asking</b> (creator domains, new vs returning teams), <b>Package mix</b> (trial / paid), <b>Lookalike names</b> (Spark: package names imitating a known brand), <b>AI spend</b> for 7 days.</li>
+            </ul>
+            <h4>View Scans (the list)</h4>
+            <ul>
+              <li>Filter by verdict, search by ticket, creator or package. The <b>Ticket status</b> column is the Zendesk ticket&rsquo;s own status, refreshed every minute for open tickets.</li>
+              <li>Click a request for its panel: package details (created, creator, type &mdash; <i>trial</i> in red &mdash; subscription, technicians), what end users see (caption, instructions), the images (shown straight from Zendesk; click to enlarge), <b>Translate to English</b>, <b>View team on ACP</b>, <b>Manage SOS PKG on ACP</b>, <b>Download package</b>, the AI review card, <b>Run AI review / Re-review</b>, <b>Add as internal note</b>, and who pressed Scan in SplashHub.</li>
+            </ul>
+            <h4>The verdicts and the team&rsquo;s rules</h4>
+            <table class="wiki-t">
+              <tr><th>Verdict</th><th>Means</th></tr>
+              <tr><td><span class="wiki-pill ok">Verified</span></td><td>No issue found.</td></tr>
+              <tr><td><span class="wiki-pill warn">Needs review</span></td><td>A person should look.</td></tr>
+              <tr><td><span class="wiki-pill bad">High risk</span></td><td>A concrete reason to suspect brand misuse.</td></tr>
+            </table>
+            <p>On top of the AI&rsquo;s own call:</p>
+            <ul>
+              <li>A <b>generic / free e-mail</b> (gmail, outlook, qq.com&hellip;) is never Verified &mdash; at least Needs review, until the customer gives a reason.</li>
+              <li><b>Branding that doesn&rsquo;t match the creator&rsquo;s domain</b> (images say &ldquo;Vaultorio&rdquo;, e-mail is @datamaas.com) is at least Needs review; the card says which image shows which brand. Platform names on download links (Windows, Mac, Android, iOS, Linux, Chrome OS) and Splashtop itself never count.</li>
+              <li><b>Splashtop branding beyond &ldquo;Powered by Splashtop&rdquo;</b> (e.g. &ldquo;SOS by Splashtop&rdquo;) is High risk. A small &ldquo;Powered by Splashtop&rdquo; and Splashtop&rsquo;s default title bar are fine.</li>
+              <li><b>Scam-sounding details</b> (&ldquo;Fraud Investigation&rdquo;, &ldquo;IRS&rdquo;, &ldquo;Account suspended&rdquo;) are flagged.</li>
+              <li>When a rule is added, older reviews are re-checked at start-up.</li>
+            </ul>
+            <h4>The AI review and internal notes</h4>
+            <ul>
+              <li>Claude reads the package&rsquo;s images and details, with the same prompt and format as SplashHub&rsquo;s sidebar scan. Images are never stored &mdash; downloaded in memory only for the review. Each review&rsquo;s cost shows on its card and on Logs.</li>
+              <li><b>Add as internal note</b> posts the review to the ticket as an internal note (agents only). <b>Settings &rsaquo; Reviews &amp; notes &rsaquo; Auto add internal note</b> does it after every review.</li>
+              <li>The note has: status with confidence, reason, review, image and package details, and quick links (Manage SOS PKG, View team on ACP, Download package).</li>
+            </ul>
+          </div>
+
+          <div class="wiki-sec" id="sso">
+            <h3>SSO Requests</h3>
+            <p>Requests to validate an SSO method: the customer must add a DNS TXT record proving they own their domain.</p>
+            <h4>How requests are found</h4>
+            <ul>
+              <li>Every <b>15 minutes</b> Centre searches Zendesk for tickets tagged <code>single_sign-on__sso_</code> (SplashHub&rsquo;s SSO tool adds it with Insert Reply), tickets with a <code>splashtop-sso-challenge</code> record anywhere in the conversation, or the old SSO form&rsquo;s subject. Updated tickets are read again.</li>
+              <li>It reads the <b>whole conversation</b> the way SplashHub&rsquo;s SSO tool does and keeps every record: a TXT record on <code>splashtop-sso-challenge.&lt;domain&gt;</code> (or a dated host like <code>-20260520.&lt;domain&gt;</code>) with a 32-character value. Several domains per ticket are fine (the list shows &ldquo;+1&rdquo;).</li>
+              <li><b>Add a ticket</b> by number, or <b>Import past SSO requests</b> to find all of 2026.</li>
+              <li><b>Spark double-check:</b> tickets on the list only because of the tag are read once by Spark. If it&rsquo;s not really an SSO request (one user who can&rsquo;t sign in, a mis-tagged invoice), it moves to <b>Not SSO</b>. Tickets with records or the SSO form always count.</li>
+            </ul>
+            <h4>DNS checks</h4>
+            <ul>
+              <li>Every <b>hour</b>, each waiting request with an open ticket is checked by itself (all its records). <b>Check DNS</b> checks one now; <b>Check all waiting</b> checks every waiting one.</li>
+              <li>When the customer replies that they&rsquo;ve added the record, Centre checks right away instead of waiting for the hour.</li>
+              <li>A request is <b>Verified</b> when every record carries its value. Solved and closed tickets aren&rsquo;t checked anymore.</li>
+            </ul>
+            <h4>The list</h4>
+            <ul>
+              <li><b>Ticket-status chips:</b> <b>Open tasks</b> (default: everything not solved or closed), Open, Pending, On-hold, then Solved / closed and Not SSO.</li>
+              <li><b>Request-status chips:</b> Any status, Waiting, Verified, Enabled, Not found yet, Not checked, Needs details, Check failed.</li>
+              <li>Under each status, a small line says <b>where it stands</b> (see <a href="#ssostages">SSO stages</a>). Orange lines need a reply.</li>
+            </ul>
+            <h4>A request&rsquo;s panel</h4>
+            <ul>
+              <li>Requested, requester, ticket and its status, organization, where it stands.</li>
+              <li>The record to look for (domain, TXT host, expected value) &mdash; editable if the ticket wasn&rsquo;t clear &mdash; and <b>All records in the ticket</b> with each domain&rsquo;s own result.</li>
+              <li>The DNS check card with the TXT records found, earlier checks, and <b>Add as internal note</b> (the result, per domain).</li>
+              <li><b>Not an SSO request</b> / <b>It is an SSO request</b>: a person&rsquo;s choice always wins over Spark.</li>
+            </ul>
+          </div>
+
+          <div class="wiki-sec" id="po">
+            <h3>PO Requests</h3>
+            <p>Every Zendesk ticket carrying a &ldquo;Provision Details&rdquo; order (purchase / provisioning), from all years, read the way SplashHub&rsquo;s PO tool reads it.</p>
+            <ul>
+              <li><b>Each order:</b> SPID, company, order type, expected provision date, region (US, EMEA, JP, On-Prem), products with quantities and start / end dates, and the whole conversation.</li>
+              <li><b>Top:</b> open orders, due in the next 7 days, overdue (expected date passed, ticket still open), the last 30 days.</li>
+              <li><b>Filters:</b> status, region, upcoming / overdue, year; search an SPID, company, product or ticket number.</li>
+              <li><b>Updates:</b> imported once in Settings &rsaquo; Database &rsaquo; PO Requests, then new and changed ones every hour.</li>
+            </ul>
+          </div>
+
+          <div class="wiki-sec" id="customers">
+            <h3>Customers</h3>
+            <p>Everything Centre knows about one customer on one page. Search an e-mail domain, an address, or a company name. A customer is a domain &mdash; or, for free e-mail providers, one address.</p>
+            <ul>
+              <li><b>Shows:</b> organizations and country, first and last contact, quick links (ACP, Zendesk search); their 2026 tickets (count, still open, per month, top tags and topics, latest); Custom SOS packages with verdicts; SSO requests; PO / provisioning requests; the people who wrote in.</li>
+              <li><b>AI summary:</b> a short Spark briefing on the customer.</li>
+              <li>With no search, it lists the most active customers of the last 30 days. Splashtop&rsquo;s own domain is never a customer. It uses data already downloaded; nothing new is read from Zendesk.</li>
+            </ul>
+          </div>
+
+          <div class="wiki-sec" id="pricebook">
+            <h3>PriceBook</h3>
+            <p>Splashtop list prices per market (USA, Canada, EU, UK, Brazil, Mexico, Japan, Taiwan, China, Switzerland, Denmark, Sweden, Norway) for Remote Access (Solo, Pro, Performance), Remote Support (SOS+10, SOS+300), Autonomous Endpoint Management and Antivirus, read from splashtop.com &mdash; the same PriceBook as SplashHub&rsquo;s, with a calculator and an AI panel for plans and quotes. Admins set where prices come from in <b>Settings &rsaquo; Price feed</b>.</p>
+          </div>
+
+          <div class="wiki-sec" id="kb">
+            <h3>Knowledge Base</h3>
+            <p>Splashtop&rsquo;s Zendesk Help Center articles, in every language.</p>
+            <ul>
+              <li><b>Search</b> by words, title or article number; filter by language, category, Promoted / Outdated translation / Agents only / Drafts; sort by most linked in tickets, helpful votes, &ldquo;not helpful&rdquo; votes, or update date.</li>
+              <li><b>Top:</b> articles, updated in the last 30 days, linked in 2026 tickets, outdated translations.</li>
+              <li><b>An article:</b> helpful % (votes), how many 2026 tickets link it (by month, latest tickets), dates, languages (outdated ones marked), labels and its text, with <b>Open in the Help Center</b>. Zendesk doesn&rsquo;t provide page views.</li>
+              <li><b>Updates:</b> downloaded in Settings &rsaquo; Database &rsaquo; Zendesk Knowledge Base, then synced every 6 hours.</li>
+            </ul>
+          </div>
+
+          <div class="wiki-sec" id="tags">
+            <h3>Tags</h3>
+            <p>How many tickets carry each Zendesk tag, from the downloaded 2026 tickets &mdash; the same sets as SplashHub&rsquo;s Tags page.</p>
+            <ul>
+              <li><b>Sets:</b> Topics (SplashHub&rsquo;s list, with groups like &ldquo;2FA &amp; recovery&rdquo;), Languages, All tags (the most used).</li>
+              <li><b>Period:</b> today, 7 or 30 days, with the change against the period before.</li>
+              <li><b>Views:</b> Share (donut) or Heatmap (8 weeks). The table sorts by any column; every count opens the matching Zendesk search.</li>
+              <li><b>Choose topics:</b> up to 15 on screen; your choice is remembered in your browser.</li>
+            </ul>
+          </div>
+
+          <div class="wiki-sec" id="autotag">
+            <h3>AutoTag <span class="wiki-tag spark">Spark</span></h3>
+            <p>Spark reads the language of every new ticket in the background &mdash; SplashTags&rsquo; job, done for every ticket whether or not anyone opens it. The tag it would add is <b>held on this page to be checked</b>; nothing is written to Zendesk unless someone presses a tag button.</p>
+            <h4>How it reads a ticket</h4>
+            <ul>
+              <li>Every <b>2 minutes</b>, tickets created from the start day on (the day it was first switched on). <b>Scan new tickets</b> reads them now.</li>
+              <li><b>Email / web form:</b> the subject and the customer&rsquo;s <b>first message</b> (SplashTags&rsquo; rule: later replies drift to English). Agent comments are left out.</li>
+              <li><b>Live chat:</b> waits for the <b>chat transcript</b> (it arrives when the chat ends; at most a day), then reads every line the visitor wrote &mdash; no agent lines, no chat boilerplate.</li>
+              <li><b>Messaging:</b> every customer message, once there is one.</li>
+              <li><b>Always-Japanese requesters</b> (e.g. <code>splashtop@och.co.jp</code>) are Japanese whatever the text.</li>
+              <li><b>Skipped and hidden:</b> provisioning requests (skip phrase &ldquo;Provision Details&rdquo;) and phone calls (voice channel, &ldquo;Call from / Voicemail from&rdquo; subjects, voicemail / hangup tags).</li>
+            </ul>
+            <h4>Languages</h4>
+            <p>Japanese, Korean, Chinese (Simplified), Chinese (Traditional), English, French, German, Spanish, Italian, Portuguese &mdash; each with its <code>language_xx</code> tag &mdash; plus <b>Other</b> (<code>language_other</code>) for a real language not on the list. <b>No text</b> (empty, a signature only) gets no tag.</p>
+            <h4>The page</h4>
+            <ul>
+              <li><b>Numbers:</b> tickets read, would tag (by language), same as the Zendesk tag (%), differs, checked by the team (% right).</li>
+              <li><b>Filters:</b> search, language, result, checked or not; chips Differs from the Zendesk tag / No language tag in Zendesk / Same as Zendesk.</li>
+              <li><b>A ticket&rsquo;s panel:</b> Spark&rsquo;s answer and confidence, the ticket&rsquo;s tag in Zendesk now, what Spark read, <b>&#10003; Right / &#10007; Wrong</b> (and the right language), <b>Add tag</b> / <b>Change tag</b> (replaces another language tag), <b>Clear tag</b> (two clicks).</li>
+              <li><b>For the checking phase:</b> tick boxes and <b>Add tags</b>, <b>Add tags to all on this page</b> (with a confirmation and breakdown). A ticket whose tag someone cleared on purpose is never put back by a mass add.</li>
+              <li>Tag changes use Zendesk&rsquo;s tags-only update: the status never changes and nobody needs to submit.</li>
+            </ul>
+          </div>
+
+          <div class="wiki-sec" id="adspam">
+            <h3>Ad/Spam Filter <span class="wiki-tag spark">Spark</span></h3>
+            <p>Spark reads every new ticket and decides whether it&rsquo;s <b>marketing or spam</b> &mdash; someone selling SEO, backlinks, website traffic, ads or development to Splashtop &mdash; or a real request. Only the ones it calls ads are listed.</p>
+            <h4>How it scans</h4>
+            <ul>
+              <li>Every <b>2 minutes</b>, every ticket created since the day before it was first switched on, whatever its status.</li>
+              <li>Reads tickets the same way as AutoTag (first message; chats after their transcript; messaging in full).</li>
+              <li>Never called spam: phone calls, provisioning requests, and tickets with no real text. A chat asking about Splashtop is never spam.</li>
+              <li>Spark compares each ticket with the <b>example ads</b> in Settings &rsaquo; AutoTag &rsaquo; Ad/Spam Filter. Paste new spam there when one slips through.</li>
+            </ul>
+            <h4>The page</h4>
+            <ul>
+              <li><b>Views:</b> <b>Open tasks</b> (default: New, Open, Pending, On-hold), Solved / closed, Marked wrong. Each ticket&rsquo;s status follows Zendesk.</li>
+              <li><b>A ticket&rsquo;s preview:</b> subject, sender, status and tags (fresh from Zendesk), Spark&rsquo;s reason, the <b>whole ticket</b> (every reply and note, oldest first), <b>&#10003; Right / &#10007; Wrong</b>, Open in Zendesk.</li>
+            </ul>
+            <h4>Silent close</h4>
+            <p>In a ticket&rsquo;s preview, confirmed twice (the box, then a tick &ldquo;I checked it: this ticket is spam&rdquo;, then <b>Yes, silent close</b>):</p>
+            <ol>
+              <li>Adds the <code>silent_close</code> tag.</li>
+              <li>One ticket update: a <b>private note &ldquo;Silent-Close&rdquo;</b> (never sent to the customer), <b>Product = Don&rsquo;t Know</b>, <b>Issue Type = Other</b> (both required to solve), status <b>Solved</b>.</li>
+              <li>Reads the ticket back and shows each part &#10003; or &#10007;.</li>
+            </ol>
+            <p>The ticket counts as &#10003; Right. The button stays as <b>Silent close again&hellip;</b> to retry (each retry adds another note). If the ticket had no assignee, Zendesk may assign it to Centre&rsquo;s Zendesk account when solving.</p>
+          </div>
+
+          <div class="wiki-sec" id="ai">
+            <h3>AI <span class="wiki-tag spark">Spark</span></h3>
+            <p>Questions answered by Spark from Centre&rsquo;s own data. Nothing asked there changes anything or reaches Zendesk.</p>
+            <ul>
+              <li><b>Can answer about:</b> 2026 support tickets (counts, trends, common problems, how they were fixed, similar cases, one ticket in full), SOS and SSO requests, PO requests, customers, Knowledge Base articles, plans and prices (quotes; 4+ licences can get a volume price), the run log, and how Centre works.</li>
+              <li><b>&ldquo;Draft a reply for #123&rdquo;</b> reads that ticket fresh from Zendesk, looks at how similar cases were fixed and relevant articles, and writes a reply. <b>Copy draft</b> copies just the reply.</li>
+              <li>Each answer shows what it looked up and how long it took. It never discusses individual support agents.</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- ================= ADMIN ================= -->
+        <section class="wiki-part" id="admin" data-part="Admin">
+          <h2>Admin</h2>
+
+          <div class="wiki-sec" id="dashboard">
+            <h3>Dashboard</h3>
+            <ul>
+              <li><b>Zendesk now:</b> new, open, RR queue, pending, on hold, created / solved today &mdash; Zendesk counts read in the background at most every 5 minutes.</li>
+              <li><b>Tickets:</b> 14 days, this week vs last, top tags, rising words.</li>
+              <li><b>Needs attention:</b> one list across SOS, PO and SSO, oldest first.</li>
+              <li><b>SOS / SSO / PO</b> tiles, <b>RR queue by language</b>.</li>
+              <li><b>AI usage:</b> runs and cost this week vs last, by tool; by member for 30 days, with a member filter.</li>
+              <li><b>Knowledge Base</b> (least helpful, outdated translations) and <b>most active customers</b>.</li>
+            </ul>
+          </div>
+
+          <div class="wiki-sec" id="logs">
+            <h3>Logs</h3>
+            <p>Every AI run across the team: who, when, which tool and model, tokens, estimated cost &mdash; from the SplashHub sidebar and from Centre. Filters (period, agent, model, tool, search), charts per day and by tool, 25 runs a page, <b>Export CSV</b>.</p>
+          </div>
+
+          <div class="wiki-sec" id="settings">
+            <h3>Settings</h3>
+            <p>Team-wide: a change here applies to everyone.</p>
+            <table class="wiki-t">
+              <tr><th>Section</th><th>What it controls</th></tr>
+              <tr><td>SOS Scans &rsaquo; Reviews &amp; notes</td><td><b>AI review</b> (review new requests on arrival) and <b>Auto add internal note</b>.</td></tr>
+              <tr><td>SOS Scans &rsaquo; Translation</td><td>Translate with Claude (best, a cent or two) or Spark (free). Made once per request and kept.</td></tr>
+              <tr><td>SOS Scans &rsaquo; Import</td><td>Import every past SOS package ticket (listed, not reviewed); carries on after a restart.</td></tr>
+              <tr><td>AI &rsaquo; Spark</td><td>The model, <b>Test speed</b>, and <b>Let the model think first</b> (slower; shows its reasoning in Spark activity).</td></tr>
+              <tr><td>Database &rsaquo; Zendesk Tickets</td><td>Download 2026&rsquo;s tickets and conversations for the AI, Tags, Customers and Dashboard; hourly updates after.</td></tr>
+              <tr><td>Database &rsaquo; Zendesk Knowledge Base</td><td>Download / sync Help Center articles (every 6 hours after).</td></tr>
+              <tr><td>Database &rsaquo; PO Requests</td><td>Import every PO request once; hourly updates after.</td></tr>
+              <tr><td>Notifications &rsaquo; Teams</td><td>The Teams channel link test, each alert kind on/off with <b>Run now</b>, and the language-routing table (see <a href="#teams">Teams notifications</a>).</td></tr>
+              <tr><td>AutoTag &rsaquo; Languages</td><td>AutoTag on/off, skip phrases, always-Japanese requesters, <b>Check for new tickets now</b>; the <b>Ad/Spam Filter</b> on/off, its <b>example ads</b> and <b>Scan now</b>. &ldquo;Write tags to Zendesk by itself&rdquo; stays off while the team checks.</td></tr>
+              <tr><td>Look &rsaquo; Theme</td><td>Holiday theme: Automatic (by the calendar), Off, or one kept on; decorations on/off.</td></tr>
+              <tr><td>PriceBook &rsaquo; Price feed</td><td>Where the PriceBook reads its prices on splashtop.com.</td></tr>
+            </table>
+          </div>
+
+          <div class="wiki-sec" id="sparkact">
+            <h3>Spark activity</h3>
+            <p>Every decision Spark makes behind the scenes, kept 30 days.</p>
+            <ul>
+              <li><b>Summary:</b> decisions in the last 24 hours, average and slowest answer, failures; a table by area for 7 days (decisions, average, per ticket, slowest, changed something, failed).</li>
+              <li><b>Areas:</b> SSO (is it an SSO request? / where it stands), AutoTag (language), Ad/Spam Filter, Teams language routing, SOS Scans (translation, dashboard notes), Customers (summary).</li>
+              <li><b>Filters:</b> area, ticket number, result (changed something / no change / failed). Links from the SSO, AutoTag and Ad/Spam panels open it on that ticket.</li>
+              <li><b>Click a decision:</b> a pop-up with the <b>ticket</b> on the left (status, tags, whole conversation; a switcher when Spark read several at once) and <b>Spark&rsquo;s judgement</b> on the right (what Centre did, time, its answer, its reasoning, what it read, the question).</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- ================= HOW IT WORKS ================= -->
+        <section class="wiki-part" id="how" data-part="How it works">
+          <h2>How it works</h2>
+
+          <div class="wiki-sec" id="writes">
+            <h3>What Centre changes in Zendesk</h3>
+            <p>Everything else is read-only.</p>
+            <table class="wiki-t">
+              <tr><th>Where</th><th>What it changes</th><th>When</th></tr>
+              <tr><td>SOS Scans</td><td>An internal note with the review</td><td>Add as internal note, or automatically if Auto add internal note is on</td></tr>
+              <tr><td>SSO Requests</td><td>An internal note with the DNS result</td><td>Add as internal note</td></tr>
+              <tr><td>AutoTag</td><td>Adds / replaces / removes a <code>language_*</code> tag (tags only)</td><td>Add tag, Change tag, Clear tag, Add tags (mass)</td></tr>
+              <tr><td>Ad/Spam Filter</td><td><code>silent_close</code> tag, private note &ldquo;Silent-Close&rdquo;, Product, Issue Type, Solved</td><td>Silent close (confirmed twice)</td></tr>
+            </table>
+          </div>
+
+          <div class="wiki-sec" id="jobs">
+            <h3>What runs by itself</h3>
+            <table class="wiki-t">
+              <tr><th>Job</th><th>How often</th></tr>
+              <tr><td>New SOS requests (webhook) and their AI review</td><td>As they arrive; failed reviews retried every 10 minutes</td></tr>
+              <tr><td>SOS ticket statuses</td><td>Every minute, open tickets only</td></tr>
+              <tr><td>SSO search (new and updated tickets)</td><td>Every 15 minutes</td></tr>
+              <tr><td>SSO DNS checks</td><td>Every hour per waiting request (right away when the customer says it&rsquo;s added)</td></tr>
+              <tr><td>AutoTag</td><td>Every 2 minutes</td></tr>
+              <tr><td>Ad/Spam Filter</td><td>Every 2 minutes</td></tr>
+              <tr><td>Zendesk Tickets update</td><td>Every hour</td></tr>
+              <tr><td>PO Requests update</td><td>Every hour</td></tr>
+              <tr><td>Knowledge Base sync</td><td>Every 6 hours</td></tr>
+              <tr><td>Dashboard &ldquo;Zendesk now&rdquo; counts</td><td>At most every 5 minutes, while someone looks</td></tr>
+              <tr><td>Teams: spikes / languages / overdue POs</td><td>Every 15 / 30 / 60 minutes (only the kinds switched on)</td></tr>
+            </table>
+          </div>
+
+          <div class="wiki-sec" id="spark">
+            <h3>Spark, Splashtop&rsquo;s AI</h3>
+            <ul>
+              <li>Free, hosted by Splashtop; the model is shown in Settings &rsaquo; Spark.</li>
+              <li><b>Used for:</b> AutoTag, the Ad/Spam Filter, the SSO checks, Teams language routing, the AI page, Customers summaries, SOS dashboard notes and (optionally) translations.</li>
+              <li>Background decisions are <b>held for checking</b> &mdash; nothing Spark decides changes Zendesk by itself. The &#10003; Right / &#10007; Wrong buttons measure how reliable it is.</li>
+              <li>Every background decision is kept in <a href="#sparkact">Spark activity</a>. If Spark doesn&rsquo;t answer, the work waits and is retried on the next round.</li>
+            </ul>
+          </div>
+
+          <div class="wiki-sec" id="teams">
+            <h3>Teams notifications</h3>
+            <p>Centre posts cards to the support Teams channel (a Workflows webhook). Each kind is switched on in Settings &rsaquo; Notifications &rsaquo; Teams, and <b>Run now</b> sends one at once.</p>
+            <ul>
+              <li><b>Language routing:</b> open round-robin tickets by language &mdash; &ldquo;Hi Mia and Ken, there are 3 Japanese tickets that require your assistance&rdquo; with links. A table sets each language&rsquo;s tags, the people to mention and on/off. Untagged tickets are read by Spark. Checked every 30 minutes.</li>
+              <li><b>SOS Needs review / High risk:</b> when a review flags a request.</li>
+              <li><b>SSO verified:</b> when a request&rsquo;s records are found in DNS.</li>
+              <li><b>Spikes:</b> unusual bursts of SOS requests (every 15 minutes).</li>
+              <li><b>Overdue POs:</b> expected provision date passed, ticket still open (hourly; switching it on first marks the current ones as known).</li>
+              <li>Each alert is posted once.</li>
+            </ul>
+          </div>
+
+          <div class="wiki-sec" id="sidebar">
+            <h3>SplashHub sidebar and Centre</h3>
+            <ul>
+              <li>Pressing <b>Scan</b> on an SOS package ticket in SplashHub shows Centre&rsquo;s review in the sidebar&rsquo;s usual format (&ldquo;Review from SplashHub Centre&rdquo;), so the AI runs once per ticket. <b>Review again</b> runs a fresh one.</li>
+              <li>The sidebar calls Centre from your browser, so it needs the company network. Otherwise, after a few seconds, the sidebar reviews the ticket itself.</li>
+              <li>Every press is recorded on the request and on Logs. SplashHub also sends a copy of every run it logs to Centre.</li>
+            </ul>
+          </div>
+
+          <div class="wiki-sec" id="data">
+            <h3>Data Centre keeps</h3>
+            <ul>
+              <li><b>Zendesk Tickets:</b> 2026 tickets and conversations (agents&rsquo; names removed in conversations used by the AI).</li>
+              <li><b>Help Center articles</b>, <b>PO requests</b> (all years), <b>SOS / SSO requests</b>, <b>AutoTag and Ad/Spam results</b> with the team&rsquo;s checks.</li>
+              <li><b>Logs</b> of AI runs; <b>Spark activity</b> for 30 days.</li>
+              <li><b>Not kept:</b> SOS package images (shown from Zendesk, held in memory only for a review).</li>
+              <li><b>In your browser only:</b> the last view of each page (7 days), menu folded or not, chosen Tags topics.</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- ================= REFERENCE ================= -->
+        <section class="wiki-part" id="ref" data-part="Reference">
+          <h2>Reference</h2>
+
+          <div class="wiki-sec" id="ssostatus">
+            <h3>SSO request statuses</h3>
+            <table class="wiki-t">
+              <tr><td><b>Needs details</b></td><td>No challenge record in the ticket yet &mdash; the agent sends them with SplashHub&rsquo;s SSO tool.</td></tr>
+              <tr><td><b>Not checked</b></td><td>Records found, DNS not looked up yet.</td></tr>
+              <tr><td><b>Not found yet</b></td><td>At least one record isn&rsquo;t in DNS yet.</td></tr>
+              <tr><td><b>Verified</b></td><td>Every record carries its value.</td></tr>
+              <tr><td><b>Enabled</b></td><td>An agent sent the &ldquo;verified the DNS record and enabled the SSO method&rdquo; reply &mdash; done. A DNS check doesn&rsquo;t undo it.</td></tr>
+              <tr><td><b>Check failed</b></td><td>The DNS lookup itself failed; it&rsquo;s tried again.</td></tr>
+            </table>
+          </div>
+
+          <div class="wiki-sec" id="ssostages">
+            <h3>SSO stages (where it stands)</h3>
+            <table class="wiki-t">
+              <tr><td><b>Records not sent yet</b></td><td>Rule: no records in the ticket.</td></tr>
+              <tr><td><b>Waiting for the customer</b></td><td>Rule: records sent, the agent wrote last.</td></tr>
+              <tr><td><b>Customer says it&rsquo;s added</b></td><td>Spark: the customer&rsquo;s reply says so; DNS is checked at once. Orange &ldquo;&mdash; not in DNS yet&rdquo; if it isn&rsquo;t.</td></tr>
+              <tr><td><b>Customer has a question</b></td><td>Spark: a problem or question (orange: needs a reply).</td></tr>
+              <tr><td><b>Customer waiting on their side</b></td><td>Spark: their IT or DNS provider is doing it.</td></tr>
+              <tr><td><b>Customer replied</b></td><td>Spark: anything else.</td></tr>
+              <tr><td><b>Verified &amp; enabled</b></td><td>Rule: the agent sent the enabled reply.</td></tr>
+            </table>
+          </div>
+
+          <div class="wiki-sec" id="tstatus">
+            <h3>Zendesk ticket statuses</h3>
+            <p><span class="tst tst-new">New</span> not picked up &middot; <span class="tst tst-open">Open</span> being worked on &middot; <span class="tst tst-pending">Pending</span> waiting on the customer &middot; <span class="tst tst-hold">On-hold</span> parked &middot; <span class="tst tst-solved">Solved</span> / <span class="tst tst-closed">Closed</span> done. &ldquo;Open tasks&rdquo; everywhere means everything except Solved and Closed.</p>
+          </div>
+
+          <div class="wiki-sec" id="atstates">
+            <h3>AutoTag results</h3>
+            <table class="wiki-t">
+              <tr><td><b>A language</b></td><td>Spark&rsquo;s answer; the tag it would add is held.</td></tr>
+              <tr><td><b>Other</b></td><td>A real language not on the list &rarr; <code>language_other</code>.</td></tr>
+              <tr><td><b>No text</b></td><td>No real customer text; no tag.</td></tr>
+              <tr><td><b>Waiting</b></td><td>A chat still going (transcript not in yet), or Spark didn&rsquo;t answer; tried again in 2 minutes.</td></tr>
+              <tr><td><b>Skipped</b></td><td>Provisioning requests and phone calls; hidden from the list (Skipped filter shows them).</td></tr>
+              <tr><td><b>from Centre / cleared</b></td><td>Someone added or cleared the tag from Centre.</td></tr>
+            </table>
+          </div>
+
+          <div class="wiki-sec" id="faq">
+            <h3>FAQ and troubleshooting</h3>
+            <dl class="wiki-faq">
+              <dt>The page won&rsquo;t open.</dt>
+              <dd>Centre only answers inside the company network &mdash; connect to the VPN.</dd>
+              <dt>SOS images don&rsquo;t load.</dt>
+              <dd>They show straight from Zendesk: sign in to Zendesk in the same browser.</dd>
+              <dt>The sidebar ran its own scan instead of Centre&rsquo;s.</dt>
+              <dd>Centre wasn&rsquo;t reachable from your browser within a few seconds (usually no VPN).</dd>
+              <dt>An SSO ticket is missing from the list.</dt>
+              <dd>Check the Solved / closed and Not SSO chips, or add it by number. It needs the SSO tag, a challenge record, or the SSO form subject to be found by itself.</dd>
+              <dt>Spark got something wrong.</dt>
+              <dd>Mark it &#10007; Wrong (AutoTag, Ad/Spam) or use the Not SSO buttons. Admins can see exactly what it read in Spark activity. For the Ad/Spam Filter, add a real example to the example ads.</dd>
+              <dt>A chat isn&rsquo;t in AutoTag or the Ad/Spam Filter yet.</dt>
+              <dd>Chats wait for their transcript, which arrives when the chat ends.</dd>
+              <dt>Silent close shows a &#10007;.</dt>
+              <dd>Press <b>Silent close again&hellip;</b>. If a field keeps failing, the Product or Issue Type option may have been renamed in Zendesk.</dd>
+              <dt>A number looks old.</dt>
+              <dd>You may be seeing the faded last view; it refreshes in a moment. The refresh button top right reads again now.</dd>
+            </dl>
+          </div>
+        </section>
+
+      </article>
+    </div>
+  </main>
+
+
+  <script src="wiki.js?v=1.0.1"></script>
+</body>
+</html>

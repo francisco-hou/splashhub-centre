@@ -186,6 +186,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("tags.html", "text/html; charset=utf-8")
             if u.path in ("/autotag", "/autotag.html"):
                 return self.static("autotag.html", "text/html; charset=utf-8")
+            if u.path in ("/wiki", "/wiki.html"):
+                return self.static("wiki.html", "text/html; charset=utf-8")
             if u.path in ("/sparklog", "/sparklog.html"):
                 return self.static("sparklog.html", "text/html; charset=utf-8")
             if u.path in ("/adfilter", "/adfilter.html"):
@@ -211,7 +213,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path in ("/customers", "/customers.html"):
                 return self.static("customers.html", "text/html; charset=utf-8")
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/sparklog.js", "/splashtop-icon.png"):
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/sparklog.js", "/wiki.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
