@@ -1214,3 +1214,21 @@ tr.row-arrive > td { animation: rowGlow 4s ease-out .45s both; }
   box-shadow: 0 1px 0 rgba(0, 0, 0, .03), 0 0 0 3px color-mix(in srgb, var(--th-a) 12%, transparent); font-size: 13px; }
 .th-emoji { display: inline-block; font-size: 16px; animation: thBob 2.8s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .th-tw, .th-sway, .th-flick, .th-glow, .th-emoji { animation: none; } }
+
+/* Scan again (AutoTag, Ad/Spam Filter): progress and what changed; "was ..." on a changed answer */
+.rs-box { background: #fff; border: 1px solid #d9e6f2; border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+.rs-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rs-head .btn-link { margin-left: auto; }
+.rs-list { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; max-height: 220px; overflow: auto; }
+.rs-list li { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.rs-open { font-weight: 600; color: #0071ce; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; }
+.rs-open:hover { text-decoration: underline; }
+.rs-was { color: #78838f; text-decoration: line-through; }
+.at-conf.at-was { color: #6b3fa0; border-color: #d9c8f0; }
+.rs-line { font-size: 12.5px; color: #4a5560; margin-top: 4px; }
+.rs-act { margin-top: 8px; }
+
+/* SSO pop-up: the SSO question at the top, then the whole ticket */
+.sso-rel-act { gap: 8px; }
+.sso-rel .btn.on-ok { background: #e8f6ee; border-color: #8fd1a8; color: #1e7a43; }
+.sso-rel .btn.on-bad { background: #fdecec; border-color: #f2a9a9; color: #b42318; }

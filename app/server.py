@@ -495,6 +495,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 except ValueError:
                     page = 0
                 return self.json(store.sso_list(one("q")[:80] or None, one("status") or None, page, 50, one("tview") or "tasks"))
+            m = re.match(r"^/api/sso/(\d+)/conversation$", u.path)
+            if m:
+                # The pop-up's preview: the whole ticket as Zendesk has it now (read only).
+                row = store.sso_get(int(m.group(1)))
+                if not row:
+                    return self.json({"error": "not found"}, 404)
+                import zendesk as zd_api         # its own name: "zendesk" is a local of this method further down
+                try:
+                    t, convo = zd_api.conversation(int(row["ticket_id"]))
+                    return self.json({"conversation": convo, "status": t.get("status") or "", "tags": t.get("tags") or [], "live": True})
+                except Exception as e:
+                    return self.json({"conversation": [], "live": False, "error": str(e)[:200]})
             m = re.match(r"^/api/sso/(\d+)/note$", u.path)
             if m:
                 row = store.sso_get(int(m.group(1)))
@@ -674,6 +686,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if u.path == "/api/adfilter/run":
                     adfilter.kick()
                     return self.json({"ok": True})
+                if u.path == "/api/adfilter/rescan":
+                    # Scan again: tickets read and asked again with today's rules (nothing written to Zendesk).
+                    return self.json(adfilter.rescan(data.get("ids") or []))
             except (ValueError, TypeError) as e:
                 return self.json({"error": str(e) or "bad request"}, 400)
             return self.json({"error": "not found"}, 404)
@@ -694,6 +709,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if u.path == "/api/autotag/run":
                     autotag.kick()
                     return self.json({"ok": True})
+                if u.path == "/api/autotag/rescan":
+                    # Scan again: tickets read and asked again with today's rules (nothing written to Zendesk).
+                    return self.json(autotag.rescan(data.get("ids") or []))
                 # The page's Scan new tickets and mass Add tags (for the checking phase; to be removed later).
                 if u.path == "/api/autotag/scan":
                     return self.json({"started": autotag.scan_now()})

@@ -51,15 +51,16 @@ We help businesses improve rankings, increase website authority, and generate mo
 Would you like me to share our SEO packages and a few suggestions for your websites?""",
 ]
 COLS = ("ticket_id", "created_ms", "subject", "requester", "sample", "spam", "confidence", "why", "checked_ms",
-        "verdict", "reviewed_ms", "status", "channel", "silent_ms")
+        "verdict", "reviewed_ms", "status", "channel", "silent_ms", "prev_spam", "rescan_ms")
 DDL = """CREATE TABLE IF NOT EXISTS adfilter (
     ticket_id BIGINT PRIMARY KEY, created_ms BIGINT, subject TEXT, requester TEXT, sample TEXT, spam INTEGER,
     confidence TEXT, why TEXT, checked_ms BIGINT, verdict TEXT, reviewed_ms BIGINT, status TEXT, channel TEXT,
-    silent_ms BIGINT)"""
+    silent_ms BIGINT, prev_spam INTEGER, rescan_ms BIGINT)"""
 DONE = ("solved", "closed")
 _ready = False
 _lock = threading.Lock()
 STATE = {"last_ms": None, "error": None, "busy": False}
+RESCAN = {"running": False, "total": 0, "done": 0, "failed": 0, "changed": [], "error": None, "finished_ms": None}
 
 
 def _now():
@@ -75,12 +76,14 @@ def ensure():
     try:
         cur = c.cursor()
         cur.execute(DDL)
-        if store.backend() == "postgres":                  # added after the table first shipped (0.12.7)
-            cur.execute("ALTER TABLE adfilter ADD COLUMN IF NOT EXISTS silent_ms BIGINT")
-        else:
-            cur.execute("PRAGMA table_info(adfilter)")
-            if "silent_ms" not in [r[1] for r in cur.fetchall()]:
-                cur.execute("ALTER TABLE adfilter ADD COLUMN silent_ms BIGINT")
+        # added after the table first shipped: silent_ms (0.12.7), prev_spam and rescan_ms (Scan again, 0.12.12)
+        for col, typ in (("silent_ms", "BIGINT"), ("prev_spam", "INTEGER"), ("rescan_ms", "BIGINT")):
+            if store.backend() == "postgres":
+                cur.execute("ALTER TABLE adfilter ADD COLUMN IF NOT EXISTS %s %s" % (col, typ))
+            else:
+                cur.execute("PRAGMA table_info(adfilter)")
+                if col not in [r[1] for r in cur.fetchall()]:
+                    cur.execute("ALTER TABLE adfilter ADD COLUMN %s %s" % (col, typ))
         cur.execute("CREATE INDEX IF NOT EXISTS adfilter_created ON adfilter (created_ms)")
         c.commit()
     finally:
@@ -248,38 +251,127 @@ def run_once(limit=PER_ROUND):
         raise RuntimeError("Spark isn't set up")
     skip = [p.lower() for p in autotag.settings()["skip"]]
     for i in range(0, len(todo), BATCH):
-        rows, ask = {}, []
-        for t in todo[i:i + BATCH]:
-            ch = ((t.get("via") or {}).get("channel") or "")
-            r = {"ticket_id": int(t["id"]), "created_ms": autotag._ms(t.get("created_at")), "subject": (t.get("subject") or "")[:300],
-                 "status": t.get("status"), "channel": ch, "requester": "", "sample": "", "spam": 0}
-            if autotag._is_call(ch, t.get("subject"), t.get("tags")):          # a phone call: not an ad, not read
-                r["why"] = "phone call"
-            else:
-                text, email, ready = autotag._customer_words(t)
-                if not ready:                          # a chat still going: judged once its transcript arrives
-                    continue
-                r.update(requester=email, sample=re.sub(r"\s+", " ", text).strip())
-                if any(p and p in (text + " " + (t.get("description") or "")).lower() for p in skip):
-                    r["why"] = "provisioning request"
-                elif len(re.sub(r"\s+", "", text)) < 15:  # no real message: never called spam
-                    r["why"] = "no customer text"
-                else:
-                    subj = "" if autotag._chat_kind(t) else (t.get("subject") or "")
-                    ask.append((int(t["id"]), subj, email, text))
-            rows[int(t["id"])] = r
-        if ask:
-            try:
-                got = _ask(ask, s["examples"])
-            except Exception as e:               # Spark down or an odd answer: these wait for the next round
-                STATE["error"] = "Spark didn't answer (%s); trying again in 2 minutes" % type(e).__name__
-                sys.stderr.write("[adfilter] Spark skipped %d ticket(s): %s\n" % (len(ask), type(e).__name__))
-                for tid, _, _, _ in ask:
-                    rows.pop(tid, None)
-                got = {}
-            for tid, (spam, conf, why) in got.items():
-                rows[tid].update(spam=1 if spam else 0, confidence=conf, why=why)
+        rows, failed = _judge(todo[i:i + BATCH], s, skip)
+        if failed:                                   # Spark didn't answer: these wait for the next round
+            STATE["error"] = "Spark didn't answer; trying again in 2 minutes"
         _save(list(rows.values()))
+
+
+def _judge(batch, s, skip):
+    """Read each ticket and decide, with today's rules: ({ticket id: row}, [ids
+    Spark didn't answer for]). A chat still going is left out (judged once its
+    transcript arrives). Used by the rounds and by Scan again."""
+    import autotag
+    rows, ask = {}, []
+    for t in batch:
+        ch = ((t.get("via") or {}).get("channel") or "")
+        r = {"ticket_id": int(t["id"]), "created_ms": autotag._ms(t.get("created_at")), "subject": (t.get("subject") or "")[:300],
+             "status": t.get("status"), "channel": ch, "requester": "", "sample": "", "spam": 0}
+        if autotag._is_call(ch, t.get("subject"), t.get("tags")):          # a phone call: not an ad, not read
+            r["why"] = "phone call"
+        else:
+            text, email, ready = autotag._customer_words(t)
+            if not ready:                          # a chat still going: judged once its transcript arrives
+                continue
+            r.update(requester=email, sample=re.sub(r"\s+", " ", text).strip())
+            if any(p and p in (text + " " + (t.get("description") or "")).lower() for p in skip):
+                r["why"] = "provisioning request"
+            elif len(re.sub(r"\s+", "", text)) < 15:  # no real message: never called spam
+                r["why"] = "no customer text"
+            else:
+                subj = "" if autotag._chat_kind(t) else (t.get("subject") or "")
+                ask.append((int(t["id"]), subj, email, text))
+        rows[int(t["id"])] = r
+    failed = []
+    if ask:
+        try:
+            got = _ask(ask, s["examples"])
+        except Exception as e:               # Spark down or an odd answer
+            sys.stderr.write("[adfilter] Spark skipped %d ticket(s): %s\n" % (len(ask), type(e).__name__))
+            got = {}
+        for tid, _, _, _ in ask:
+            if tid in got:
+                spam, conf, why = got[tid]
+                rows[tid].update(spam=1 if spam else 0, confidence=conf, why=why)
+            else:
+                rows.pop(tid, None)
+                failed.append(tid)
+    return rows, failed
+
+
+# ---- Scan again: tickets already read, read and asked again with today's rules ---------------------
+
+def _update(rows):
+    c = store.connect(True)
+    try:
+        cur = c.cursor()
+        for r in rows:
+            cur.execute(store._q("UPDATE adfilter SET subject = %s, requester = %s, sample = %s, spam = %s, confidence = %s, why = %s, "
+                                 "checked_ms = %s, status = %s, channel = %s, prev_spam = %s, rescan_ms = %s WHERE ticket_id = %s"),
+                        (r["subject"], r["requester"], (r["sample"] or "")[:1200], r["spam"], r.get("confidence"), r.get("why"),
+                         _now(), r["status"], r["channel"], r.get("prev_spam"), r.get("rescan_ms"), r["ticket_id"]))
+        c.commit()
+    finally:
+        c.close()
+
+
+def _rescan(ids):
+    """Read these tickets from Zendesk again and ask Spark again (nothing is
+    written to Zendesk). The old call is kept in prev_spam; the team's checks
+    and silent closes stay as they are."""
+    import spark, zendesk, autotag
+    if zendesk.configured():
+        raise ValueError("SplashHub Centre can't read Zendesk yet")
+    if not spark.available():
+        raise ValueError("Spark isn't set up")
+    s = settings()
+    skip = [p.lower() for p in autotag.settings()["skip"]]
+    marks = ",".join(["%s"] * len(ids))
+    old = {int(r[0]): int(r[1] or 0) for r in store._read("SELECT ticket_id, spam FROM adfilter WHERE ticket_id IN (%s)" % marks,
+                                                          list(ids), fresh=True)}
+    tickets = [t for t in zendesk.tickets_many(ids) if int(t["id"]) in old]
+    RESCAN["failed"] += len(ids) - len(tickets)
+    for i in range(0, len(tickets), BATCH):
+        part = tickets[i:i + BATCH]
+        rows, failed = _judge(part, s, skip)
+        for tid, r in rows.items():
+            r.update(prev_spam=old[tid], rescan_ms=_now())
+            if r["spam"] != old[tid]:
+                RESCAN["changed"].append({"ticket_id": tid, "was": "ad / spam" if old[tid] else "not an ad",
+                                          "now": "ad / spam" if r["spam"] else "not an ad", "why": r.get("why") or ""})
+        _update(list(rows.values()))
+        RESCAN["failed"] += len(part) - len(rows)          # no answer, or a chat still going
+        RESCAN["done"] += len(part)
+
+
+def rescan(ids):
+    """The page's Scan again: one ticket (the preview) is answered at once; a
+    page of them runs in the background (RESCAN, in status())."""
+    ensure()
+    ids = list(dict.fromkeys(int(i) for i in ids))[:200]
+    if not ids:
+        raise ValueError("choose some tickets")
+    if RESCAN["running"]:
+        raise ValueError("Spark is already reading tickets again")
+    RESCAN.update(running=True, total=len(ids), done=0, failed=0, changed=[], error=None, finished_ms=None)
+
+    def run():
+        try:
+            _rescan(ids)
+        except Exception as e:
+            RESCAN["error"] = str(e)[:200] if isinstance(e, ValueError) or "Zendesk" in str(e) else type(e).__name__
+            sys.stderr.write("[adfilter] scan again: %s\n" % RESCAN["error"])
+        finally:
+            RESCAN.update(running=False, finished_ms=_now())
+    if len(ids) == 1:
+        run()
+        if RESCAN["error"]:
+            raise ValueError(RESCAN["error"])
+        if RESCAN["failed"]:
+            raise ValueError("Spark didn't answer (or the chat hasn't ended yet) -- the old call stays")
+        return {"row": _get(ids[0]), "rescan": dict(RESCAN)}
+    threading.Thread(target=run, name="adfilter-rescan", daemon=True).start()
+    return {"rescan": dict(RESCAN)}
 
 
 def _round():
@@ -314,20 +406,20 @@ def boot():
 
 def search(view="open", q=None, page=0, per_page=50):
     """view: open (the default -- not solved / closed), done (solved / closed),
-    wrong (the ones the team marked wrong). Only tickets Spark called ads."""
+    wrong (the ones the team marked wrong). Only tickets Spark called ads,
+    except a search by ticket number."""
     ensure()
     where, args = ["spam = 1"], []
     if view == "done":
         where.append("status IN ('solved', 'closed')")
-    elif view == "wrong":
-        where.append("verdict = 'wrong'")
+    elif view == "wrong":                     # every one marked wrong, also once Spark (scanned again) agrees it's real
+        where = ["verdict = 'wrong'"]
     else:
         where.append("coalesce(status, '') NOT IN ('solved', 'closed')")
     if q:
         q = q.strip().lstrip("#")
-        if q.isdigit():
-            where.append("ticket_id = %s")
-            args.append(int(q))
+        if q.isdigit():                       # a ticket number: that ticket, whatever the view or Spark's call
+            where, args = ["ticket_id = %s"], [int(q)]
         else:
             where.append("(lower(subject) LIKE %s OR lower(requester) LIKE %s OR lower(sample) LIKE %s)")
             args += ["%" + q.lower() + "%"] * 3
@@ -347,7 +439,7 @@ def status():
         "sum(CASE WHEN silent_ms IS NOT NULL THEN 1 ELSE 0 END) FROM adfilter", [], fresh=True)[0]
     return dict(s, checked=int(n or 0), ads=int(ads or 0), open_ads=int(open_ads or 0), done_ads=int(ads or 0) - int(open_ads or 0),
                 right=int(right or 0), wrong=int(wrong or 0), silent=int(silent or 0),
-                last_ms=STATE["last_ms"], error=STATE["error"], busy=STATE["busy"])
+                last_ms=STATE["last_ms"], error=STATE["error"], busy=STATE["busy"], rescan=dict(RESCAN))
 
 
 def set_verdict(ticket_id, verdict):

@@ -146,6 +146,17 @@ def statuses(ticket_ids):
     return {int(t["id"]): t.get("status") or "" for t in d.get("tickets") or [] if t.get("id")}
 
 
+def tickets_many(ticket_ids):
+    """Full tickets (as the search returns them), 100 to a call (show_many), in
+    the order asked; ones Zendesk doesn't return are left out."""
+    ids = [int(i) for i in ticket_ids]
+    got = {}
+    for i in range(0, len(ids), 100):
+        d = get_json("/api/v2/tickets/show_many.json?ids=" + ",".join(str(x) for x in ids[i:i + 100]))
+        got.update({int(t["id"]): t for t in d.get("tickets") or [] if t.get("id")})
+    return [got[i] for i in ids if i in got]
+
+
 def comments(ticket_id, max_pages=20):
     """The complete history (the sidebar learned the hard way that a partial one
     misses attachments on long tickets)."""

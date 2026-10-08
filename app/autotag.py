@@ -35,12 +35,12 @@ LABEL_OF_TAG = {t: l for l, t in LANGS}
 TAG_OF = dict(LANGS)
 COLS = ("ticket_id", "created_ms", "subject", "status", "channel", "requester", "sample", "lang", "tag", "confidence",
         "reason", "method", "state", "zd_tags", "checked_ms", "verdict", "correct_lang", "reviewed_ms", "seen_ms",
-        "applied_tag", "applied_ms", "applied_from")
+        "applied_tag", "applied_ms", "applied_from", "prev_lang", "rescan_ms")
 DDL = """CREATE TABLE IF NOT EXISTS autotag (
     ticket_id BIGINT PRIMARY KEY, created_ms BIGINT, subject TEXT, status TEXT, channel TEXT, requester TEXT,
     sample TEXT, lang TEXT, tag TEXT, confidence TEXT, reason TEXT, method TEXT, state TEXT, zd_tags TEXT,
     checked_ms BIGINT, verdict TEXT, correct_lang TEXT, reviewed_ms BIGINT, seen_ms BIGINT,
-    applied_tag TEXT, applied_ms BIGINT, applied_from TEXT)"""
+    applied_tag TEXT, applied_ms BIGINT, applied_from TEXT, prev_lang TEXT, rescan_ms BIGINT)"""
 CHAT_LINE = re.compile(r"^(chat started:|chat ended:|served by:|ip:|user agent:|country:|city:|url:|chat id:|name:|email:|phone:|notes:|"
                        r"department:|rating:|the chat transcript will be appended)", re.I)
 CHAT_TIME = re.compile(r"^\(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?\)\s*", re.I)
@@ -48,6 +48,7 @@ KEEP = ("ticket_id", "verdict", "correct_lang", "reviewed_ms", "applied_tag", "a
 _ready = False
 _lock = threading.Lock()
 STATE = {"last_ms": None, "error": None, "busy": False}
+RESCAN = {"running": False, "total": 0, "done": 0, "failed": 0, "changed": [], "error": None, "finished_ms": None}
 # The page's mass Add tags (for the checking phase; to be removed once AutoTag writes tags by itself)
 BULK = {"running": False, "total": 0, "done": 0, "tagged": 0, "skipped": 0, "failed": 0, "error": None, "finished_ms": None}
 
@@ -73,6 +74,13 @@ def ensure():
     try:
         cur = c.cursor()
         cur.execute(DDL)
+        for col, typ in (("prev_lang", "TEXT"), ("rescan_ms", "BIGINT")):      # added with Scan again (0.12.12)
+            if store.backend() == "postgres":
+                cur.execute("ALTER TABLE autotag ADD COLUMN IF NOT EXISTS %s %s" % (col, typ))
+            else:
+                cur.execute("PRAGMA table_info(autotag)")
+                if col not in [r[1] for r in cur.fetchall()]:
+                    cur.execute("ALTER TABLE autotag ADD COLUMN %s %s" % (col, typ))
         cur.execute("CREATE INDEX IF NOT EXISTS autotag_created ON autotag (created_ms)")
         c.commit()
     finally:
@@ -346,52 +354,63 @@ def run_once(force=False, limit=PER_ROUND):
         raise RuntimeError("Spark isn't set up")
     skip = [p.lower() for p in s["skip"]]
     for i in range(0, min(len(todo), limit), BATCH):
-        batch, rows, ask = todo[i:i + BATCH], {}, []
-        for t in batch:
-            channel = ((t.get("via") or {}).get("channel") or "")
-            if _is_call(channel, t.get("subject"), t.get("tags")):     # a phone call: skipped, its comments not even read
-                rows[int(t["id"])] = {"ticket_id": int(t["id"]), "created_ms": _ms(t.get("created_at")), "subject": (t.get("subject") or "")[:300],
-                                      "status": t.get("status"), "channel": channel, "requester": "", "sample": "",
-                                      "zd_tags": " ".join(t.get("tags") or []), "checked_ms": _now(), "seen_ms": _now(),
-                                      "lang": None, "tag": None, "confidence": None, "method": "skip", "state": "skipped", "reason": "phone call"}
-                continue
-            text, email, ready = _customer_words(t)
-            subject = t.get("subject") or ""
-            if re.match(r"^(chat|conversation) with\b", subject.strip(), re.I):
-                subject = ""
-            row = {"ticket_id": int(t["id"]), "created_ms": _ms(t.get("created_at")), "subject": (t.get("subject") or "")[:300],
-                   "status": t.get("status"), "channel": ((t.get("via") or {}).get("channel") or ""), "requester": email,
-                   "sample": re.sub(r"\s+", " ", text).strip()[:1200], "zd_tags": " ".join(t.get("tags") or []),
-                   "checked_ms": _now(), "seen_ms": _now()}
-            hit = next((p for p in skip if p and (p in text.lower() or p in (t.get("description") or "").lower())), None)
-            if not ready:                              # a chat still going: its transcript comes when it ends
-                row.update(lang=None, tag=None, confidence=None, method="spark", state="waiting", reason="waiting for the chat transcript")
-            elif hit:
-                row.update(lang=None, tag=None, confidence=None, method="skip", state="skipped",
-                           reason="provisioning request" if "provision" in hit else 'skip phrase "%s"' % hit)
-            elif email and email in s["jp_emails"]:
-                row.update(lang="Japanese", tag=TAG_OF["Japanese"], confidence="high", method="requester", state="held",
-                           reason="always-Japanese requester")
-            elif not (subject.strip() or text.strip()):
-                row.update(lang="None", tag=None, confidence="low", method="spark", state="none", reason="no customer text")
-            else:
-                ask.append((int(t["id"]), subject, text))
-            rows[int(t["id"])] = row
-        if ask:
-            try:
-                got = _ask_spark(ask)
-            except Exception as e:                       # Spark down or an odd answer: these wait for the next round
-                sys.stderr.write("[autotag] Spark skipped %d ticket(s): %s\n" % (len(ask), type(e).__name__))
-                got = {}
-                STATE["error"] = "Spark didn't answer (%s); trying again in 2 minutes" % type(e).__name__
-            for tid, _, _ in ask:
-                if tid in got:
-                    lang, conf, why = got[tid]
-                    rows[tid].update(lang=lang, tag=TAG_OF.get(lang), confidence=conf, reason=why, method="spark",
-                                     state="held" if lang in TAG_OF else "none")
-                else:
-                    rows[tid].update(state="waiting", method="spark")
+        rows, failed = _judge(todo[i:i + BATCH], s, skip)
+        if failed:                                       # Spark didn't answer: these wait for the next round
+            STATE["error"] = "Spark didn't answer; trying again in 2 minutes"
+            for tid in failed:
+                rows[tid].update(state="waiting", method="spark")
         _save(list(rows.values()))
+
+
+def _judge(batch, s, skip):
+    """Read each ticket and decide, with today's rules: ({ticket id: row}, [ids
+    Spark didn't answer for]). Used by the rounds and by Scan again."""
+    rows, ask = {}, []
+    for t in batch:
+        channel = ((t.get("via") or {}).get("channel") or "")
+        if _is_call(channel, t.get("subject"), t.get("tags")):     # a phone call: skipped, its comments not even read
+            rows[int(t["id"])] = {"ticket_id": int(t["id"]), "created_ms": _ms(t.get("created_at")), "subject": (t.get("subject") or "")[:300],
+                                  "status": t.get("status"), "channel": channel, "requester": "", "sample": "",
+                                  "zd_tags": " ".join(t.get("tags") or []), "checked_ms": _now(), "seen_ms": _now(),
+                                  "lang": None, "tag": None, "confidence": None, "method": "skip", "state": "skipped", "reason": "phone call"}
+            continue
+        text, email, ready = _customer_words(t)
+        subject = t.get("subject") or ""
+        if re.match(r"^(chat|conversation) with\b", subject.strip(), re.I):
+            subject = ""
+        row = {"ticket_id": int(t["id"]), "created_ms": _ms(t.get("created_at")), "subject": (t.get("subject") or "")[:300],
+               "status": t.get("status"), "channel": ((t.get("via") or {}).get("channel") or ""), "requester": email,
+               "sample": re.sub(r"\s+", " ", text).strip()[:1200], "zd_tags": " ".join(t.get("tags") or []),
+               "checked_ms": _now(), "seen_ms": _now()}
+        hit = next((p for p in skip if p and (p in text.lower() or p in (t.get("description") or "").lower())), None)
+        if not ready:                              # a chat still going: its transcript comes when it ends
+            row.update(lang=None, tag=None, confidence=None, method="spark", state="waiting", reason="waiting for the chat transcript")
+        elif hit:
+            row.update(lang=None, tag=None, confidence=None, method="skip", state="skipped",
+                       reason="provisioning request" if "provision" in hit else 'skip phrase "%s"' % hit)
+        elif email and email in s["jp_emails"]:
+            row.update(lang="Japanese", tag=TAG_OF["Japanese"], confidence="high", method="requester", state="held",
+                       reason="always-Japanese requester")
+        elif not (subject.strip() or text.strip()):
+            row.update(lang="None", tag=None, confidence="low", method="spark", state="none", reason="no customer text")
+        else:
+            ask.append((int(t["id"]), subject, text))
+        rows[int(t["id"])] = row
+    failed = []
+    if ask:
+        try:
+            got = _ask_spark(ask)
+        except Exception as e:                       # Spark down or an odd answer
+            sys.stderr.write("[autotag] Spark skipped %d ticket(s): %s\n" % (len(ask), type(e).__name__))
+            got = {}
+        for tid, _, _ in ask:
+            if tid in got:
+                lang, conf, why = got[tid]
+                rows[tid].update(lang=lang, tag=TAG_OF.get(lang), confidence=conf, reason=why, method="spark",
+                                 state="held" if lang in TAG_OF else "none")
+            else:
+                failed.append(tid)
+    return rows, failed
 
 
 def _round(force=False, limit=PER_ROUND):
@@ -420,6 +439,71 @@ def scan_now():
         return False
     threading.Thread(target=_round, args=(True, 100000), name="autotag-scan", daemon=True).start()
     return True
+
+
+# ---- Scan again: tickets already read, read and asked again with today's rules ---------------------
+
+def _label(state, lang):
+    return {"held": lang, "none": "No text", "skipped": "Skipped", "waiting": "Waiting"}.get(state) or lang or "-"
+
+
+def _rescan(ids):
+    """Read these tickets from Zendesk again and ask Spark again (nothing is
+    written to Zendesk). The old answer is kept in prev_lang when it changed;
+    the team's checks and tags stay as they are."""
+    import spark, zendesk
+    if zendesk.configured():
+        raise ValueError("SplashHub Centre can't read Zendesk yet")
+    if not spark.available():
+        raise ValueError("Spark isn't set up")
+    s = settings()
+    skip = [p.lower() for p in s["skip"]]
+    marks = ",".join(["%s"] * len(ids))
+    old = {int(r[0]): _label(r[1], r[2]) for r in store._read("SELECT ticket_id, state, lang FROM autotag WHERE ticket_id IN (%s)" % marks,
+                                                              list(ids), fresh=True)}
+    tickets = [t for t in zendesk.tickets_many(ids) if int(t["id"]) in old]
+    RESCAN["failed"] += len(ids) - len(tickets)
+    for i in range(0, len(tickets), BATCH):
+        rows, failed = _judge(tickets[i:i + BATCH], s, skip)
+        for tid in failed:                                  # no answer: the old one stays
+            rows.pop(tid, None)
+        for tid, r in rows.items():
+            was, now = old.get(tid), _label(r["state"], r["lang"])
+            r.update(prev_lang=was if was != now else None, rescan_ms=_now())
+            if was != now:
+                RESCAN["changed"].append({"ticket_id": tid, "was": was, "now": now, "why": r.get("reason") or ""})
+        _save(list(rows.values()))
+        RESCAN["failed"] += len(failed)
+        RESCAN["done"] += len(rows) + len(failed)
+
+
+def rescan(ids):
+    """The page's Scan again: one ticket (the preview) is answered at once; a
+    page of them runs in the background (RESCAN, in status())."""
+    ensure()
+    ids = list(dict.fromkeys(int(i) for i in ids))[:200]
+    if not ids:
+        raise ValueError("choose some tickets")
+    if RESCAN["running"]:
+        raise ValueError("Spark is already reading tickets again")
+    RESCAN.update(running=True, total=len(ids), done=0, failed=0, changed=[], error=None, finished_ms=None)
+
+    def run():
+        try:
+            _rescan(ids)
+        except Exception as e:
+            RESCAN["error"] = str(e)[:200] if isinstance(e, ValueError) or "Zendesk" in str(e) else type(e).__name__
+            sys.stderr.write("[autotag] scan again: %s\n" % RESCAN["error"])
+        finally:
+            RESCAN.update(running=False, finished_ms=_now())
+    if len(ids) == 1:
+        run()
+        if RESCAN["error"]:
+            raise ValueError(RESCAN["error"])
+        r = search(q=str(ids[0]), state="any")["rows"]
+        return {"row": r[0] if r else None, "rescan": dict(RESCAN)}
+    threading.Thread(target=run, name="autotag-rescan", daemon=True).start()
+    return {"rescan": dict(RESCAN)}
 
 
 def boot():
@@ -472,7 +556,9 @@ def search(q=None, lang=None, state=None, match=None, verdict=None, page=0, per_
     if lang:
         where.append("lang = %s")
         args.append(lang)
-    if state:
+    if state == "any":
+        pass
+    elif state:
         where.append("state = %s")
         args.append(state)
     else:
@@ -518,7 +604,8 @@ def status():
     return dict(s, total=len(rows) - skipped, last_24h=today, held=held, none=none, skipped=skipped, waiting=waiting,
                 same=same, differs=differs, no_tag=no_tag, right=right, wrong=wrong,
                 languages=sorted(({"lang": k, "n": v} for k, v in by_lang.items()), key=lambda x: -x["n"]),
-                choices=[l for l, _ in LANGS], last_ms=STATE["last_ms"], error=STATE["error"], busy=STATE["busy"], bulk=dict(BULK))
+                choices=[l for l, _ in LANGS], last_ms=STATE["last_ms"], error=STATE["error"], busy=STATE["busy"], bulk=dict(BULK),
+                rescan=dict(RESCAN))
 
 
 def set_verdict(ticket_id, verdict, correct_lang=None):

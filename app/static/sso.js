@@ -259,6 +259,7 @@
         (s.stage ? kv('Where it stands', esc(stageTxt(s)) + (s.stage_note ? '<div class="muted">' + esc(s.stage_note) + (BY_SPARK[s.stage] ? ' · read by Spark (<a href="/sparklog#t-' + s.ticket_id + '">see why</a>)' : '') + '</div>' : '')) : '') +
         (s.organization ? kv('Organization', esc(s.organization)) : '') +
       '</div></header>';
+    h += relBlock(s) + convoBlock(s);
     // the record, correctable
     h += '<section class="pn-sec"><div class="pn-h">DNS record to look for</div>' +
       (s.parse && s.status === 'needs_details' ? '<div class="pn-ai-warn">' + esc(s.parse) + '</div>' : '') +
@@ -287,17 +288,6 @@
       h += '<section class="pn-sec"><div class="pn-h">From the ticket</div><div class="pn-stack">' +
         fields.map(function (f) { return kv(f.label, esc(f.value)); }).join('') + '</div></section>';
     }
-    if (s.description) {
-      h += '<section class="pn-sec"><button type="button" class="link-btn rq-raw-btn" data-raw="1" aria-expanded="false">Show original text</button>' +
-        '<pre class="rq-raw" hidden>' + esc(s.description) + '</pre></section>';
-    }
-    // Is it an SSO request? (Spark reads tickets that only have the tag; a person's choice wins)
-    var notSso = s.relevance === 'not_sso';
-    h += '<section class="pn-sec sso-rel' + (notSso ? ' is-not' : '') + '">' +
-      (notSso ? '<div class="pn-ai-warn">Not an SSO request' + (s.relevance_by === 'spark' ? ' (Spark)' : '') + (s.relevance_note ? ': ' + esc(s.relevance_note) : '') +
-        ' — kept out of the list.' + (s.relevance_by === 'spark' ? ' <a href="/sparklog#t-' + s.ticket_id + '">See why</a>' : '') + '</div><button type="button" class="btn btn-sm" data-rel="1">It is an SSO request</button>'
-        : '<button type="button" class="link-btn" data-rel="0">Not an SSO request</button>' +
-          (s.relevance_by === 'spark' && s.relevance_note ? ' <span class="muted">Spark: ' + esc(s.relevance_note) + ' (<a href="/sparklog#t-' + s.ticket_id + '">see why</a>)</span>' : '')) + '</section>';
     h += '<div class="pn-foot">Request ' + s.id + (s.checks ? ' · checked ' + s.checks + (s.checks === 1 ? ' time' : ' times') : '') + '</div>';
     // right: the DNS check card
     h += '</div><div class="pn-side"><div class="pn-side-in">' +
@@ -343,6 +333,39 @@
     return h;
   }
 
+  // Is it an SSO request? Asked at the top, next to the ticket itself. Spark reads tickets that only
+  // have the tag; a person's choice wins. "Not SSO" keeps it out of the list (the Not SSO chip shows them).
+  function relBlock(s) {
+    var notSso = s.relevance === 'not_sso', yes = s.relevance === 'sso' && s.relevance_by === 'person';      // lit only when someone chose it
+    var spark = s.relevance_by === 'spark' && s.relevance_note ? '<div class="muted">Spark: ' + esc(s.relevance_note) + ' (<a href="/sparklog#t-' + s.ticket_id + '">see why</a>)</div>' : '';
+    return '<section class="pn-sec sso-rel' + (notSso ? ' is-not' : '') + '"><div class="pn-h">Is this an SSO request?</div>' +
+      (notSso ? '<div class="pn-ai-warn">Not an SSO request' + (s.relevance_by === 'spark' ? ' (Spark)' : '') + (s.relevance_note ? ': ' + esc(s.relevance_note) : '') + ' — kept out of the list.</div>' : '') +
+      '<div class="frow sso-rel-act"><button type="button" class="btn btn-sm' + (yes ? ' on-ok' : '') + '" data-rel="1">✓ Yes, SSO</button>' +
+        '<button type="button" class="btn btn-sm' + (notSso ? ' on-bad' : '') + '" data-rel="0">✗ Not SSO</button></div>' + (notSso ? '' : spark) + '</section>';
+  }
+  // The whole ticket, oldest first, fresh from Zendesk: customer / agent / internal note.
+  var CONVO = { id: null, data: null };
+  function convoBlock(s) {
+    var h = '<section class="pn-sec"><div class="pn-h">The ticket' +
+      (CONVO.id === s.id && CONVO.data && CONVO.data.conversation.length ? ' <span class="muted">(' + CONVO.data.conversation.length + ' messages, oldest first)</span>' : '') + '</div>';
+    if (CONVO.id !== s.id || !CONVO.data) return h + '<div class="pn-why">Loading the conversation&hellip;</div></section>';
+    var c = CONVO.data.conversation;
+    if (!c.length) return h + (CONVO.data.live ? '' : '<div class="pn-why">Zendesk didn’t answer — the first message as kept:</div>') +
+      '<pre class="rq-raw">' + esc(s.description || '(no text)') + '</pre></section>';
+    var LBL = { customer: 'Customer', agent: 'Agent', note: 'Internal note' };
+    return h + '<div class="ad-convo">' + c.map(function (m) {
+      return '<div class="ad-msg ad-' + esc(m.kind) + '"><div class="ad-mh"><b>' + esc(LBL[m.kind] || m.kind) + '</b>' +
+        (m.who ? ' · ' + esc(m.who) : '') + (m.ms ? ' <span class="muted">· ' + esc(fullWhen(m.ms)) + '</span>' : '') + '</div>' +
+        '<div class="ad-mb">' + esc(m.text || '') + '</div></div>';
+    }).join('') + '</div></section>';
+  }
+  function loadConvo(s) {
+    if (CONVO.id === s.id && CONVO.data) return;
+    CONVO = { id: s.id, data: null };
+    api('/api/sso/' + s.id + '/conversation').then(function (d) { if (CONVO.id === s.id) { CONVO.data = d; redraw(); } })
+      .catch(function (e) { if (CONVO.id === s.id && e.message !== 'login') { CONVO.data = { conversation: [], live: false }; redraw(); } });
+  }
+
   // "Add as internal note": preview, then add to the ticket. Manual only.
   var NOTE = { open: null, text: '', busy: false };
   function noteBlock(s) {
@@ -367,8 +390,8 @@
       if (my !== dseq || S.open !== id) return;
       ZD = s.zendesk_url;
       var rawOpen = CUR && CUR.id === s.id && $('detail').querySelector('.rq-raw:not([hidden])');
-      CUR = s; redraw();
-      if (rawOpen) $('detail').querySelector('[data-raw]').click();
+      CUR = s; redraw(); loadConvo(s);
+      if (rawOpen && $('detail').querySelector('[data-raw]')) $('detail').querySelector('[data-raw]').click();
     }).catch(function (e) { if (my === dseq && e.message !== 'login') $('detail').innerHTML = '<div class="pn-loading"><div class="sc-err">Could not load this request.</div></div>'; });
   }
 

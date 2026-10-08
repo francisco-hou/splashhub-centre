@@ -68,11 +68,18 @@
     if (r.verdict === 'wrong') return '<span class="at-bad">✗ Wrong</span>';
     return '<span class="muted">Not checked</span>';
   }
+  // Spark's call (it may have changed when scanned again: then what it was before)
+  function said(r) {
+    var b = r.spam ? '<span class="at-b ad-b">Ad / spam</span>' : '<span class="at-b at-none">Not an ad</span>';
+    if (r.rescan_ms && r.prev_spam != null && +r.prev_spam !== +r.spam)
+      b += ' <span class="at-conf at-was" title="Spark changed its call when scanned again ' + esc(when(r.rescan_ms)) + '">was ' + (r.prev_spam ? 'ad / spam' : 'not an ad') + '</span>';
+    return b;
+  }
   function row(r) {
     return '<tr class="ad-row" tabindex="0" data-id="' + r.ticket_id + '"><td class="when">' + esc(when(r.created_ms)) + '</td>' +
       '<td>' + ticketLink(r.ticket_id) + '</td><td>' + tstatus(r.status) + '</td>' +
       '<td class="ad-subj"><div class="ad-s">' + esc(r.subject || '(no subject)') + '</div><div class="muted">' + esc(r.requester || '') + '</div></td>' +
-      '<td><span class="at-b ad-b">Ad / spam</span>' + (r.confidence && r.confidence !== 'high' ? ' <span class="at-conf at-' + esc(r.confidence) + '">' + esc(r.confidence) + '</span>' : '') +
+      '<td>' + said(r) + (r.confidence && r.confidence !== 'high' ? ' <span class="at-conf at-' + esc(r.confidence) + '">' + esc(r.confidence) + '</span>' : '') +
         (r.why ? '<div class="muted">' + esc(r.why) + '</div>' : '') + '</td>' +
       '<td>' + checkTxt(r) + '</td></tr>';
   }
@@ -110,8 +117,10 @@
       '<div class="at-dh"><div class="at-dt">' + ticketLink(r.ticket_id) + ' · ' + esc(r.subject || '(no subject)') + '</div>' +
         '<div class="muted">' + esc(when(r.created_ms)) + (r.requester ? ' · ' + esc(r.requester) : '') + (r.channel ? ' · ' + esc(r.channel) : '') + ' · ' + tstatus(z.status || r.status) + '</div></div>' +
       silent +
-      '<div class="at-grid"><div class="at-box"><div class="at-k">Spark says</div><div><span class="at-b ad-b">Ad / spam</span> ' + esc(r.confidence || '') + ' confidence</div>' +
-        (r.why ? '<div>' + esc(r.why) + '</div>' : '') + '<div class="muted"><a href="/sparklog#t-' + r.ticket_id + '">What Spark read and answered</a> (admins)</div></div>' +
+      '<div class="at-grid"><div class="at-box"><div class="at-k">Spark says</div><div>' + said(r) + ' ' + esc(r.confidence ? r.confidence + ' confidence' : '') + '</div>' +
+        (r.why ? '<div>' + esc(r.why) + '</div>' : '') + '<div class="muted"><a href="/sparklog#t-' + r.ticket_id + '">What Spark read and answered</a> (admins)</div>' +
+        (r.rescan_ms ? '<div class="rs-line">Scanned again ' + esc(when(r.rescan_ms)) + ': ' + (r.prev_spam != null && +r.prev_spam !== +r.spam ? 'Spark changed its call' : 'same call') + '</div>' : '') +
+        '<div class="frow rs-act"><button type="button" class="btn btn-sm" id="adRescan" title="Read this ticket again and ask Spark again, with today\u2019s rules. Nothing is written to Zendesk.">Scan again with Spark</button></div></div>' +
       '<div class="at-box"><div class="at-k">In Zendesk now</div><div>' + tstatus(z.status || r.status) + '</div>' +
         '<div class="muted ad-tags">' + (z.tags && z.tags.length ? z.tags.map(function (t) { return '<code>' + esc(t) + '</code>'; }).join(' ') : 'no tags') + '</div></div></div>' +
       convo(z, r) +
@@ -182,6 +191,16 @@
         .catch(function (e) { $('adMsg').textContent = 'Could not save: ' + e.message; });
       return;
     }
+    if (ev.target.id === 'adRescan') {
+      var rb = ev.target; rb.disabled = true; rb.textContent = 'Asking Spark…';
+      post('/api/adfilter/rescan', { ids: [id] }).then(function (d) {
+        if (d.row) { refreshRow(d.row); draw(); }
+        loadStatus();
+        var c = (d.rescan.changed || [])[0];
+        if (CUR === id) $('adMsg').textContent = c ? 'Spark changed its call: ' + c.was + ' → ' + c.now + '.' : 'Spark made the same call as before.';
+      }).catch(function (e) { rb.disabled = false; rb.textContent = 'Scan again with Spark'; $('adMsg').textContent = 'Could not scan again: ' + e.message; });
+      return;
+    }
     if (ev.target.id === 'adClose') { P.confirm = true; draw(); return; }            // first confirmation: the box
     if (ev.target.id === 'adCancel') { P.confirm = false; draw(); return; }
     if (ev.target.id === 'adGo') {                                                   // second: ticked, then this button
@@ -229,8 +248,53 @@
     else if (ev.key === 'ArrowDown') { ev.preventDefault(); step(1); }
   });
 
+  var RS_URL = '/api/adfilter/rescan';
+  // ---- Scan again: the tickets on this page (or one, from the preview) read and asked again ----------
+  //      with today's rules, to see whether a fix changed Spark's answers. Nothing goes to Zendesk.
+  var rsT = 0;
+  function rsDraw(rs, openable) {
+    var el = $('rsBox');
+    if (!rs || (!rs.running && !rs.finished_ms)) { el.hidden = true; return; }
+    el.hidden = false;
+    if (rs.running) { el.innerHTML = '<span class="at-spin"></span> Spark is reading ' + rs.total + ' ticket' + (rs.total === 1 ? '' : 's') + ' again… ' + rs.done + ' of ' + rs.total; return; }
+    var ch = rs.changed || [];
+    el.innerHTML = '<div class="rs-head"><b>Scanned again:</b> ' + (rs.total - rs.failed) + ' of ' + rs.total + ' read · ' +
+      (ch.length ? '<b>' + ch.length + ' changed</b>' : 'no answer changed') +
+      (rs.failed ? ' · <span class="muted">' + rs.failed + ' kept their old answer (no answer from Spark, or a chat still going)</span>' : '') +
+      (rs.error ? ' · <span class="at-bad">' + esc(rs.error) + '</span>' : '') +
+      ' <button type="button" class="btn btn-sm btn-link" id="rsHide">Hide</button></div>' +
+      (ch.length ? '<ul class="rs-list">' + ch.map(function (c) {
+        return '<li><button type="button" class="btn-link rs-open" data-open="' + c.ticket_id + '">#' + c.ticket_id + '</button> ' +
+          '<span class="rs-was">' + esc(c.was) + '</span> → <b>' + esc(c.now) + '</b>' + (c.why ? ' <span class="muted">· ' + esc(c.why) + '</span>' : '') + '</li>';
+      }).join('') + '</ul>' : '');
+  }
+  function rsWatch() {
+    clearTimeout(rsT);
+    loadStatus().then(function () {
+      var rs = ST && ST.rescan;
+      rsDraw(rs);
+      if (rs && rs.running) { rsT = setTimeout(rsWatch, 1500); return; }
+      $('rescanPage').disabled = false;
+      load();
+    });
+  }
+  $('rescanPage').addEventListener('click', function () {
+    var ids = S.rows.map(function (r) { return r.ticket_id; });
+    if (!ids.length) return;
+    var b = this; b.disabled = true;
+    post(RS_URL, { ids: ids }).then(function (d) { rsDraw(d.rescan); rsWatch(); })
+      .catch(function (e) { b.disabled = false; $('rsBox').hidden = false; $('rsBox').textContent = 'Could not scan again: ' + e.message; });
+  });
+  $('rsBox').addEventListener('click', function (ev) {
+    if (ev.target.id === 'rsHide') { $('rsBox').hidden = true; return; }
+    var o = ev.target.closest('[data-open]'); if (!o) return;
+    var id = +o.getAttribute('data-open');
+    if (S.rows.some(function (r) { return r.ticket_id === id; })) openPanel(id);
+    else { S.q = String(id); $('q').value = S.q; S.page = 0; load().then(function () { openPanel(id); }); }
+  });
+
   fetch('/api/scan-setup', { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : {}; })
     .then(function (x) { ZD = x.zendesk_url || ''; if (S.rows.length) $('rows').innerHTML = S.rows.map(row).join(''); }).catch(function () {});
-  loadStatus().then(load);
+  loadStatus().then(function () { if (ST && ST.rescan && ST.rescan.running) rsWatch(); return load(); });
   setInterval(function () { if (document.visibilityState === 'visible' && $('pnWrap').hidden) { loadStatus(); load(); } }, 60000);
 })();
