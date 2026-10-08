@@ -452,9 +452,8 @@
     // The team rules (generic email, branding vs email) as the server applies
     // them: the card never shows a better verdict than the request's status.
     if (s.status_verdict && SEV[s.status_verdict] > SEV[worst]) worst = s.status_verdict;
-    var conf = fs.length ? Math.round(fs.reduce(function (t, f) { return t + (f.confidence || 0); }, 0) / fs.length * 100) : null;
-    h += '<div class="sh-card"><span class="vpill v-' + esc(worst) + '">' + esc(LABEL[worst] || worst) +
-      (conf != null ? ' (' + conf + '%)' : '') + '</span>';
+    // No percentage: it was the AI's own confidence, not a risk score.
+    h += '<div class="sh-card"><span class="vpill v-' + esc(worst) + '">' + esc(LABEL[worst] || worst) + '</span>';
     if (s.mismatch && s.mismatch.text) h += '<div class="sh-warn">' + esc(s.mismatch.text) + '.</div>';
     var shown = {};
     fs.forEach(function (f) {
