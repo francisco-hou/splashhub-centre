@@ -357,7 +357,7 @@
     var ch = rs.changed || [];
     el.innerHTML = '<div class="rs-head"><b>Scanned again:</b> ' + (rs.total - rs.failed) + ' of ' + rs.total + ' read · ' +
       (ch.length ? '<b>' + ch.length + ' changed</b>' : 'no answer changed') +
-      (rs.failed ? ' · <span class="muted">' + rs.failed + ' kept their old answer (no answer from Spark, or a chat still going)</span>' : '') +
+      (rs.failed ? ' · <span class="muted">' + rs.failed + ' kept their old answer' + (rs.why_text ? ': ' + esc(rs.why_text) : '') + '</span>' : '') +
       (rs.error ? ' · <span class="at-bad">' + esc(rs.error) + '</span>' : '') +
       ' <button type="button" class="btn btn-sm btn-link" id="rsHide">Hide</button></div>' +
       (ch.length ? '<ul class="rs-list">' + ch.map(function (c) {

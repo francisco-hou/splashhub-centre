@@ -60,7 +60,8 @@ DONE = ("solved", "closed")
 _ready = False
 _lock = threading.Lock()
 STATE = {"last_ms": None, "error": None, "busy": False}
-RESCAN = {"running": False, "total": 0, "done": 0, "failed": 0, "changed": [], "error": None, "finished_ms": None}
+RESCAN = {"running": False, "total": 0, "done": 0, "failed": 0, "changed": [], "error": None, "finished_ms": None, "why": {}}
+JUDGE = {"error": None}           # Spark's last error in _judge, worded (Scan again shows it)
 
 
 def _now():
@@ -288,6 +289,8 @@ def _judge(batch, s, skip):
             got = _ask(ask, s["examples"])
         except Exception as e:               # Spark down or an odd answer
             sys.stderr.write("[adfilter] Spark skipped %d ticket(s): %s\n" % (len(ask), type(e).__name__))
+            JUDGE["error"] = str(e)[:160] if type(e).__name__ == "SparkError" else \
+                "its answer couldn't be read" if isinstance(e, ValueError) else type(e).__name__
             got = {}
         for tid, _, _, _ in ask:
             if tid in got:
@@ -330,10 +333,22 @@ def _rescan(ids):
     old = {int(r[0]): int(r[1] or 0) for r in store._read("SELECT ticket_id, spam FROM adfilter WHERE ticket_id IN (%s)" % marks,
                                                           list(ids), fresh=True)}
     tickets = [t for t in zendesk.tickets_many(ids) if int(t["id"]) in old]
-    RESCAN["failed"] += len(ids) - len(tickets)
+    w = RESCAN["why"]
+    w["missing"] = len(ids) - len(tickets)
+    RESCAN["failed"] += w["missing"]
     for i in range(0, len(tickets), BATCH):
         part = tickets[i:i + BATCH]
+        JUDGE["error"] = None
         rows, failed = _judge(part, s, skip)
+        if failed:                                          # Spark didn't answer (often its rate limit): once more
+            time.sleep(4)
+            JUDGE["error"] = None
+            again, failed = _judge([t for t in part if int(t["id"]) in failed], s, skip)
+            rows.update(again)
+        if failed:
+            w["spark"] = w.get("spark", 0) + len(failed)
+            w["spark_error"] = JUDGE["error"]
+        w["chat"] = w.get("chat", 0) + len(part) - len(rows) - len(failed)    # left out: a chat still going
         for tid, r in rows.items():
             r.update(prev_spam=old[tid], rescan_ms=_now())
             if r["spam"] != old[tid]:
@@ -353,7 +368,7 @@ def rescan(ids):
         raise ValueError("choose some tickets")
     if RESCAN["running"]:
         raise ValueError("Spark is already reading tickets again")
-    RESCAN.update(running=True, total=len(ids), done=0, failed=0, changed=[], error=None, finished_ms=None)
+    RESCAN.update(running=True, total=len(ids), done=0, failed=0, changed=[], error=None, finished_ms=None, why={})
 
     def run():
         try:
@@ -362,16 +377,28 @@ def rescan(ids):
             RESCAN["error"] = str(e)[:200] if isinstance(e, ValueError) or "Zendesk" in str(e) else type(e).__name__
             sys.stderr.write("[adfilter] scan again: %s\n" % RESCAN["error"])
         finally:
-            RESCAN.update(running=False, finished_ms=_now())
+            RESCAN.update(running=False, finished_ms=_now(), why_text=_why_text(RESCAN["why"]))
     if len(ids) == 1:
         run()
         if RESCAN["error"]:
             raise ValueError(RESCAN["error"])
         if RESCAN["failed"]:
-            raise ValueError("Spark didn't answer (or the chat hasn't ended yet) -- the old call stays")
+            raise ValueError("the old call stays: " + (RESCAN["why_text"] or "no answer"))
         return {"row": _get(ids[0]), "rescan": dict(RESCAN)}
     threading.Thread(target=run, name="adfilter-rescan", daemon=True).start()
     return {"rescan": dict(RESCAN)}
+
+
+def _why_text(w):
+    """Why tickets kept their old answer, in words (Scan again)."""
+    parts = []
+    if w.get("missing"):
+        parts.append("%d not returned by Zendesk" % w["missing"])
+    if w.get("chat"):
+        parts.append("%d chat%s still going (judged once the transcript is in)" % (w["chat"], "" if w["chat"] == 1 else "s"))
+    if w.get("spark"):
+        parts.append("%d without an answer from Spark%s" % (w["spark"], (" -- " + w["spark_error"]) if w.get("spark_error") else ""))
+    return "; ".join(parts)
 
 
 def _round():

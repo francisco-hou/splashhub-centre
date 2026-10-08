@@ -116,7 +116,8 @@
     return '<div class="rl-card">' + head +
       '<div class="rl-meta">' + (d.ms / 1000).toFixed(1) + ' s' + (d.tokens_in != null ? ' · ' + int(d.tokens_in) + ' in / ' + int(d.tokens_out) + ' out tokens' : '') +
         ' · ' + int(d.text.length) + ' characters</div>' +
-      (d.templates && d.templates.length ? '<div class="rl-meta">Given: ' + d.templates.map(esc).join(' · ') + '</div>' : '') +
+      (d.template_used ? '<div class="rl-used' + (d.similarity >= 90 ? ' ok' : '') + '">Template: <b>' + esc(d.template_used) + '</b> · ' + d.similarity + '% the same</div>'
+        : d.templates && d.templates.length ? '<div class="rl-meta">Given: ' + d.templates.map(esc).join(' · ') + ' — none used</div>' : '') +
       '<div class="rl-reply">' + esc(d.text) + '</div>' +
       '<div class="frow rl-cact"><button type="button" class="btn btn-sm" data-copy="' + run.n + ':' + d.i + '">Copy</button></div></div>';
   }

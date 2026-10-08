@@ -16,7 +16,7 @@ The prompt in use is kept in settings (replylab_prompt), so it can be tuned
 over time; empty means DEFAULT_PROMPT. Spark's drafts are kept in Spark
 activity (area reply_lab), like every other Spark call.
 """
-import json, os, re, time
+import difflib, json, os, re, time
 
 import store
 
@@ -30,10 +30,16 @@ Splashtop makes remote access and remote support software (Splashtop Business Ac
 - Answer what the customer asked in their latest message; don't repeat what was already said or asked.
 - Be accurate. If you're not sure of a product fact, say what you will check or ask for the detail you need (version, OS, logs, screenshots) -- never invent features, prices, dates or policies.
 - Internal notes are for you only: use what they say, never quote them or mention them.
-- Write the way the team's templates do: "Hello," (or "Hello [first name],"), a line thanking them or saying sorry about the trouble, then short paragraphs or numbered steps, and a link to the matching Splashtop support article when there is one. Plain text, no Markdown, no subject line.
-- When a team template fits, follow its wording and steps, adapted to this ticket; never leave a placeholder like XXX in.
-- Close with a short line such as "Please let us know how it goes!" and sign "Regards," then "Splashtop Business Support Team".
-- Never promise refunds, discounts, delivery dates or new features."""
+- TEAM TEMPLATES COME FIRST. When one of the team templates given fits this ticket, your reply IS that template, word for word (99% the same):
+  keep its greeting, every sentence, its steps and their numbering, its links and its closing exactly as written.
+  Change ONLY what must change for this ticket: the customer's name, a detail such as their OS, version or computer name, and placeholders like XXX.
+  Do not rephrase, shorten, add sentences, add steps or add a signature the template doesn't have.
+  Some templates hold two versions one after the other (each starting with "Hello"): use the one version that fits, not both.
+  If the customer wrote in another language, translate the template faithfully, sentence by sentence.
+- Only when NO template fits, write a short reply in the same style: "Hello,", a line thanking them or saying sorry about the trouble, short paragraphs or numbered steps, a link to the matching Splashtop support article when there is one, "Please let us know how it goes!", then "Regards," and "Splashtop Business Support Team".
+- Plain text, no Markdown, no subject line.
+- Never promise refunds, discounts, delivery dates or new features.
+- The FIRST line of your answer is "TEMPLATE: <the template's title in brackets, exactly as given>" or "TEMPLATE: none"; the reply starts on the next line."""
 TEMPLATES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "replytemplates.json")
 _TPL = {"list": None}
 MIN_SCORE = 1.0                 # below this a template isn't given at all: none beats a wrong one
@@ -135,13 +141,30 @@ def _template_part(tk, template):
         t = next((x for x in templates() if x["id"] == template), None)
         if not t:
             raise ValueError("unknown template")
-        return ("\n\n---\nBase the reply on this team template, adapted to this ticket:\n\n[%s]\n%s" % (t["title"], t["text"]), [t["title"]])
+        return ("\n\n---\nThe team template to use (it fits this ticket; reply with it word for word, changing only what this ticket needs):\n\n[%s]\n%s" % (t["title"], t["text"]), [t["title"]])
     picks = closest(tk)
     if not picks:
         return "", []
-    return ("\n\n---\nThe team's reply templates closest to this ticket. If one fits, follow its wording and steps (adapted); "
-            "if none fits, just use their tone and format:\n\n" + "\n\n".join("[%s]\n%s" % (t["title"], t["text"]) for t in picks),
+    return ("\n\n---\nThe team's reply templates closest to this ticket. If one fits, reply with it word for word "
+            "(changing only what this ticket needs); if none fits, write in their style:\n\n" + "\n\n".join("[%s]\n%s" % (t["title"], t["text"]) for t in picks),
             [t["title"] for t in picks])
+
+
+def _which(text, given):
+    """(reply without the TEMPLATE line, the template used or None, how alike the two are in %).
+    The likeness is worked out here (difflib), not taken from the model: for a two-version
+    template, against whichever version is closest."""
+    m = re.match(r"\s*TEMPLATE:\s*\[?(.*?)\]?\s*(?:\n|$)", text or "", re.I)
+    if not m:
+        return text, None, None
+    reply, name = text[m.end():].strip(), m.group(1).strip()
+    t = next((x for x in templates() if x["title"].lower() == name.lower() and x["title"] in given), None)
+    if not t:
+        return reply, None, None
+    norm = lambda s: re.sub(r"\s+", " ", s or "").strip().lower()
+    versions = [v for v in re.split(r"\n(?=Hello\b)", t["text"]) if v.strip()] or [t["text"]]
+    best = max(difflib.SequenceMatcher(None, norm(v), norm(reply)).ratio() for v in versions + [t["text"]])
+    return reply, t["title"], int(round(best * 100))
 
 
 # ---- the ticket --------------------------------------------------------------------------------
@@ -207,8 +230,10 @@ def draft(ticket_id, model_id, prompt_text=None, notes=None, include_notes=True,
             raise ValueError("Claude's answer had no text" + (" (cut off at max_tokens)" if res.get("stop_reason") == "max_tokens" else ""))
         u = res.get("usage") or {}
         tin, tout = u.get("input_tokens"), u.get("output_tokens")
+    text, tused, alike = _which(text, used)
     return {"model": name, "provider": "Spark" if provider == "spark" else "Claude", "model_id": model_id, "text": text,
-            "ms": int((time.time() - t0) * 1000), "tokens_in": tin, "tokens_out": tout, "ticket_id": int(ticket_id), "templates": used}
+            "ms": int((time.time() - t0) * 1000), "tokens_in": tin, "tokens_out": tout, "ticket_id": int(ticket_id), "templates": used,
+            "template_used": tused, "similarity": alike}
 
 
 def info():
