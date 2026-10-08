@@ -1285,3 +1285,27 @@ textarea.sc-input { width: 100%; box-sizing: border-box; }
 .tst.tst-na { background: #eef0f2; color: #5b6670; }
 .ad-gone { font-size: 12px; color: #8a5410; margin-top: 2px; }
 .ad-gone-box { background: #fff6e0; border: 1px solid #f3d29b; border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #6b4a10; }
+
+/* Statistics (admin): Wrap Up notes on solved tickets */
+.st-chart { position: relative; padding: 4px 16px 12px; }
+.st-svg { display: block; max-width: 100%; height: auto; }
+.st-grid { stroke: #eceff2; stroke-width: 1; }
+.st-ax { font-size: 11px; fill: #78838f; }
+.st-lbl { font-size: 11px; font-weight: 600; fill: #3a4550; }
+.st-hit { fill: transparent; }
+.st-bar { cursor: default; outline: none; transition: opacity .15s; }
+.st-bar.dim { opacity: .45; }
+.st-tip { position: absolute; pointer-events: none; background: #fff; border: 1px solid #e0e4e8; border-radius: 8px; padding: 8px 10px;
+  font-size: 12.5px; box-shadow: 0 6px 18px rgba(16, 40, 70, .12); min-width: 150px; z-index: 3; }
+.st-sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 5px 0 8px; vertical-align: -1px; }
+.st-tip .st-sw { margin-left: 0; }
+.st-legend { font-size: 12.5px; color: #4a5560; margin-left: auto; margin-right: 10px; }
+.st-empty { color: #78838f; font-size: 13px; padding: 24px 0; text-align: center; }
+.st-wtable { margin-top: 4px; }
+.st-table td.num, .st-table th.num { text-align: right; }
+.st-table th.st-grp { text-align: center; border-bottom: 1px solid #eceff2; }
+.st-meter { display: inline-block; width: 64px; height: 6px; border-radius: 999px; background: #eceff2; vertical-align: middle; overflow: hidden; }
+.st-meter span { display: block; height: 100%; background: #0b5cad; border-radius: 999px; }
+.st-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 900px) { .st-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (prefers-reduced-motion: reduce) { .st-bar { transition: none; } }

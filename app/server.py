@@ -49,11 +49,11 @@ COOKIE = "shcadmin"
 # What needs the admin session: the Logs page's data and the Settings page's.
 # Everything else (SOS Scans, SSO Requests, PriceBook, AI) is open to the team.
 ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases",
-             "/api/kb", "/api/po", "/api/notify", "/api/teams-ask", "/api/overview", "/api/spark-log"}
+             "/api/kb", "/api/po", "/api/notify", "/api/teams-ask", "/api/overview", "/api/spark-log", "/api/stats"}
 ADMIN_POST = {"/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
               "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop", "/api/po/import", "/api/po/update", "/api/po/stop", "/api/notify",
               "/api/notify/test", "/api/notify/run", "/api/notify/languages", "/api/teams-ask", "/api/teams-ask/key", "/api/theme",
-              "/api/autotag/settings", "/api/autotag/run", "/api/adfilter/settings", "/api/adfilter/run"}
+              "/api/autotag/settings", "/api/autotag/run", "/api/adfilter/settings", "/api/adfilter/run", "/api/stats/run"}
 # Local preview fills an empty database with sample runs. Never on Spluki.
 SAMPLE = store.backend() == "sqlite" and os.environ.get("SAMPLE_DATA", "1") != "0"
 
@@ -203,6 +203,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("sparklog.html", "text/html; charset=utf-8")
             if u.path in ("/adfilter", "/adfilter.html"):
                 return self.static("adfilter.html", "text/html; charset=utf-8")
+            if u.path in ("/statistics", "/statistics.html"):
+                return self.static("statistics.html", "text/html; charset=utf-8")
             if u.path in ("/replylab", "/replylab.html"):
                 return self.static("replylab.html", "text/html; charset=utf-8")
             if u.path in ("/me", "/me.html"):
@@ -226,7 +228,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path in ("/customers", "/customers.html"):
                 return self.static("customers.html", "text/html; charset=utf-8")
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/replylab.js", "/sparklog.js", "/wiki.js", "/splashtop-icon.png"):
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/replylab.js", "/statistics.js", "/sparklog.js", "/wiki.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -378,6 +380,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self.json(adfilter.preview(int(m.group(1))))
                 except ValueError as e:
                     return self.json({"error": str(e)}, 404)
+            if u.path == "/api/stats":
+                # Statistics (admin): Wrap Up notes on solved tickets, counts only
+                import stats
+                return self.json(stats.overview((qs.get("period") or ["30"])[0]))
             if u.path == "/api/replylab":
                 import replylab
                 return self.json(replylab.info())
@@ -691,6 +697,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except ValueError as e:
                 return self.json({"error": str(e) or "bad request"}, 400)
             return self.json(notify.settings())
+        if u.path == "/api/stats/run":
+            import stats
+            stats.kick()
+            return self.json({"ok": True})
         if u.path.startswith("/api/replylab/"):
             # Reply Lab: drafts to read and copy -- nothing is written to Zendesk.
             import replylab
@@ -1026,6 +1036,8 @@ def main():
     import autotag
     autotag.boot()
     import adfilter
+    import stats
+    stats.boot()                      # Statistics: Wrap Up notes on solved tickets, read every 15 minutes
     adfilter.boot()                   # Ad filter: Spark asks "ad / spam?" of what AutoTag read (held, nothing changed in Zendesk)                    # AutoTag: new tickets' languages by Spark, every 2 minutes (held here, not written)                     # Teams: spike and overdue-PO checks (only what's switched on)
     _spark_hello()
     srv = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
