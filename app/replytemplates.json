@@ -1,0 +1,387 @@
+[
+ {
+  "id": "email-account-change",
+  "title": "Email Account Change",
+  "tag": "Account Change",
+  "language": "English",
+  "text": "Hello\n\nThank you for contacting Splashtop support!\n\nIn order to further assist with the request, you need to verify the account by providing the information requested below:\n\n- The name of a computer you are connected with Splashtop\n\n- The public IP address of the computer you are connecting with Splashtop. You can follow this link and the IP address will show up underneath the research bar. https://duckduckgo.com/?q=whats+my+ip&atb=v314-1&ia=answer\n\n- PayPal email address used for payment.\n\nThank you!"
+ },
+ {
+  "id": "email-account-change-2",
+  "title": "Email Account Change (2)",
+  "tag": "Account Change",
+  "language": "English",
+  "text": "Hello\n\nWe confirm that we have changed your email address from to old email to new email. Please login with the updated email.\n\nLet us know if you have any issues."
+ },
+ {
+  "id": "android-15-samsung",
+  "title": "Android 15 Samsung",
+  "tag": "Android",
+  "language": "English",
+  "text": "Hello,\n\nBased on the Samsung announcement (https://docs.samsungknox.com/dev/knox-sdk/api-reference/restricted-api-methods/), from Android 15 (Knox 3.11) onwards, apps must run as the Android Enterprise Device Owner (DO) of a fully-managed device, or the Profile Owner (PO) of a work profile, to access select Knox SDK features. That means our app, Splashtop Streamer/ SOS, will not be able to access Knox SDK on Android 15 Samsung devices. As a result, the remote screen capture and remote control will not work, as is in your case.\n\nThe current workaround is to use devices managed via MDM with the add-on installed. Are you currently using or have you implemented MDM for your devices? If so, please check the following support article for more information: Enable remote control for Android 15 Samsung devices via OEMconfig – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/36971335286299-Enable-remote-control-for-Android-15-Samsung-devices-via-OEMconfig)\n\nPlease let us know if you have further questions."
+ },
+ {
+  "id": "oemconfig-not-working-samsung-android-15",
+  "title": "OEMConfig Not Working (Samsung Android 15)",
+  "tag": "Android",
+  "language": "English",
+  "text": "Hello,\n\nNoted. Could you help us with the following?\n\n1. Did you installed the Knox add-on app before or after you pushed the OEMConfig?\n\n2. Please reproduce the issue and help us collect debug logs from the affected device.\n3. Please reproduce the issue and help us collect debug logs from an affected device. How do I send Debug Logs – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/360053615371-How-do-I-send-Debug-Logs)\n\n4. Please enable the debug mode on the Knox Service Plugin app. Once activated, an error message will appear on the Knox Service Plugin App page on the target devices. Kindly send us a screenshot of this error message.\n\nThank You!"
+ },
+ {
+  "id": "set-up-unattended-access-android-android-13-below",
+  "title": "Set-up Unattended Access Android (Android 13 & below)",
+  "tag": "Android",
+  "language": "English",
+  "text": "Hello,\n\nSince the device is running Android XX you should be able to set up complete unattended remote access. Please refer to the steps below on how to do this:\n\n1. Install Splashtop Streamer on the Android device from the Play Store oy by going to Splashtop's web console (my.splashtop.com (http://my.splashtop.com/)) and downloading a deployment package.\n\n2. Launch the app and input the 12-digit deployment code.\n\n3. You will also be prompted to install an add-on that is required for full unattended access. Please let us know if you don't see the prompt. You can also download the add-on from here: Enabling remote control of Android devices – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/360026635952-Enabling-remote-control-of-Android-devices)\n\nYou can check the following support articles for more information:\n\nHow to access Android devices with Splashtop Remote Support - Premium? (Unattended Access) – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/360026728192-How-to-access-Android-devices-with-Splashtop-Remote-Support-Premium-Unattended-Access)\n\nLet us know if you have further questions. Thank You!\n\nRegards,"
+ },
+ {
+  "id": "verify-screen-capture-samsung-android-15",
+  "title": "Verify Screen Capture (Samsung Android 15)",
+  "tag": "Android",
+  "language": "English",
+  "text": "Hello [name],\n\nCould you please check again which screen capture mode you are using? If you are using system screen capture, please select Knox built-in screen capture."
+ },
+ {
+  "id": "is-splashtop-still-safe-even-when-not-using-vpn",
+  "title": "Is Splashtop still safe even when not using VPN?",
+  "tag": "Features",
+  "language": "English",
+  "text": "Hello\n\nThank you for contacting us.\n\nWe have multiple levels of security protection on all endpoint devices, including mandatory device authentication, optional two-factor authentication (2FA), as well as a security code. All remote sessions are protected with TLS (including TLS 1.2) and 256-bit AES encryption. We emphasize that Splashtop is secure and does not make your devices vulnerable to attacks. For more information: Remote Access Security | Splashtop (https://www.splashtop.com/security)"
+ },
+ {
+  "id": "is-it-possible-to-remotely-control-ios-devices",
+  "title": "Is it possible to remotely control iOS devices?",
+  "tag": "Features",
+  "language": "English",
+  "text": "Hello\n\nSplashtop will allow you to remotely view, but not control an iOS device. Apple’s third party app restrictions do not allow any application to remote control iOS devices.\n\nLet us know if you need further assistance."
+ },
+ {
+  "id": "cannot-add-a-computer-solo-limit",
+  "title": "Cannot Add a Computer (Solo Limit)",
+  "tag": "How To",
+  "language": "English",
+  "text": "Hello\n\nSorry to hear about the issue you are encountering.\n\nI have reviewed your account and confirmed that you currently have a Splashtop Business Access Solo subscription. This allows you to add up to two computers. At present, you have _____and _____ added. To add your new computer you have two options:\n\n1. Delete a computer from your computer list. To do so, please check the following support article: How to delete/remove computers from my account? – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/115001227743-How-to-delete-remove-computers-from-my-account)\n\n2. Upgrade your Splashtop subscription. Please check the following support article for more information: How to Upgrade Business Access Subscription from Solo to Pro – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/360022486632-How-to-Upgrade-Business-Access-Subscription-from-Solo-to-Pro)\n\nAfter choosing any of the options below, please install the Splashtop streamer on your new computer to add it to your computer list. Splashtop Installation Instructions – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/360015781911-Splashtop-Installation-Instructions)\n\nPlease let us know if you need further assistance. Thank You!"
+ },
+ {
+  "id": "how-to-enable-streamer-password",
+  "title": "How to Enable Streamer Password",
+  "tag": "How To",
+  "language": "English",
+  "text": "Hello\n\nThank you for contacting us.\n\nTo enable a password before connecting to a PC, the option must be enabled from the Splashtop Streamer. In case you have multiple PC's this must be enabled on each of them individually. Here is are guide on how to enable it: Streamer Security Settings: Require Additional Password to Connect – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/5538568717467-Streamer-Security-Settings-Require-Additional-Password-to-Connect)\n\nLet us know if you have further questions.\n\nAny changes for password requirements are possible through the Splashtop streamer (Security>Require additional password to connect). You can select between no password, require windows login or require security code.\n\nPlease take a look at our support article for more information:\n\nStreamer Security Settings: Require Additional Password to Connect – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/5538568717467-Streamer-Security-Settings-Require-Additional-Password-to-Connect)\n\nLet us know if you need further assistance."
+ },
+ {
+  "id": "how-to-remote-print",
+  "title": "How to Remote Print",
+  "tag": "How To",
+  "language": "English",
+  "text": "Hello\n\nThank you for contacting us!\n\nWith remote print feature you can print as if you were using the printer of the remote device locally and vice versa, please have a look at our support article to learn more and how to change printing settings.\n\nRemote Print – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/212725383-Remote-Print)\n\nLet us know if you need further assistance."
+ },
+ {
+  "id": "how-to-install-splashtop-business-app-streamer",
+  "title": "How to install Splashtop Business App/Streamer",
+  "tag": "How To",
+  "language": "English",
+  "text": "Hello\n\nThanks for reaching out. You can download our software from the following site: Download Splashtop Remote Desktop & Remote Support Software (https://www.splashtop.com/downloads?srsltid=AfmBOoq5nvP_4gra0yJllCKiaF5uNztH-lmroSd2QcAvWvSkryiI-CN2). After downloading and installing, just login with your email and password.\n\nLet us know if you need further assistance.\n\nHello,\n\nThank you for contacting Splashtop Support.\n\nPlease check the following instructions to install Splashtop on a new device:\n\n1. Go to my.splashtop.com (http://my.splashtop.com/) and login with your username and password.\n\n2. On the device you want to connect FROM, please download the Splashtop Business App by clicking on \"Business App\".\n\n3. On the device you want to connect TO, please download the Splashtop Streamer by clicking \"Add Computer\"\n\n[image]\nIf you need to perform connections TO and FROM the same device/computer, please install both the Splashtop Business App and Streamer.\n\nPlease check the following support article for more information:\n\nSplashtop Installation Instructions – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/360015781911-Splashtop-Installation-Instructions#h_01ETR2EZ0JH1H4X1T677T27AWG)\n\nLet us know if you have any other questions. Thank You!"
+ },
+ {
+  "id": "silent-install-mac",
+  "title": "Silent Install Mac",
+  "tag": "How To",
+  "language": "English",
+  "text": "Hello,\n\nThanks for reaching out to Splashtop Business Support.\n\nYou can grab the script from this page here at the bottom:\n\nCommand-line parameters to silently install your deployable Splashtop Streamer – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/212725183-Command-line-parameters-to-silently-install-your-deployable-Splashtop-Streamer)\n\n.\n\nFollow the same commands for silent install for Mac. It should work for InTune as well.\n\nPlease feel free to reach out if you have any other questions. Thank you!\n\nRegards,\n\nSplashtop Business Support Team"
+ },
+ {
+  "id": "msi-streamer",
+  "title": "MSI Streamer",
+  "tag": "Other",
+  "language": "English",
+  "text": "El hecho de que el Streamer ahora muestre un código de implementación preestablecido ya es una buena señal.\n\nEl campo del código de implementación en opaco aparece cuando la aplicación del Streamer no tiene acceso a internet o no puede comunicarse con los servidores de Splashtop durante la instalación\n\n- ¿Podría confirmar qué sucede si el usuario hace clic manualmente en Permitir acceso?\n\n- ¿El streamer inicia sesión correctamente o aparece algún mensaje de error?\n\n- > Si el Streamer inicia sesión correctamente después de hacer clic, esto podría indicar que el equipo no tenía acceso a los servidores de Splashtop durante la instalación, pero lo obtuvo posteriormente.\n\n- > Si el Streamer aún no inicia sesión correctamente después de hacer clic en Permitir acceso, podría significar que todavía existen reglas en la red que impiden que el dispositivo se comunique con los servidores de Splashtop.\n\n¿Podría verificar si la secuencia al plataformar el equipo tal vez se está ejecutando demasiado temprano, es decir, antes de que la red esté completamente disponible, causando que el inicio de sesión de Streamer falle? También hemos visto casos en los que la instalación del Streamer se intenta cuando el equipo está en la pantalla de bloqueo, lo cual puede imponer restricciones de red.\n\nCreo que estamos avanzando en la dirección correcta; solo necesitamos verificar qué está ocurriendo con la red durante la instalación del Streamer.\n\nPor favor, si puede revisar esto con su equipo."
+ },
+ {
+  "id": "aem-guides",
+  "title": "AEM Guides",
+  "tag": "PCP-AEM",
+  "language": "English",
+  "text": "So for Endpoint policies it will be:\n\nhttps://support-splashtopbusiness.splashtop.com/hc/en-us/articles/26868014232219-Endpoint-Policies\n\nSW Patch:\n\nhttps://support-splashtopbusiness.splashtop.com/hc/en-us/articles/27306713135643-Software-Patch\n\nOS Patch:\n\nhttps://support-splashtopbusiness.splashtop.com/hc/en-us/articles/35252486812315-OS-Patch-Patch-View\n\nAlerts:\n\nhttps://support-splashtopbusiness.splashtop.com/hc/en-us/articles/360001840851-Configurable-Alerts-Alert-Profiles\n\nScripts (1-to many):\n\nhttps://support-splashtopbusiness.splashtop.com/hc/en-us/articles/360037776552-1-to-Many-Actions\n\nInventory:\n\nhttps://support-splashtopbusiness.splashtop.com/hc/en-us/articles/360005183691-Computer-Inventory"
+ },
+ {
+  "id": "endpoint-security-last-scan-timezone",
+  "title": "Endpoint Security Last Scan (Timezone)",
+  "tag": "PCP-AEM",
+  "language": "English",
+  "text": "Hello\n\nThank you for contacting us.\n\nTo verify the time zone you're viewing, navigate to Account > Account Info > Account Summary. The selected time zone will indicate when the endpoint security's last scan performed.\n\nPlease let us know if you have further questions. Thank You!"
+ },
+ {
+  "id": "os-patch-logs-not-reflecting",
+  "title": "OS Patch - Logs Not Reflecting",
+  "tag": "PCP-AEM",
+  "language": "English",
+  "text": "Hello,\n\nI have discussed with the engineering team, and I can provide you with more information on the issue you are encountering.\n\nPlease be informed that logs will be generated only if the install is pushed by the Splashtop Streamer. NO logs will be shown if any update was pushed locally or through other methods. This means the logs will ONLY appear if you perform any of the following:\n\n- Manually select an update and click ‘install’ from the web console.\n\n- 1-to-Many Actions/Schedules\n\n- Endpoint Policy Patch\n\nPlease let us know if you have further questions."
+ },
+ {
+  "id": "os-patch-pending-updates-shown",
+  "title": "OS Patch - Pending Updates Shown",
+  "tag": "PCP-AEM",
+  "language": "English",
+  "text": "Hello,\n\nI have discussed with the engineering team, and I can provide you with more information on the issue you are encountering.\n\nThere is a known limitation with the current Windows Integration. Although endpoints may be fully up to date, the OS Patch Management section might still display certain update, such as older versions, as pending.\n\nThe update KB2267602 is very common as it updates the Microsoft Defender data bank, but in some cases, computers already have the newest version of the Microsoft Defender.\n\nWe suggest the following in order to clear the update:\n\n- Clear the cache of the browser or try within an incognito window. Then go to the OS Patch page (https://my.splashtop.com/w/os_patch/computer_view/win), select the affected computers, and then select \"Check for updates\":\n\n- We suggest to check the update history on one of the affected machines and:\n\n- If the version is higher than the one you see on our web console, then you can go to my.splashtop.com/w/os_patch/patch_view (http://my.splashtop.com/w/os_patch/patch_view) and ignore the updates.\n\nUnfortunately, there is not much else our team can offer at the moment.\n\nPlease let us know if you have any further questions. Thank You"
+ },
+ {
+  "id": "payment-error-402-transaction-requires-authentication",
+  "title": "Payment Error (402-Transaction Requires Authentication)",
+  "tag": "Payment",
+  "language": "English",
+  "text": "Hello,\n\nSorry to hear about the issue you are encountering.\n\nI checked from our backend, and it appears your card was declined due to a transaction authentication requirement.\n\nCan you confirm if your card is enabled with 3DS2 (3-D Secure 2) please? Also, could you let us know which currency you were trying to use for the payment?\n\nIf possible, could you try using another card or PayPal for the payment instead?\n\nLooking forward to your reply. Thank You"
+ },
+ {
+  "id": "payment-not-going-through",
+  "title": "Payment not Going Through",
+  "tag": "Payment",
+  "language": "English",
+  "text": "Hello,\n\nSorry to hear about the issue you are encountering.\n\nOur system indicates that you were attempting to purchase __________ , but the transaction was declined due to a general card issue. In most cases, this happens because the bank has blocked the purchase. We recommend contacting your bank to inform them about this transaction and request that they allow it.\n\nPlease keep us informed if the payment still does not go through. Thank You!"
+ },
+ {
+  "id": "card-details-do-not-match",
+  "title": "Card Details Do Not Match",
+  "tag": "Refund",
+  "language": "English",
+  "text": "Hello,\n\nThanks for your message. As per our policy, we can only refund the subscription after confirming the correct credit card number. By any chance do you have any sub accounts under this card or any other card you might have used?"
+ },
+ {
+  "id": "no-refund-policy",
+  "title": "No Refund Policy",
+  "tag": "Refund",
+  "language": "English",
+  "text": "Hello,\n\nThanks for reaching out to us!\n\nWe have a \"no refund policy\" but still provide a courtesy refund within 30 days. Unfortunately, you are past this timeline, so I'm afraid we cannot provide a refund this time. Please check the following support article for more information: Refund Policy – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/212724943-Refund-Policy)\n\nI appreciate your understanding."
+ },
+ {
+  "id": "refund-card",
+  "title": "Refund Card",
+  "tag": "Refund",
+  "language": "English",
+  "text": "Hello\n\nThank you for contacting Splashtop Support.\n\nIn order to process your request and for account security, please confirm the last 4 digits of the credit card used for payment by replying to this ticket."
+ },
+ {
+  "id": "refund-not-possible",
+  "title": "Refund Not Possible",
+  "tag": "Refund",
+  "language": "English",
+  "text": "Thanks for verifying. However refund is not approved since it was not a recent payment and there were multiple remote sessions has been made, couple of them are long sessions as well. Splashtop Terms of Sale and our official policy is \"Prepaid and No Refunds\" https://www.splashtop.com/terms/sale/splashtop.\n\nWe have a \"no refund policy\" but still provide a courtesy refund within 30 days. Unfortunately, multiple remote sessions has been made, so I'm afraid we cannot provide a refund this time."
+ },
+ {
+  "id": "refund-paypal",
+  "title": "Refund PayPal",
+  "tag": "Refund",
+  "language": "English",
+  "text": "Hello\n\nThank you for contacting Splashtop Support.\n\nFirst, for security, please confirm the information below.\n\n1. PayPal email used for the purchase.\n\n2. Purchase date.\n\n3. Purchase amount.\n\nWe will proceed with the refund once we verify the information above."
+ },
+ {
+  "id": "refund-play-store",
+  "title": "Refund Play Store",
+  "tag": "Refund",
+  "language": "English",
+  "text": "Thank you for contacting Splashtop Support.\n\nIn order to process your request, please provide a screenshot of the purchase receipt you received from Google Play. We will proceed with the refund once we receive this information."
+ },
+ {
+  "id": "refund-provided",
+  "title": "Refund Provided",
+  "tag": "Refund",
+  "language": "English",
+  "text": "Hello\n\nThank you for your message.\n\nWe have just completed the cancellation and refund of your subscription. Please allow 3-5 business days for the refund to proceed. Let us know if you have further questions."
+ },
+ {
+  "id": "anywhere-access-pack",
+  "title": "Anywhere Access Pack",
+  "tag": "Splashtop Personal",
+  "language": "English",
+  "text": "Hello,\n\nThanks for contacting us.\n\nSplashtop Personal is free to use and allows you to connect computers on the local network.\n\nIf you require accessing the computer on a different network, you can consider Anywhere Access Pack, which is $16.99 USD/ yr that allows you to connect over the internet.\n\nhttps://www.splashtop.com/personal\n\nYou can subscribe directly from the above portal, click Buy Now under Anywhere Access Pack on the web admin page.\n\nPlease let me know if you have any other questions. Thanks."
+ },
+ {
+  "id": "disconnections-from-ios-devices",
+  "title": "Disconnections From iOS Devices",
+  "tag": "Splashtop Personal",
+  "language": "English",
+  "text": "Hello,\n\nThank you for contacting us.\n\nI noticed the ping values are mostly normal/high ——. When you experience disconnections, do you see any error messages or a yellow warning bar on the iPad screen?\n\nAlso, on your iPad, on the Splashtop Personal App settings, can you kindly enable the following 2 options:\n\n- Network optimization\n\n- Show solid color background\n\nAdditionally, on the Optimizations tab, you can change the FPS settings.\n\nAfter making the changes, please try connecting again and check if the issue improves.\n\nLooking forward to your reply. Thank You!\n\nUnderstood. On the Seth-PC computer, please clean up and reinstall the Splashtop Streamer by following 2 steps:\n\n1. Uninstall by this Streamer cleanup tool:https://support-splashtopbusiness.splashtop.com/hc/en-us/article_attachments/9306388381851/CleanupInstallerSRS_v1.0.1.0.zip\n\n2. Download the latest version installer and reinstall:https://www.splashtop.com/downloads/personal"
+ },
+ {
+  "id": "linux-not-supported",
+  "title": "Linux Not Supported",
+  "tag": "Splashtop Personal",
+  "language": "English",
+  "text": "Hello,\n\nThank you for your message.\n\nAt the moment, Splashtop Personal does not support Linux—only Windows and macOS are supported for that version. To access a Linux machine remotely, you'd need one of our Business plans, which is also only supported for certain distributions. Download Splashtop Streamer for Linux – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/360035513772-Download-Splashtop-Streamer-for-Linux)"
+ },
+ {
+  "id": "purchase-not-updating-app-ios",
+  "title": "Purchase Not Updating App iOS",
+  "tag": "Splashtop Personal",
+  "language": "English",
+  "text": "Hello!\n\nCould you please try to restore the purchase from Splashtop Personal. You can do so by following this support article: What should I do if In-app purchase is not reflected on my Splashtop account? – Splashtop Personal - Support (https://support-splashtoppersonal.splashtop.com/hc/en-us/articles/5904674226331-What-should-I-do-if-In-app-purchase-is-not-reflected-on-my-Splashtop-account)\n\nPlease let us know if this doesn't work!"
+ },
+ {
+  "id": "splashtop-personal-not-for-business-use",
+  "title": "Splashtop Personal Not For Business Use",
+  "tag": "Splashtop Personal",
+  "language": "English",
+  "text": "Also, kind reminder that Splashtop Personal is for non-commercial use / non-work usage only. https://www.splashtop.com/legal/terms-of-service\n\nSince it appears that your usage is likely commercial/work-related (connecting to office computers or for purposes of performing work duties), please subscribe to a Splashtop Business Access (https://www.splashtop.com/pricing#business-access) license. You will be connecting via (purple) Business app instead of the (green) Personal app."
+ },
+ {
+  "id": "splashtop-personal-not-working-after-using-splashtop-business",
+  "title": "Splashtop Personal Not Working After Using Splashtop Business",
+  "tag": "Splashtop Personal",
+  "language": "English",
+  "text": "Hello,\n\nThank you for contacting Splashtop Support!\n\nPlease note that the Splashtop Personal and Splashtop Business applications are not compatible with each other. If you would like to use Splashtop Personal, kindly ensure the following:\n\n- Install the Splashtop Personal App\n\n- Install the Splashtop Personal Streamer\n\nYou can download both from the following link: Splashtop Personal App and Streamer Download Links (https://www.splashtop.com/downloads/personal)\n\nPlease let us know if you need further assistance. Thank You!"
+ },
+ {
+  "id": "legacy-product",
+  "title": "Legacy Product",
+  "tag": "Subscription",
+  "language": "English",
+  "text": "Hello,\n\nI have reviewed your account, and unfortunately, the subscription you had is a legacy product that we no longer sell. As a result, the auto-renewal did not proceed on the expiration date. Apologies for any inconvenience this may have caused.\n\nI will transfer you to Customer Success (CS) team in order to advise you in the best subscription to suit your needs.\n\nIn the meantime, I have provided you with a 5-day trial of -\n\nThank You!"
+ },
+ {
+  "id": "close-ticket",
+  "title": "Close Ticket",
+  "tag": "Tickets (Other)",
+  "language": "English",
+  "text": "Hello\n\nThank you for contacting us. We are glad that everything is working normally gain. For the moment I will be closing this ticket. If you have any questions or need further assistance, please don’t hesitate to contact us."
+ },
+ {
+  "id": "collect-debug-logs",
+  "title": "Collect Debug Logs",
+  "tag": "Tickets (Other)",
+  "language": "English",
+  "text": "Hello,\n\nThanks for your reply.\n\nCould you please try to reproduce the issue and help us collect debug logs from both the Splashtop Business App and the Splashtop Streamer? Additionally, kindly include a timestamp when the issue occurs.\n\nPlease check the following support article for more information: How do I send Debug Logs – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/360053615371-How-do-I-send-Debug-Logs)"
+ },
+ {
+  "id": "finished-chat",
+  "title": "Finished Chat",
+  "tag": "Tickets (Other)",
+  "language": "English",
+  "text": "Hello,\n\nThank you for contacting us via Chat!\nThis ticket serves as the Chat transcript for your reference.\nPlease feel free to contact us again if we can be of any further assistance.\nThanks!"
+ },
+ {
+  "id": "how-may-we-be-of-assistance",
+  "title": "How may we be of Assistance?",
+  "tag": "Tickets (Other)",
+  "language": "English",
+  "text": "Hello,\n\nThank you for contacting us.\n\nIf there's anything else we can assist you with, please don't hesitate to let us know. We're here to help!"
+ },
+ {
+  "id": "a-server-with-a-specific-hostname-could-not-be-found",
+  "title": "A Server with a Specific Hostname could not be Found",
+  "tag": "Troubleshooting",
+  "language": "English",
+  "text": "Hello,\n\nSorry to hear about the issue you are encountering. Could you please try the following and see if it helps:\n\n- Restart your computer.\n\n- Restart your router.\n\n- If the issue persists, please use our clean-up tool to uninstall Splashtop Business App and then reinstall it. How to Uninstall Splashtop – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/216378343-How-to-Uninstall-Splashtop)\n\nPlease let us know if you still are unable to log-in. Thank You!"
+ },
+ {
+  "id": "duplicate-uuid",
+  "title": "Duplicate UUID",
+  "tag": "Troubleshooting",
+  "language": "English",
+  "text": "Hello,\n\nUnderstood. In this case it is possible that both computers have the same universally unique identifier (UUID), causing the replacement of each computer when trying to add the second one. We can try solving the issue by doing the following:\n\n1. Please download and run the uuid_generate.zip file attached to this email on both devices.\n\n2. Attempt to add both computers to your computer list\n\n3. If there is still no change, please type this command on your browser on both devices: st-streamer://com.splashtop.streamer?resetuuid=1 (http://st-streamer//com.splashtop.streamer?resetuuid=1)\n\n4. Attempt to add both computers to your computer list again.\n\nFor more information, please check the following support article:\n\nWhat happens when I clone computers and VMs with streamer pre-installed? – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/211338846-What-happens-when-I-clone-computers-and-VMs-with-streamer-pre-installed)\n\nPlease let us know how it goes! Thank You!\n\nRegards,\n\nSplashtop Business Support Team\n\nuuid_generate.zip"
+ },
+ {
+  "id": "flashing-red-screen-mac",
+  "title": "Flashing Red Screen - Mac",
+  "tag": "Troubleshooting",
+  "language": "English",
+  "text": "Hello,\n\nSorry to hear about the issue you are encountering.\n\nCould you please disable hardware acceleration on the Splashtop Business App if it's currently enabled? You can do this by navigating to Preferences > Advanced > Advanced Settings > Hardware Acceleration. After doing so, please attempt to start a remote session again.\n\nPlease let us know if it helps."
+ },
+ {
+  "id": "import-go-daddy-cert",
+  "title": "Import Go-Daddy Cert",
+  "tag": "Troubleshooting",
+  "language": "English",
+  "text": "Hello\n\nThanks for contacting Splashtop Suport.\n\nCould you please update the root CA and see if it helps in your case. To do so, please import the Go Daddy cert gdroot-g2.crt as a system user: https://ssl-ccp.godaddy.com/repository?origin=CALLISTO. After doing so, please check if you are able connect to your device.\n\nIf the issue still persists, helps us collect debug logs once again. Looking forward to your reply.\n\nThank You!\n\nHello\n\nThanks for your patience.\n\nThe engineering team advises to update the root CA and see if it helps in your case. To do so, please import the Go Daddy cert gdroot-g2.crt as a system user: https://ssl-ccp.godaddy.com/repository?origin=CALLISTO. After doing so, please check if you are able to add the device 'portalguard' to your team.\n\nIf the issue still persists, please helps us collect debug logs once again. Looking forward to your reply.\n\nThank You!"
+ },
+ {
+  "id": "offline-computer-s",
+  "title": "Offline Computer/s",
+  "tag": "Troubleshooting",
+  "language": "English",
+  "text": "It looks like the computer is grayed out. This usually means the device is either turned off, sleep mode, not connected to the internet, or the Splashtop streamer is not running.\n\nIf a computer shows up as offline, you'll need to have someone physically at the computer check the following:\n\n1. Ensure that the computer is powered on\n\n2. Ensure that the computer is not asleep, as network connectivity drops when the computer is asleep\n\n3. Ensure that the computer is connected to internet\n\n4. Check to see if the Streamer at the remote computer is open and running\n\n5. Check to see if the Streamer at the remote computer is logged in under the Status tab\n\n6. Check to see if the Streamer is showing any error messages\n\nPlease refer to this article as well:\n\nhttps://support-splashtopbusiness.splashtop.com/hc/en-us/articles/4402387607707-What-do-I-do-if-my-remote-computer-is-offline-"
+ },
+ {
+  "id": "splashtop-remote-service-ccleaner",
+  "title": "Splashtop Remote Service CCleaner",
+  "tag": "Troubleshooting",
+  "language": "English",
+  "text": "Hello,\n\nThanks for your reply.\n\nSince you mentioned that CCleaner is installed on your computer, could you please try temporarily disabling or uninstalling it to see if the Splashtop Remote Service still changes from \"Automatic\" to \"Disabled\"? There are instances where CCleaner can stop services used by other applications, including Splashtop.\n\nLooking forward to your reply. Thank You!"
+ },
+ {
+  "id": "splashtop-remote-service-disabled",
+  "title": "Splashtop Remote Service Disabled",
+  "tag": "Troubleshooting",
+  "language": "English",
+  "text": "Hello.\n\nSorry to hear about the issue you are encountering.\n\nTo better assist you, could you help us with the following questions?\n\n- Is the issue present in all remote machines or only in specific ones? If so, could you please share with us the name of the device.\n\n- Before restarting the service manually, what is the Status of the Streamer? Are there any error messages on the Streamer Status tab?\n\n- Have there been any Windows updates recently on the PC?\n\n- Do the device(s) have any antivirus (AV) installed? Also, do they have CCleaner?\n\n- Is the computer part of any GPO policy?\n\nLooking forward to your reply."
+ },
+ {
+  "id": "streamer-unable-to-reach-splashtop-servers",
+  "title": "Streamer Unable to Reach Splashtop Servers",
+  "tag": "Troubleshooting",
+  "language": "English",
+  "text": "Hello,\n\nSorry to hear about the issue you are encountering.\n\nCould you please try the following steps on the remote computer?\n\n1. Check for Firewall or Antivirus Blocks:\n- Ensure that your firewall or antivirus isn’t blocking the Splashtop Streamer.\n\n- Allow the following domains and ports: What are the Firewall Exceptions and IP addresses of Splashtop servers/Services? (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/115001811966-What-are-the-Firewall-Exceptions-and-IP-addresses-of-Splashtop-servers-Services)\n\n1. Check Proxy Settings:\n- Go to Advanced > Proxy and ensure it's set to “No proxy” unless your network requires one.\n\n1. Test with Another Network:\n- If possible, connect the computer to a mobile hotspot or different network and see if it can reach Splashtop servers.\n\nLooking forward to your reply. Thank You!"
+ },
+ {
+  "id": "streamer-is-registered-to-your-rmm",
+  "title": "Streamer is Registered to your RMM",
+  "tag": "Troubleshooting",
+  "language": "English",
+  "text": "Hello,\n\nThank you for contacting Splashtop Support!\n\nThis error can have the following explanation:\n\n1. Splashtop Streamer is installed on another user profile on the machine.\n\n2. There is some RMM agent installed on your OC. Common RMM services are Atera, Naverisk and NinjaRMM. Users can only see the devices on one console."
+ },
+ {
+  "id": "troubleshooting-general",
+  "title": "Troubleshooting General",
+  "tag": "Troubleshooting",
+  "language": "English",
+  "text": "Hello\n\nSorry to hear about this. To help us better understand and resolve the problem, could you please provide a screenshot of the issue?\n\nThank you for your help.\n\nHello\n\nSorry to hear that Splashtop has stop working for you. We can assist you to get this resolved as quickly as possible.\n\nCould you please provide us with more details about the issue?"
+ },
+ {
+  "id": "usb-not-working",
+  "title": "USB Not Working",
+  "tag": "Troubleshooting",
+  "language": "English",
+  "text": "Hello,\n\nSorry to hear about the issue you are encountering.\n\nCould you please disconnect from the session and change this setting in the Business App?\n\nWindows:\nFile --> Options --> Advanced Tab\nEnable \"Use legacy compatible mode\"\n\nThen reconnect to the session.\n\nLet me know if this configuration improves your issue. Thank you.\n\nCopy/Paste Not Working on Windows – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/4415152504347-Copy-Paste-Not-Working-on-Windows?input_string=copy+paste+does+not+work+win+to+win)"
+ },
+ {
+  "id": "wake-on-lan-splashtop-personal",
+  "title": "Wake on LAN Splashtop Personal",
+  "tag": "Troubleshooting",
+  "language": "English",
+  "text": "Hello\n\nThank you for reaching out to Splashtop Technical Support!\n\nCurrently, Splashtop Personal only allows Wake-on-LAN (WoL) within the same network and does not offer remote WoL functionality. We apologize for the inconvenience.\n\nIf you require remote WoL capabilities, this feature is available on Splashtop Business Access Pro/Performance. Other requirements also apply, please check the following support article for further details: How do I perform Wake-on-LAN with Splashtop app ? (WoL) – Splashtop Business - Support (https://support-splashtopbusiness.splashtop.com/hc/en-us/articles/212724263-How-do-I-perform-Wake-on-LAN-with-Splashtop-app-WoL)\n\nAgain, let us know if you have further questions."
+ },
+ {
+  "id": "wired-xdisplay-help",
+  "title": "Wired XDisplay Help",
+  "tag": "Troubleshooting",
+  "language": "English",
+  "text": "Hello\n\nFor Wired XDisplay-related issues, please refer to our support articles: Wired XDisplay Support articles (https://support-splashtoppersonal.splashtop.com/hc/en-us/sections/5994547577371-Wired-XDisplay)\n\nKindly be informed that, due to limited resources, we may not be able to provide any additional trouble shooting steps on top of what is suggested in the support articles at the moment.\n\nApologies for the inconvenience this may cause and appreciate your understanding!"
+ },
+ {
+  "id": "2fa-no-phone",
+  "title": "2FA No Phone",
+  "tag": "Verification-2FA",
+  "language": "English",
+  "text": "Thank you for contacting us.\n\nSure thing, we can provide you with emergency recovery codes in order for you to reset 2FA. For account security, could you please confirm with us the following information?\n\n- What is the name or email of the team you are currently part of?\n\n- What is the phone number that was initially used to set up 2FA (ends in XXX)?\n\n- What is your public IP address? What Is My IP Address - See Your Public Address - IPv4 & IPv6 (https://whatismyipaddress.com/)\n\n- Name of a computer on your team that currently has Splashtop installed.\n\nAfter verifying the information, we will send you the receive the recovery codes via this email.\n\n831"
+ },
+ {
+  "id": "lost-access-to-authenticator-app-new-phone",
+  "title": "Lost Access to Authenticator App/New Phone",
+  "tag": "Verification-2FA",
+  "language": "English",
+  "text": "Hello\n\nDo you still have access to your Splashtop online console?\n\nYes- If yes please login and reactivate 2FA at  http://my.splashtop.com/> top right corner > account info> two-step verification and change it\n\nNo- Pleas use the recovery codes that were provided to you when you enabled 2F. Let us know you lost access to them."
+ },
+ {
+  "id": "verified-account-2fa",
+  "title": "Verified Account 2FA",
+  "tag": "Verification-2FA",
+  "language": "English",
+  "text": "Hello\n\nHere are the recovery codes:\n\nPASTE RECOVERY CODES HERE\n\nNext steps: Go to https://my.splashtop.com/login. Login with your email and password, and on the next screen, where it asks for your authentication codes use the link below that says “Use emergency recovery codes instead”.\n\nEnter one of the codes we sent and then go to the Account Info page. In the section for Two Step Verification at the bottom, click on the “Change” link to turn it off and then turn it on to start the setup process."
+ },
+ {
+  "id": "verify-account-2fa",
+  "title": "Verify Account 2FA",
+  "tag": "Verification-2FA",
+  "language": "English",
+  "text": "Hello\n\nFor account security, can you please send us your Splashtop account (email address) to +1(408) 676-3505 by SMS message from the phone number entered when you initially set up your 2FA (ends in XXX)? After verifying your phone number you will receive the Recovery codes via text to your phone.\n\nHello,\n\nThank you for contacting Splashtop Support\n\nSure thing, we can provide you with emergency recovery codes in order for you to reset 2FA. Can you please send us your Splashtop account ([customer's account email]) to +1(408) 676-3505 by SMS message from the phone number entered when you initially set up your 2FA (ends in XXX)? After verifying your phone number you will receive the Recovery codes via text to your phone.\n\nIf you are unable to send SMS messages, please help us confirm with us the following information. After verifying the information, we will send you the receive the recovery codes via this email.\n\n- What is the phone number that was initially used to set up 2FA (ends in XXX)?\n\n- What is your public IP address? What Is My IP Address - See Your Public Address - IPv4 & IPv6 (https://whatismyipaddress.com/)\n\n- Name of a computer on your team that currently has Splashtop installed.\n\nPlease help us answer as many questions as you can. After verifying the information, we will send you the receive the recovery codes via this email."
+ }
+]

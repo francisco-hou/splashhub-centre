@@ -18,7 +18,8 @@ KEEP_DAYS = 30
 AREAS = {"sso_relevance": "SSO · is it an SSO request?", "sso_stage": "SSO · where it stands",
          "autotag": "AutoTag · language", "teams_languages": "Teams · language routing",
          "sos_translate": "SOS Scans · translation", "sos_dashboard": "SOS Scans · dashboard notes",
-         "customers": "Customers · summary", "ad_filter": "Ad/Spam Filter · ad or spam?"}
+         "customers": "Customers · summary", "ad_filter": "Ad/Spam Filter · ad or spam?",
+         "reply_lab": "Reply Lab · draft"}
 DDL = """CREATE TABLE IF NOT EXISTS spark_log (
     id {ID}, ts_ms {INT} NOT NULL, area TEXT NOT NULL, tickets TEXT, question TEXT, input TEXT, answer TEXT,
     thinking TEXT, decision TEXT, changed {INT} NOT NULL DEFAULT 0, ms {INT}, model TEXT, error TEXT,

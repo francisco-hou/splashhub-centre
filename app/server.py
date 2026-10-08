@@ -203,6 +203,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("sparklog.html", "text/html; charset=utf-8")
             if u.path in ("/adfilter", "/adfilter.html"):
                 return self.static("adfilter.html", "text/html; charset=utf-8")
+            if u.path in ("/replylab", "/replylab.html"):
+                return self.static("replylab.html", "text/html; charset=utf-8")
             if u.path in ("/me", "/me.html"):
                 return self.static("me.html", "text/html; charset=utf-8")
             if u.path in ("/overview", "/overview.html"):
@@ -224,7 +226,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path in ("/customers", "/customers.html"):
                 return self.static("customers.html", "text/html; charset=utf-8")
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/sparklog.js", "/wiki.js", "/splashtop-icon.png"):
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/replylab.js", "/sparklog.js", "/wiki.js", "/splashtop-icon.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -235,6 +237,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json({"required": login_required(), "authed": self.authed(),
                                   "configured": bool(admin_password())})
             if u.path in ADMIN_GET and not self.authed():
+                return self.json({"error": "login required"}, 401)
+            if u.path.startswith("/api/replylab") and not self.authed():     # Reply Lab reads any ticket: signed in only
                 return self.json({"error": "login required"}, 401)
 
             if u.path == "/api/meta":
@@ -374,6 +378,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self.json(adfilter.preview(int(m.group(1))))
                 except ValueError as e:
                     return self.json({"error": str(e)}, 404)
+            if u.path == "/api/replylab":
+                import replylab
+                return self.json(replylab.info())
+            m = re.match(r"^/api/replylab/closest/(\d+)$", u.path)
+            if m:                                      # the templates "Closest 3" would give this ticket
+                import replylab
+                try:
+                    return self.json({"titles": [t["title"] for t in replylab.closest(replylab.ticket(int(m.group(1))))]})
+                except Exception:
+                    return self.json({"titles": []})
+            m = re.match(r"^/api/replylab/ticket/(\d+)$", u.path)
+            if m:
+                import replylab
+                try:
+                    return self.json(replylab.ticket(int(m.group(1))))
+                except ValueError as e:
+                    return self.json({"error": str(e)}, 400)
+                except Exception as e:                 # Zendesk: a worded error, never the library's text
+                    return self.json({"error": str(e)[:200] if "Zendesk" in str(e) else "Zendesk didn't answer (%s)" % type(e).__name__}, 502)
             if u.path == "/api/adfilter/list":
                 import adfilter
                 g = lambda k: (qs.get(k) or [""])[0]
@@ -626,7 +649,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                               "No ADMIN_PASSWORD is set for this app yet."}, 401)
         if u.path == "/logout":
             return self.json({"ok": True}, 200, [("Set-Cookie", "%s=; Path=/; Max-Age=0" % COOKIE)])
-        if u.path in ADMIN_POST and not self.authed():
+        if (u.path in ADMIN_POST or u.path.startswith("/api/replylab")) and not self.authed():
             return self.json({"error": "login required"}, 401)
         if u.path == "/api/import-past/stop":
             return self.json({"ok": sosscan.stop_job("import")})
@@ -668,6 +691,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except ValueError as e:
                 return self.json({"error": str(e) or "bad request"}, 400)
             return self.json(notify.settings())
+        if u.path.startswith("/api/replylab/"):
+            # Reply Lab: drafts to read and copy -- nothing is written to Zendesk.
+            import replylab
+            try:
+                data = json.loads(raw or b"{}") or {}
+                if u.path == "/api/replylab/draft":
+                    try:
+                        return self.json(replylab.draft(int(data.get("ticket_id")), str(data.get("model") or ""), data.get("prompt"),
+                                                        data.get("notes"), data.get("include_notes", True) is not False,
+                                                        str(data.get("template") or "auto")))
+                    except (ValueError, TypeError):
+                        raise
+                    except Exception as e:             # the model or Zendesk: worded, never a library's text
+                        msg = str(e)[:240] if type(e).__name__ in ("SparkError", "ScanError", "ZendeskError") else type(e).__name__
+                        return self.json({"error": msg}, 502)
+                if u.path == "/api/replylab/prompt":
+                    return self.json(replylab.save_prompt(data.get("prompt") or "", "team"))
+            except (ValueError, TypeError) as e:
+                return self.json({"error": str(e) or "bad request"}, 400)
+            return self.json({"error": "not found"}, 404)
         if u.path.startswith("/api/adfilter/"):
             import adfilter
             try:

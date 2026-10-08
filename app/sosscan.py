@@ -306,6 +306,22 @@ def call_claude(images, b64s, ctext, ftext):
 def _messages(body, model, refused):
     """POST one Messages API request through CUSTOM_AI; the parsed JSON answer,
     usage and model. Errors are worded here (never str(e) of a network error)."""
+    res = messages_raw(body)
+    if res.get("stop_reason") == "refusal":
+        raise ScanError(refused)
+    text = next((b.get("text") for b in res.get("content") or [] if b.get("type") == "text"), None)
+    if not text:
+        raise ScanError("Claude's answer had no text to read" + (" (cut off at max_tokens)" if res.get("stop_reason") == "max_tokens" else ""))
+    try:
+        parsed = json.loads(text)
+    except ValueError:
+        raise ScanError("Claude's answer was not the expected JSON")
+    return parsed, res.get("usage") or {}, res.get("model") or model
+
+
+def messages_raw(body):
+    """POST one Messages API request through CUSTOM_AI; the response as sent.
+    Errors are worded here (never str(e) of a network error)."""
     base, key, _ = ai_config()
     req = urllib.request.Request(base + "/v1/messages", data=json.dumps(body).encode(), method="POST",
                                  headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
@@ -323,16 +339,7 @@ def _messages(body, model, refused):
         raise ScanError("Claude answered HTTP %d%s%s" % (e.code, (" -- " + hint) if hint else "", (": " + detail) if detail else ""))
     except Exception as e:     # never str(e): see zendesk.py
         raise ScanError("could not reach the Claude API (%s) -- is the CUSTOM_AI grant approved?" % type(e).__name__)
-    if res.get("stop_reason") == "refusal":
-        raise ScanError(refused)
-    text = next((b.get("text") for b in res.get("content") or [] if b.get("type") == "text"), None)
-    if not text:
-        raise ScanError("Claude's answer had no text to read" + (" (cut off at max_tokens)" if res.get("stop_reason") == "max_tokens" else ""))
-    try:
-        parsed = json.loads(text)
-    except ValueError:
-        raise ScanError("Claude's answer was not the expected JSON")
-    return parsed, res.get("usage") or {}, res.get("model") or model
+    return res
 
 
 # ---- the Translate button ------------------------------------------------------------

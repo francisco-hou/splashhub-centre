@@ -116,10 +116,13 @@ _NO_THINK = {"ok": True}
 _LAST = threading.local()      # the last call's token counts on this thread (Spark activity reads them)
 
 
-def chat_raw(messages, tools=None, max_tokens=2000):
+def chat_raw(messages, tools=None, max_tokens=2000, use_model=None):
     """One Chat Completions call; the reply message as Spark sends it
-    (content and, when tools are given, any tool_calls). Timed in the log."""
-    m = model()
+    (content and, when tools are given, any tool_calls). Timed in the log.
+    use_model: one of models() for this call only (Reply Lab), else model()."""
+    if use_model and use_model not in models():
+        raise SparkError("Spark doesn't offer that model")
+    m = use_model or model()
     body = {"model": m, "max_tokens": max_tokens, "temperature": 0.2, "messages": messages}
     if tools:
         body["tools"] = tools
@@ -155,33 +158,33 @@ def _thoughts(msg, raw):
     return t.strip()
 
 
-def chat(system, user, max_tokens=2000, log=None):     # room for a model that thinks first
+def chat(system, user, max_tokens=2000, log=None, use_model=None):     # room for a model that thinks first
     """One short answer as plain text. log={"area": ..., "tickets": id or [ids]}:
     the call is kept in Spark activity (sparklog.py) -- the question, the text,
     the answer, the reasoning -- and log["id"] is set for sparklog.decide()."""
     t0 = time.time()
     _LAST.usage = {}
     try:
-        msg = chat_raw([{"role": "system", "content": system}, {"role": "user", "content": user}], max_tokens=max_tokens)
+        msg = chat_raw([{"role": "system", "content": system}, {"role": "user", "content": user}], max_tokens=max_tokens, use_model=use_model)
     except Exception as e:
         if log is not None:
-            _keep(log, system, user, "", "", t0, "%s" % e if isinstance(e, SparkError) else type(e).__name__)
+            _keep(log, system, user, "", "", t0, "%s" % e if isinstance(e, SparkError) else type(e).__name__, use_model)
         raise
     raw = msg.get("content") or ""
     text = clean(raw)
     if log is not None:
-        _keep(log, system, user, text, _thoughts(msg, raw), t0, None if text else "the answer had no text")
+        _keep(log, system, user, text, _thoughts(msg, raw), t0, None if text else "the answer had no text", use_model)
     if not text:
         raise SparkError("Spark's answer had no text")
     return text
 
 
-def _keep(log, system, user, answer, thinking, t0, error):
+def _keep(log, system, user, answer, thinking, t0, error, use_model=None):
     try:
         import sparklog
         u = getattr(_LAST, "usage", None) or {}
         log["id"] = sparklog.record(log.get("area") or "other", log.get("tickets"), system, user, answer, thinking,
-                                    int((time.time() - t0) * 1000), model(), error,
+                                    int((time.time() - t0) * 1000), use_model or model(), error,
                                     u.get("prompt_tokens"), u.get("completion_tokens"))
     except Exception:
         log["id"] = None
