@@ -51,11 +51,11 @@ We help businesses improve rankings, increase website authority, and generate mo
 Would you like me to share our SEO packages and a few suggestions for your websites?""",
 ]
 COLS = ("ticket_id", "created_ms", "subject", "requester", "sample", "spam", "confidence", "why", "checked_ms",
-        "verdict", "reviewed_ms", "status", "channel", "silent_ms", "prev_spam", "rescan_ms")
+        "verdict", "reviewed_ms", "status", "channel", "silent_ms", "prev_spam", "rescan_ms", "gone_ms")
 DDL = """CREATE TABLE IF NOT EXISTS adfilter (
     ticket_id BIGINT PRIMARY KEY, created_ms BIGINT, subject TEXT, requester TEXT, sample TEXT, spam INTEGER,
     confidence TEXT, why TEXT, checked_ms BIGINT, verdict TEXT, reviewed_ms BIGINT, status TEXT, channel TEXT,
-    silent_ms BIGINT, prev_spam INTEGER, rescan_ms BIGINT)"""
+    silent_ms BIGINT, prev_spam INTEGER, rescan_ms BIGINT, gone_ms BIGINT)"""
 DONE = ("solved", "closed")
 _ready = False
 _lock = threading.Lock()
@@ -78,7 +78,7 @@ def ensure():
         cur = c.cursor()
         cur.execute(DDL)
         # added after the table first shipped: silent_ms (0.12.7), prev_spam and rescan_ms (Scan again, 0.12.12)
-        for col, typ in (("silent_ms", "BIGINT"), ("prev_spam", "INTEGER"), ("rescan_ms", "BIGINT")):
+        for col, typ in (("silent_ms", "BIGINT"), ("prev_spam", "INTEGER"), ("rescan_ms", "BIGINT"), ("gone_ms", "BIGINT")):
             if store.backend() == "postgres":
                 cur.execute("ALTER TABLE adfilter ADD COLUMN IF NOT EXISTS %s %s" % (col, typ))
             else:
@@ -171,6 +171,37 @@ def _save(rows):
         c.close()
 
 
+GONE = "deleted"                  # the status of a ticket Zendesk no longer has (most likely marked as spam)
+
+
+def _mark_gone(ids):
+    """Tickets Zendesk no longer returns: most likely marked as spam (which deletes
+    them). Kept here, out of the open / solved views, in Not in Zendesk."""
+    ids = [int(i) for i in ids]
+    if not ids:
+        return
+    c = store.connect(True)
+    try:
+        cur = c.cursor()
+        for tid in ids:
+            cur.execute(store._q("UPDATE adfilter SET status = %s, gone_ms = %s WHERE ticket_id = %s AND coalesce(status, '') <> %s"),
+                        (GONE, _now(), tid, GONE))
+        c.commit()
+    finally:
+        c.close()
+
+
+def _check_gone(ids):
+    """Ask Zendesk for these tickets (100 to a call); the ones it doesn't return are gone.
+    Only on an answer: a failed call marks nothing."""
+    import zendesk
+    ids = [int(i) for i in ids]
+    for i in range(0, len(ids), 100):
+        part = ids[i:i + 100]
+        got = zendesk.statuses(part)                      # raises when Zendesk doesn't answer
+        _mark_gone([tid for tid in part if tid not in got])
+
+
 def _statuses(found, known):
     """Each ticket's Zendesk status as the search sees it now (it moves between the page's views)."""
     c = store.connect(True)
@@ -178,8 +209,8 @@ def _statuses(found, known):
         cur = c.cursor()
         for t in found:
             if int(t["id"]) in known:
-                cur.execute(store._q("UPDATE adfilter SET status = %s WHERE ticket_id = %s AND coalesce(status, '') <> %s"),
-                            (t.get("status"), int(t["id"]), t.get("status") or ""))
+                cur.execute(store._q("UPDATE adfilter SET status = %s, gone_ms = NULL WHERE ticket_id = %s AND coalesce(status, '') <> %s"),
+                            (t.get("status"), int(t["id"]), t.get("status") or ""))     # back in Zendesk (restored): its status again
         c.commit()
     finally:
         c.close()
@@ -194,9 +225,11 @@ def _refresh_older():
         return
     cutoff = _now() - 3 * 86400000
     ids = [int(r[0]) for r in store._read("SELECT ticket_id FROM adfilter WHERE spam = 1 AND created_ms < %s AND "
-                                          "coalesce(status, '') NOT IN ('solved', 'closed')", [cutoff], fresh=True)]
+                                          "coalesce(status, '') NOT IN ('solved', 'closed', %s)", [cutoff, GONE], fresh=True)]
     for i in range(0, len(ids), 100):
-        got = zendesk.statuses(ids[i:i + 100])
+        part = ids[i:i + 100]
+        got = zendesk.statuses(part)
+        _mark_gone([tid for tid in part if tid not in got])     # not returned: deleted, most likely marked as spam
         if got:
             c = store.connect(True)
             try:
@@ -229,6 +262,13 @@ def run_once(limit=PER_ROUND):
         known |= {int(r[0]) for r in store._read("SELECT ticket_id FROM adfilter WHERE ticket_id IN (%s)" % ",".join(["%s"] * len(part)),
                                                  part, fresh=True)}
     _statuses(found, known)
+    # ads from these days that the search no longer returns: still in Zendesk?
+    seen = set(ids)
+    missing = [int(r[0]) for r in store._read("SELECT ticket_id FROM adfilter WHERE spam = 1 AND created_ms >= %s AND "
+                                              "coalesce(status, '') <> %s", [autotag._ms(since + "T00:00:00Z") or 0, GONE], fresh=True)
+               if int(r[0]) not in seen]
+    if missing:
+        _check_gone(missing)
     if store.get_setting("adfilter_chats_v2", "") != "yes":
         c = store.connect(True)
         try:
@@ -336,6 +376,9 @@ def _rescan(ids):
     w = RESCAN["why"]
     w["missing"] = len(ids) - len(tickets)
     RESCAN["failed"] += w["missing"]
+    if w["missing"]:
+        back = {int(t["id"]) for t in tickets}
+        _mark_gone([tid for tid in ids if tid in old and tid not in back])
     for i in range(0, len(tickets), BATCH):
         part = tickets[i:i + BATCH]
         JUDGE["error"] = None
@@ -393,7 +436,7 @@ def _why_text(w):
     """Why tickets kept their old answer, in words (Scan again)."""
     parts = []
     if w.get("missing"):
-        parts.append("%d not returned by Zendesk" % w["missing"])
+        parts.append("%d not found in Zendesk -- likely marked as spam (moved to Not in Zendesk)" % w["missing"])
     if w.get("chat"):
         parts.append("%d chat%s still going (judged once the transcript is in)" % (w["chat"], "" if w["chat"] == 1 else "s"))
     if w.get("spark"):
@@ -441,8 +484,10 @@ def search(view="open", q=None, page=0, per_page=50):
         where.append("status IN ('solved', 'closed')")
     elif view == "wrong":                     # every one marked wrong, also once Spark (scanned again) agrees it's real
         where = ["verdict = 'wrong'"]
+    elif view == "gone":                      # no longer in Zendesk: most likely marked as spam
+        where.append("status = '%s'" % GONE)
     else:
-        where.append("coalesce(status, '') NOT IN ('solved', 'closed')")
+        where.append("coalesce(status, '') NOT IN ('solved', 'closed', '%s')" % GONE)
     if q:
         q = q.strip().lstrip("#")
         if q.isdigit():                       # a ticket number: that ticket, whatever the view or Spark's call
@@ -460,11 +505,13 @@ def search(view="open", q=None, page=0, per_page=50):
 def status():
     ensure()
     s = settings()
-    n, ads, open_ads, right, wrong, silent = store._read(
-        "SELECT count(*), sum(spam), sum(CASE WHEN spam = 1 AND coalesce(status, '') NOT IN ('solved', 'closed') THEN 1 ELSE 0 END), "
+    n, ads, open_ads, right, wrong, silent, gone = store._read(
+        "SELECT count(*), sum(spam), sum(CASE WHEN spam = 1 AND coalesce(status, '') NOT IN ('solved', 'closed', '%s') THEN 1 ELSE 0 END), "
         "sum(CASE WHEN verdict = 'right' THEN 1 ELSE 0 END), sum(CASE WHEN verdict = 'wrong' THEN 1 ELSE 0 END), "
-        "sum(CASE WHEN silent_ms IS NOT NULL THEN 1 ELSE 0 END) FROM adfilter", [], fresh=True)[0]
-    return dict(s, checked=int(n or 0), ads=int(ads or 0), open_ads=int(open_ads or 0), done_ads=int(ads or 0) - int(open_ads or 0),
+        "sum(CASE WHEN silent_ms IS NOT NULL THEN 1 ELSE 0 END), sum(CASE WHEN spam = 1 AND status = '%s' THEN 1 ELSE 0 END) "
+        "FROM adfilter" % (GONE, GONE), [], fresh=True)[0]
+    return dict(s, checked=int(n or 0), ads=int(ads or 0), open_ads=int(open_ads or 0), gone_ads=int(gone or 0),
+                done_ads=int(ads or 0) - int(open_ads or 0) - int(gone or 0),
                 right=int(right or 0), wrong=int(wrong or 0), silent=int(silent or 0),
                 last_ms=STATE["last_ms"], error=STATE["error"], busy=STATE["busy"], rescan=dict(RESCAN))
 
@@ -506,6 +553,9 @@ def preview(ticket_id):
         row.update(description=(t.get("description") or "")[:12000], tags=t.get("tags") or [], status=t.get("status") or row["status"],
                    conversation=convo, live=True)
     except Exception as e:                       # Zendesk out of reach: what was kept
+        if "HTTP 404" in str(e):                 # Zendesk has no such ticket now: most likely marked as spam
+            _mark_gone([ticket_id])
+            row = _get(ticket_id)
         row.update(description=row.get("sample") or "", tags=[], conversation=[], live=False, live_error=str(e)[:200])
     return row
 

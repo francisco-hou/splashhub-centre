@@ -7,7 +7,7 @@
 (function () {
   'use strict';
 
-  var S = { q: '', status: '', region: '', when: '', year: '', page: 0, rows: [], open: null };
+  var S = { q: '', status: 'open', region: '', when: '', year: '', page: 0, rows: [], open: null };     // opens on Open orders
   // which menu this is: ?r=jp (JP POs) or ?r=intl (US / EMEA POs: everything but JP); none = every order
   var SCOPE = (/[?&]r=(jp|intl)\b/.exec(location.search) || [])[1] || '';
   (function () {
@@ -84,14 +84,14 @@
   function load() {
     var my = ++seq;
     var p = ['page=' + S.page];
-    ['q', 'status', 'region', 'when', 'year'].forEach(function (k) { if (S[k]) p.push(k + '=' + encodeURIComponent(S[k])); });
+    ['q', 'status', 'region', 'when', 'year'].forEach(function (k) { if (S[k] && S[k] !== 'all') p.push(k + '=' + encodeURIComponent(S[k])); });
     if (!S.region && SCOPE) p.push('region=' + (SCOPE === 'jp' ? 'JP' : 'intl'));     // the menu's own orders
     api('/api/po/search?' + p.join('&')).then(function (d) {
       if (my !== seq) return;
       S.rows = d.rows;
       $('count').textContent = int(d.total) + (d.total === 1 ? ' order' : ' orders');
       $('rows').innerHTML = d.rows.length ? d.rows.map(row).join('')
-        : '<tr class="empty-row"><td colspan="8">' + (S.q || S.status || S.region || S.when || S.year ? 'No orders match.' : 'No PO requests yet.') + '</td></tr>';
+        : '<tr class="empty-row"><td colspan="8">' + (S.q || (S.status && S.status !== 'all') || S.region || S.when || S.year ? 'No orders match.' : 'No PO requests yet.') + '</td></tr>';
       var pages = Math.ceil(d.total / d.per_page);
       $('pager').hidden = pages <= 1;
       $('pagerTxt').textContent = 'Page ' + (d.page + 1) + ' of ' + pages;

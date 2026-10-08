@@ -31,7 +31,11 @@
     var t = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     return d.toDateString() === now.toDateString() ? 'Today ' + t : (d.getMonth() + 1) + '/' + d.getDate() + ' ' + t;
   }
-  function tstatus(st) { return st ? '<span class="tst tst-' + esc(st) + '">' + esc(TSTATUS[st] || st) + '</span>' : '<span class="muted">—</span>'; }
+  function tstatus(st) {
+    if (st === 'deleted') return '<span class="tst tst-na" title="Ticket not found in Zendesk — likely marked as spam">N/A</span>';
+    return st ? '<span class="tst tst-' + esc(st) + '">' + esc(TSTATUS[st] || st) + '</span>' : '<span class="muted">—</span>';
+  }
+  var GONE_TXT = 'Ticket not found — likely marked as spam';
   function zdUrl(id) { return ZD ? ZD + '/agent/tickets/' + id : ''; }
   function ticketLink(id) { return ZD ? '<a href="' + esc(zdUrl(id)) + '" target="_blank" rel="noopener">#' + id + '</a>' : '#' + id; }
 
@@ -54,7 +58,7 @@
         tile('Checked by the team', checked ? Math.round(100 * s.right / checked) + '% right' : '—',
           int(s.right) + ' right · ' + int(s.wrong) + ' wrong · ' + int(s.silent) + ' silently closed');
       [].forEach.call($('adview').children, function (c) {
-        var k = c.getAttribute('data-v'), n = k === 'open' ? s.open_ads : k === 'done' ? s.done_ads : s.wrong;
+        var k = c.getAttribute('data-v'), n = k === 'open' ? s.open_ads : k === 'done' ? s.done_ads : k === 'gone' ? s.gone_ads : s.wrong;
         var lbl = c.textContent.replace(/\s*[\d,]+$/, '');
         c.innerHTML = esc(lbl) + ' <span class="chip-n">' + int(n) + '</span>';
       });
@@ -78,7 +82,8 @@
   function row(r) {
     return '<tr class="ad-row" tabindex="0" data-id="' + r.ticket_id + '"><td class="when">' + esc(when(r.created_ms)) + '</td>' +
       '<td>' + ticketLink(r.ticket_id) + '</td><td>' + tstatus(r.status) + '</td>' +
-      '<td class="ad-subj"><div class="ad-s">' + esc(r.subject || '(no subject)') + '</div><div class="muted">' + esc(r.requester || '') + '</div></td>' +
+      '<td class="ad-subj"><div class="ad-s">' + esc(r.subject || '(no subject)') + '</div><div class="muted">' + esc(r.requester || '') + '</div>' +
+        (r.status === 'deleted' ? '<div class="ad-gone">' + GONE_TXT + '</div>' : '') + '</td>' +
       '<td>' + said(r) + (r.confidence && r.confidence !== 'high' ? ' <span class="at-conf at-' + esc(r.confidence) + '">' + esc(r.confidence) + '</span>' : '') +
         (r.why ? '<div class="muted">' + esc(r.why) + '</div>' : '') + '</td>' +
       '<td>' + checkTxt(r) + '</td></tr>';
@@ -92,7 +97,8 @@
       S.rows = d.rows;
       $('count').textContent = d.total ? 'newest first · ' + int(d.total) + (d.total === 1 ? ' ticket' : ' tickets') : '';
       $('rows').innerHTML = d.rows.length ? d.rows.map(row).join('') : '<tr class="empty-row"><td colspan="6">' +
-        (S.q ? 'No tickets match.' : S.view === 'open' ? 'No ads among the open tickets.' : S.view === 'done' ? 'No solved or closed ads.' : 'Nothing marked wrong.') + '</td></tr>';
+        (S.q ? 'No tickets match.' : S.view === 'open' ? 'No ads among the open tickets.' : S.view === 'done' ? 'No solved or closed ads.' :
+          S.view === 'gone' ? 'Every ad is still in Zendesk.' : 'Nothing marked wrong.') + '</td></tr>';
       var pages = Math.ceil(d.total / d.per_page);
       $('pager').hidden = pages <= 1;
       $('pagerTxt').textContent = 'Page ' + (d.page + 1) + ' of ' + pages;
@@ -102,9 +108,9 @@
 
   // ---- the preview ------------------------------------------------------------------------------
   function detail(p) {
-    var r = p.row, z = p.zd;
+    var r = p.row, z = p.zd, gone = r.status === 'deleted';
     var silent = r.silent_ms ? '<div class="ad-done">Silently closed from SplashHub Centre ' + esc(when(r.silent_ms)) + '.' + checkLine(p.check) + '</div>' : '';
-    var close =
+    var close = gone ? '' :
       '<div class="at-k">Silent close</div>' +
       (p.confirm ? '<div class="ad-confirm">' +
           '<div>On ticket <b>#' + r.ticket_id + '</b> in Zendesk: adds the tag <code>silent_close</code>, a <b>private note &ldquo;Silent-Close&rdquo;</b>, sets <b>Product = Don&rsquo;t Know</b> and <b>Issue Type = Other</b>, and marks it <b>Solved</b>. Nothing is sent to the customer.</div>' +
@@ -116,11 +122,12 @@
     return '<div class="at-d">' +
       '<div class="at-dh"><div class="at-dt">' + ticketLink(r.ticket_id) + ' · ' + esc(r.subject || '(no subject)') + '</div>' +
         '<div class="muted">' + esc(when(r.created_ms)) + (r.requester ? ' · ' + esc(r.requester) : '') + (r.channel ? ' · ' + esc(r.channel) : '') + ' · ' + tstatus(z.status || r.status) + '</div></div>' +
-      silent +
+      silent + (gone ? '<div class="ad-gone-box"><b>' + GONE_TXT + '.</b> Zendesk no longer has ticket #' + r.ticket_id +
+        (r.gone_ms ? ' (noticed ' + esc(when(r.gone_ms)) + ')' : '') + '; what SplashHub Centre kept is below.</div>' : '') +
       '<div class="at-grid"><div class="at-box"><div class="at-k">Spark says</div><div>' + said(r) + ' ' + esc(r.confidence ? r.confidence + ' confidence' : '') + '</div>' +
         (r.why ? '<div>' + esc(r.why) + '</div>' : '') + '<div class="muted"><a href="/sparklog#t-' + r.ticket_id + '">What Spark read and answered</a> (admins)</div>' +
         (r.rescan_ms ? '<div class="rs-line">Scanned again ' + esc(when(r.rescan_ms)) + ': ' + (r.prev_spam != null && +r.prev_spam !== +r.spam ? 'Spark changed its call' : 'same call') + '</div>' : '') +
-        '<div class="frow rs-act"><button type="button" class="btn btn-sm" id="adRescan" title="Read this ticket again and ask Spark again, with today\u2019s rules. Nothing is written to Zendesk.">Scan again with Spark</button></div></div>' +
+        (gone ? '' : '<div class="frow rs-act"><button type="button" class="btn btn-sm" id="adRescan" title="Read this ticket again and ask Spark again, with today\u2019s rules. Nothing is written to Zendesk.">Scan again with Spark</button></div>') + '</div>' +
       '<div class="at-box"><div class="at-k">In Zendesk now</div><div>' + tstatus(z.status || r.status) + '</div>' +
         '<div class="muted ad-tags">' + (z.tags && z.tags.length ? z.tags.map(function (t) { return '<code>' + esc(t) + '</code>'; }).join(' ') : 'no tags') + '</div></div></div>' +
       convo(z, r) +
@@ -144,7 +151,8 @@
   function convo(z, r) {
     var c = z.conversation || [];
     if (!c.length) {
-      return '<div class="at-k">What they wrote' + (z.live ? '' : ' <span class="muted">(kept copy — Zendesk didn’t answer)</span>') + '</div>' +
+      return '<div class="at-k">What they wrote' + (z.live ? '' : r.status === 'deleted' ? ' <span class="muted">(the copy SplashHub Centre kept)</span>'
+        : ' <span class="muted">(kept copy — Zendesk didn’t answer)</span>') + '</div>' +
         '<div class="at-sample ad-full">' + esc(z.description || r.sample || '(no text)') + '</div>';
     }
     var LBL = { customer: 'Customer', agent: 'Agent', note: 'Internal note' };
