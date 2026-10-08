@@ -127,7 +127,8 @@
     document.body.classList.add('pn-lock');
     history.replaceState(null, '', '#' + id);
     var i = S.rows.findIndex(function (r) { return r.ticket_id === id; });
-    $('pnPos').textContent = i >= 0 ? (i + 1) + ' of ' + S.rows.length + ' on this page' : '';
+    $('pnPos').innerHTML = (ZD ? '<a class="pv-key" href="' + esc(ZD) + '/agent/tickets/' + id + '" target="_blank" rel="noopener">Ticket #' + id + '</a>' : '<span class="pv-key">Ticket #' + id + '</span>') +
+      (i >= 0 ? '<span class="pv-n">' + (i + 1) + ' of ' + S.rows.length + ' on this page</span>' : '');
     $('detail').innerHTML = '<div class="pn-loading">Loading…</div>';
     $('panel').focus();
     api('/api/po/' + id).then(function (r) { if (CUR === id) $('detail').innerHTML = detail(r); })
@@ -142,48 +143,65 @@
     var n = S.rows[i + d];
     if (n) openPanel(n.ticket_id);
   }
+  // One order, in the same format as SplashHub's ticket previews: the subject,
+  // status and region, one info card (customer, products, order type, expected,
+  // created, updated), the other order lines folded under "More order details",
+  // the latest activity newest first, and the links.
+  var SHOWN = [/^spid$/i, /splashtop id/i, /company/i, /order\s*type/i, /expected\s*provision\s*date/i];
+  var COPY = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>';
+  function copyBtn(t) { return '<button type="button" class="po-copy" data-copy="' + esc(t) + '" title="Copy ' + esc(t) + '">' + COPY + '<span>Copy</span></button>'; }
+  function withCopy(v) {
+    var out = '', last = 0, re = /[\w.+'-]+@[\w-]+(?:\.[\w-]+)+/g, m;
+    v = String(v || '');
+    while ((m = re.exec(v))) {
+      var gap = v.slice(last, m.index);
+      out += (/^[\s,;]*$/.test(gap) ? '' : esc(gap)) + '<span class="po-email">' + esc(m[0]) + copyBtn(m[0]) + '</span>';
+      last = m.index + m[0].length;
+    }
+    return (out + esc(v.slice(last))).replace(/\n/g, '<br>');
+  }
+  function mrow(label, html) { return '<div class="pv-row"><span class="pv-label">' + esc(label) + '</span><span class="pv-val">' + (html || '&mdash;') + '</span></div>'; }
   function detail(r) {
-    var links = [];
-    if (ZD) links.push('<a class="btn btn-primary btn-sm" href="' + esc(ZD) + '/agent/tickets/' + r.ticket_id + '" target="_blank" rel="noopener">Open ticket #' + r.ticket_id + ' ' + OUT + '</a>');
-    if (r.customer_domain) links.push('<a class="btn btn-sm" href="/customers#domain:' + encodeURIComponent(r.customer_domain) + '">Customer page: ' + esc(r.customer_domain) + '</a>');
-    var fact = function (label, value) { return '<div class="kb-stat"><span>' + label + '</span><b class="po-fact">' + (value || '&mdash;') + '</b></div>'; };
-    var h = '<div class="kb-head"><div class="kb-crumb">PO request &middot; ' + tstatus(r.status) + '</div>' +
-      '<h2 class="kb-h">' + esc(r.company || r.spid || r.subject || ('#' + r.ticket_id)) + '</h2>' +
-      (r.company && r.spid ? '<div class="kb-crumb">' + esc(r.spid) + '</div>' : '') +
-      '<div class="cu-links">' + links.join('') + '</div></div>';
-    h += '<div class="kb-stats-row">' + fact('Order type', esc(r.order_type)) + fact('Expected provision', expected(r)) +
-      fact('Region', esc(r.region)) + fact('Created', esc(day(r.created_ms))) + '</div>';
-    h += '<section class="pn-sec"><div class="pn-h">Products <span class="count">' + r.products.length + '</span></div>' +
-      (r.products.length ? '<table class="runs po-prods"><thead><tr><th>Product</th><th class="r">Quantity</th><th class="r">Additional</th><th>Start</th><th>End</th></tr></thead><tbody>' +
-        r.products.map(function (p) {
-          return '<tr><td>' + esc(p['Product Name']) + '</td><td class="n">' + esc(p['Quantity'] || '') + '</td><td class="n">' + esc(p['Additional Quantity'] || '') + '</td>' +
-            '<td>' + esc(p['Provision Start Date'] || '') + '</td><td>' + esc(p['Provision End Date'] || '') + '</td></tr>';
-        }).join('') + '</tbody></table>' : '<div class="muted">No products listed.</div>') + '</section>';
-    var keys = Object.keys(r.order || {});
-    if (keys.length) {
-      h += '<section class="pn-sec"><div class="pn-h">Order details</div><dl class="po-dl">' + keys.map(function (k) {
-        return '<dt>' + esc(k) + '</dt><dd>' + esc(r.order[k]).replace(/\n/g, '<br>') + '</dd>';
-      }).join('') + '</dl></section>';
+    var reg = r.region ? '<span class="po-reg po-reg-' + esc(r.region.toLowerCase().replace(/[^a-z]/g, '')) + '">' + esc(r.region) + '</span>' : '';
+    var customer = r.company ? esc(r.company) + (r.spid ? ' &middot; ' + esc(r.spid) + copyBtn(r.spid) : '') : (r.spid ? esc(r.spid) + copyBtn(r.spid) : '');
+    var prods = r.products.map(function (p) {
+      var q = p['Quantity'] || p['Additional Quantity'] || '';
+      var add = p['Quantity'] && p['Additional Quantity'] ? ' <span class="pv-add">+' + esc(p['Additional Quantity']) + '</span>' : '';
+      var dates = p['Provision Start Date'] || p['Provision End Date'] ? ' <span class="muted">(' + esc(p['Provision Start Date'] || '…') + ' &rarr; ' + esc(p['Provision End Date'] || '…') + ')</span>' : '';
+      return '<div>' + esc(p['Product Name']) + (q ? ' <b>&times; ' + esc(q) + '</b>' : '') + add + dates + '</div>';
+    }).join('');
+    var h = '<div class="pv-title">' + esc(r.subject || r.company || r.spid || ('#' + r.ticket_id)) + '</div>' +
+      '<div class="pv-pills">' + tstatus(r.status) + reg + '</div>';
+    h += '<div class="pv-meta">' + mrow('Customer', customer) + mrow('Products', prods) + mrow('Order type', esc(r.order_type)) +
+      mrow('Expected', r.expected ? expected(r) : '') + mrow('Created', esc(day(r.created_ms))) + (r.updated_ms ? mrow('Updated', esc(day(r.updated_ms))) : '') + '</div>';
+    var others = Object.keys(r.order || {}).filter(function (k) { return !SHOWN.some(function (re) { return re.test(k); }); });
+    var more = others.map(function (k) { return mrow(k, withCopy(r.order[k])); }).join('');
+    if (r.tags) more += mrow('Ticket tags', '<span class="kb-labels">' + r.tags.split(/\s+/).map(function (t) { return '<span>' + esc(t) + '</span>'; }).join('') + '</span>');
+    if (more || r.description) {
+      h += '<details class="pv-more"><summary>More order details</summary>' + (more ? '<div class="pv-meta">' + more + '</div>' : '') +
+        (r.description ? '<button type="button" class="link-btn rq-raw-btn" id="poRaw" aria-expanded="false">Show the original request</button>' +
+          '<pre class="rq-raw" id="poRawText" hidden>' + esc(r.description) + '</pre>' : '') + '</details>';
     }
-    if (r.tags) h += '<section class="pn-sec"><div class="pn-h">Ticket tags</div><div class="kb-labels">' + r.tags.split(/\s+/).map(function (t) { return '<span>' + esc(t) + '</span>'; }).join('') + '</div></section>';
+    h += '<div class="pv-sec">Latest activity</div>';
     if (r.convo) {
-      var turns = r.convo.split(/\n\n(?=Customer: |Support: |Support \(internal note\): |\[\.\.\.)/);
-      h += '<section class="pn-sec"><div class="pn-h">Conversation <span class="count">' + (r.convo_turns || turns.length) + '</span></div><div class="po-convo">' +
-        turns.map(function (t) {
-          var m = /^(Customer|Support \(internal note\)|Support): ([\s\S]*)$/.exec(t);
-          var who = m ? m[1] : '', text = m ? m[2] : t;
-          return '<div class="po-turn ' + (who === 'Customer' ? 'cust' : who ? (who.indexOf('internal') > 0 ? 'inote' : 'sup') : 'gap') + '">' +
-            (who ? '<span class="po-who-l">' + esc(who) + '</span>' : '') + '<div class="po-said">' + esc(text) + '</div></div>';
-        }).join('') + '</div></section>';
+      var turns = r.convo.split(/\n\n(?=Customer: |Support: |Support \(internal note\): |\[\.\.\.)/).reverse();
+      h += turns.map(function (t) {
+        var m = /^(Customer|Support \(internal note\)|Support): ([\s\S]*)$/.exec(t);
+        if (!m) return '<div class="pv-gap">' + esc(t) + '</div>';
+        var note = m[1].indexOf('internal') > 0;
+        return '<div class="pv-cmt' + (note ? ' is-note' : '') + '"><div class="pv-cmt-head"><span class="pv-cmt-who">' + (note ? 'Support' : esc(m[1])) + '</span>' +
+          (note ? '<span class="pv-cmt-tag">Internal note</span>' : '') + '</div><div class="pv-body">' + esc(m[2]) + '</div></div>';
+      }).join('');
     } else if (r.convo_ms == null) {
-      h += '<section class="pn-sec"><div class="pn-h">Conversation</div><div class="muted">Not read yet &mdash; it fills in after the import (Settings &rsaquo; Database &rsaquo; PO Requests).</div></section>';
+      h += '<div class="muted">Not read yet &mdash; it fills in after the import (Settings &rsaquo; Database &rsaquo; PO Requests).</div>';
+    } else {
+      h += '<div class="muted">No activity.</div>';
     }
-    if (r.description) {
-      h += '<section class="pn-sec"><button type="button" class="link-btn rq-raw-btn" id="poRaw" aria-expanded="false">Show the original request</button>' +
-        '<pre class="rq-raw" id="poRawText" hidden>' + esc(r.description) + '</pre></section>';
-    }
-    h += '<div class="pn-foot">Ticket #' + r.ticket_id + ' &middot; ' + esc(r.subject || '') + ' &middot; updated ' + esc(day(r.updated_ms)) + '</div>';
-    return '<div class="pn-main kb-pop">' + h + '</div>';
+    var links = [];
+    if (ZD) links.push('<a class="pv-open" href="' + esc(ZD) + '/agent/tickets/' + r.ticket_id + '" target="_blank" rel="noopener">Open ticket #' + r.ticket_id + ' in Zendesk &#8599;</a>');
+    if (r.customer_domain) links.push('<a class="pv-open" href="/customers#domain:' + encodeURIComponent(r.customer_domain) + '">Customer page: ' + esc(r.customer_domain) + '</a>');
+    if (links.length) h += '<div class="pv-links">' + links.join('') + '</div>';
+    return '<div class="pv">' + h + '</div>';
   }
 
   // ---- events -------------------------------------------------------------------------------
@@ -208,6 +226,14 @@
   $('rows').addEventListener('click', function (ev) { var r = ev.target.closest('.po-row'); if (r) openPanel(+r.getAttribute('data-id')); });
   $('rows').addEventListener('keydown', function (ev) { var r = ev.target.closest('.po-row'); if (r && ev.key === 'Enter') openPanel(+r.getAttribute('data-id')); });
   $('detail').addEventListener('click', function (ev) {
+    var cp = ev.target.closest('.po-copy');
+    if (cp) {
+      var lab = cp.querySelector('span'), t = cp.getAttribute('data-copy');
+      var done = function (ok) { cp.classList.toggle('done', ok); lab.textContent = ok ? 'Copied' : 'Copy failed'; clearTimeout(cp._t); cp._t = setTimeout(function () { cp.classList.remove('done'); lab.textContent = 'Copy'; }, 1500); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { done(true); }, function () { done(false); });
+      else done(false);
+      return;
+    }
     var b = ev.target.closest('#poRaw'); if (!b) return;
     var t = $('poRawText'), show = t.hidden;
     t.hidden = !show; b.setAttribute('aria-expanded', show);

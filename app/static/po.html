@@ -9,6 +9,42 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="app.css?v=1.16.5">
+  <style>
+    /* PO pop-up in the format of SplashHub's ticket previews */
+    #panel.pn { width: min(920px, 100%); }
+    #pnPos { display: flex; align-items: baseline; gap: 10px; }
+    .pv-key { font-size: 12.5px; font-weight: 600; color: #0071ce; text-decoration: none; }
+    a.pv-key:hover { text-decoration: underline; }
+    .pv-n { font-size: 12px; color: #87929d; }
+    .pv { padding: 18px 20px 20px; font-size: 13px; color: #1d242c; }
+    .pv-title { font-size: 16px; font-weight: 600; letter-spacing: -.01em; line-height: 1.4; margin-bottom: 10px; }
+    .pv-pills { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .pv-meta { border: 1px solid #eaf1f9; border-radius: 8px; padding: 4px 12px; margin-bottom: 14px; }
+    .pv-row { display: flex; gap: 12px; padding: 6px 0; font-size: 12.5px; }
+    .pv-row + .pv-row { border-top: 1px solid #f2f9ff; }
+    .pv-label { flex: none; width: 110px; color: #78838f; }
+    .pv-val { color: #1d242c; min-width: 0; overflow-wrap: break-word; }
+    .pv-val b { font-weight: 600; }
+    .pv-add { color: #00873b; font-weight: 600; }
+    .pv-more { margin: -4px 0 4px; }
+    .pv-more summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: #0071ce; padding: 4px 0 10px; list-style-position: inside; }
+    .pv-more .rq-raw-btn { margin: 0 0 8px; }
+    .pv-sec { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #78838f; margin: 16px 0 8px; }
+    .pv-cmt { border: 1px solid #eaf1f9; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+    .pv-cmt.is-note { background: #fffaf0; border-color: #f5e3b0; }
+    .pv-cmt-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+    .pv-cmt-who { font-weight: 600; }
+    .pv-cmt-tag { margin-left: auto; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #8a6400; background: #fff4dc; border-radius: 4px; padding: 1px 6px; }
+    .pv-body { font-size: 13px; line-height: 1.6; color: #2c3540; white-space: pre-wrap; overflow-wrap: break-word; }
+    .pv-gap { font-size: 12px; color: #87929d; text-align: center; margin: 4px 0 10px; }
+    .pv-links { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; }
+    .pv-open { font-size: 12.5px; font-weight: 600; color: #0071ce; text-decoration: none; }
+    .pv-open:hover { text-decoration: underline; }
+    .po-email { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; white-space: nowrap; }
+    .po-copy { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; height: 22px; padding: 0 7px; border: 1px solid #cbd9e8; border-radius: 6px; background: #fff; color: #0071ce; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; vertical-align: 1px; }
+    .po-copy:hover { border-color: #0071ce; background: #f2f9ff; }
+    .po-copy.done { color: #00873b; border-color: #a8dab5; background: #e6f4ea; }
+  </style>
 </head>
 <body>
   <nav class="snav" id="snav" aria-label="Pages">
@@ -125,6 +161,6 @@
     </aside>
   </div>
 
-  <script src="po.js?v=2.1.0"></script>
+  <script src="po.js?v=2.2.0"></script>
 </body>
 </html>
