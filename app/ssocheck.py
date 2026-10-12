@@ -512,6 +512,9 @@ STAGES = ("enabled", "no_records", "sent", "says_done", "stuck", "waiting", "rep
 # SplashHub's "verified & enabled" reply: "We have verified the DNS record(s) and enabled the SSO method."
 VERIFIED_RE = re.compile(r"verified the dns\b")
 ENABLED_RE = re.compile(r"enabled the sso method|sso method (?:has been|is now) enabled")
+# The team's other closing reply, after the customer confirms: "Thanks for the confirmation ! SSO is now
+# enabled for your account." -- enough on its own.
+ENABLED_ACCOUNT_RE = re.compile(r"\bsso (?:is now|has (?:now )?been) enabled (?:for|on) your account")
 
 
 def _text(c):
@@ -547,6 +550,8 @@ def _stage(t, comments, recs, row):
     agent_text = " ".join(_text(c).lower() for c in pub if c.get("author_id") != req)
     if VERIFIED_RE.search(agent_text) and ENABLED_RE.search(agent_text):
         return dict(stage="enabled", stage_note="The agent sent the verified & enabled reply", stage_ms=_now(), stage_for=None), False
+    if ENABLED_ACCOUNT_RE.search(agent_text):
+        return dict(stage="enabled", stage_note="The agent sent the SSO enabled reply", stage_ms=_now(), stage_for=None), False
     if not recs:
         return dict(stage="no_records", stage_note="The agent hasn't sent the DNS records yet", stage_ms=_now(), stage_for=None), False
     sent = next((i for i, c in enumerate(pub) if "splashtop-sso-challenge" in (str(c.get("html_body") or "") + str(c.get("body") or "")).lower()), None)
@@ -783,6 +788,18 @@ def sync():
     if zendesk.configured():
         return
     first = store.get_setting("sso_found_2026_v3", "") != "yes"
+    redo = store.get_setting("sso_enabled_account_reply", "") != "yes"
+    if redo:
+        # Once, when "SSO is now enabled for your account" started counting as enabled
+        # (ENABLED_ACCOUNT_RE): every request not enabled yet is read again, so the ones
+        # that already had that reply are marked too. Marked done only after the full pass.
+        c = store.connect(True)
+        try:
+            c.cursor().execute("UPDATE sso_requests SET ticket_updated = NULL WHERE coalesce(stage, '') <> 'enabled'")
+            c.commit()
+        finally:
+            c.close()
+        first = True
     cond = "created>=2026-01-01" if first else "updated>=" + time.strftime("%Y-%m-%d", time.gmtime(time.time() - 2 * 86400))
     known, seen, added = _known(), set(), 0
     for t in find_tickets(cond):
@@ -802,6 +819,8 @@ def sync():
         time.sleep(0.3)
     if first:
         store.set_setting("sso_found_2026_v3", "yes", "sso")
+    if redo:
+        store.set_setting("sso_enabled_account_reply", "yes", "sso")
     if seen:
         sys.stderr.write("[sso] search: %d SSO ticket(s) looked at, %d new\n" % (len(seen), added))
 
