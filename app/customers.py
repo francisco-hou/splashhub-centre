@@ -24,6 +24,7 @@ P_PRODUCT = re.compile(r"product\s*name\s*[:\-]\s*(.+)", re.I)
 P_QTY = re.compile(r"quantity\s*[:\-]\s*([\d,]+)", re.I)
 P_ORDER = re.compile(r"order\s*type\s*[:\-]\s*(.+)", re.I)
 P_DATE = re.compile(r"expected\s*provision\s*date\s*[:\-]?\s*(\d{4})\s*[/\-.]\s*(\d{1,2})\s*[/\-.]\s*(\d{1,2})", re.I)
+P_END = re.compile(r"provision\s*end\s*date\s*[:\-]?\s*(\d{4}\s*[/\-.]\s*\d{1,2}\s*[/\-.]\s*\d{1,2})", re.I)
 
 
 def _field(text, rx):
@@ -38,7 +39,8 @@ def provision_of(t):
     q = P_QTY.search(body)
     return {"product": _field(body, P_PRODUCT), "quantity": int(q.group(1).replace(",", "")) if q else None,
             "order_type": _field(body, P_ORDER),
-            "expected": "%s-%02d-%02d" % (m.group(1), int(m.group(2)), int(m.group(3))) if m else ""}
+            "expected": "%s-%02d-%02d" % (m.group(1), int(m.group(2)), int(m.group(3))) if m else "",
+            "ends": max([_iso(e) for e in P_END.findall(body)] or [""])}
 
 OPEN = ("new", "open", "pending", "hold")
 OWN = re.compile(r"(^|\.)splashtop\.com$", re.I)
@@ -83,6 +85,12 @@ def find(q, limit=12):
     # a company name: the domains it goes by, most active first
     like = "%" + val + "%"
     seen = {}
+    for dom, ms in _rows("SELECT requester_domain, max(created_ms) FROM cases WHERE requester_domain LIKE %s GROUP BY requester_domain", [like]):
+        e = seen.setdefault(dom, [set(), 0]); e[1] = max(e[1], ms or 0)
+    for dom, ms in _rows("SELECT creator_domain, max(requested_ms) FROM sos_scans WHERE creator_domain LIKE %s GROUP BY creator_domain", [like]):
+        e = seen.setdefault(dom, [set(), 0]); e[1] = max(e[1], ms or 0)
+    for dom, ms in _rows("SELECT domain, max(requested_ms) FROM sso_requests WHERE domain LIKE %s GROUP BY domain", [like]):
+        e = seen.setdefault(dom, [set(), 0]); e[1] = max(e[1], ms or 0)
     for dom, org, ms in _rows("SELECT requester_domain, organization, max(created_ms) FROM cases WHERE lower(organization) LIKE %s "
                               "AND requester_domain IS NOT NULL GROUP BY requester_domain, organization", [like]):
         seen.setdefault(dom, [set(), 0])[0].add(org); seen[dom][1] = max(seen[dom][1], ms or 0)
@@ -100,6 +108,38 @@ def find(q, limit=12):
         if p["found"]:
             out.append(p)
     return {"matches": out}
+
+
+def _iso(d):
+    """A provision date ("2026/10/15", "2026-10-15") as YYYY-MM-DD, or ""."""
+    m = re.search(r"(\d{4})\s*[/\-.]\s*(\d{1,2})\s*[/\-.]\s*(\d{1,2})", str(d or ""))
+    return "%s-%02d-%02d" % (m.group(1), int(m.group(2)), int(m.group(3))) if m else ""
+
+
+def _pkg_type(s):
+    try:
+        for x in json.loads(s.get("fields_json") or "[]"):
+            if (x.get("label") or "").lower() == "type":
+                return x.get("value") or ""
+    except ValueError:
+        pass
+    return ""
+
+
+def ticket(key, ticket_id):
+    """One of this customer's tickets, whole, for the page's preview -- only a ticket the
+    Customers page itself lists for them (their tickets, orders, SOS and SSO requests)."""
+    import zendesk
+    p = profile(key)
+    if not p.get("found"):
+        raise ValueError("Nothing about this customer yet.")
+    tid = int(ticket_id)
+    mine = {t["ticket_id"] for t in p.get("recent_tickets", []) + p.get("open_tickets", []) + p.get("provisioning_requests", [])}
+    mine |= {k["ticket"] for k in p.get("packages", [])} | {s["ticket_id"] for s in p.get("sso_requests", [])}
+    if tid not in mine:
+        raise ValueError("That ticket isn't one of this customer's.")
+    t, convo = zendesk.conversation(tid)
+    return {"ticket": {"id": tid, "subject": t.get("subject") or "", "status": t.get("status") or ""}, "conversation": convo}
 
 
 def _where(kind, val, email_col, domain_col):
@@ -151,7 +191,8 @@ def profile(key, brief=False):
                                  "subject": r["subject"], "product": first.get("name") or "",
                                  "quantity": int(re.sub(r"[^0-9]", "", str(first.get("qty") or "")) or 0) or None,
                                  "order_type": r["order_type"] or "", "expected": r["expected"] or "",
-                                 "more": max(0, len(r["products"]) - 1)})
+                                 "more": max(0, len(r["products"]) - 1),
+                                 "ends": max([_iso(p.get("end")) for p in r["products"]] or [""])})
         provisioning.sort(key=lambda x: -(x["created_ms"] or 0))
     except Exception:
         pass
@@ -175,6 +216,9 @@ def profile(key, brief=False):
     sso = [dict(zip(("id", "ticket_id", "requested_ms", "domain", "status", "verified_ms", "requester_email", "organization"), r))
            for r in sso_rows]
 
+    open_t = [{"ticket_id": t["ticket_id"], "created_ms": t["created_ms"], "updated_ms": t["updated_ms"], "status": t["status"],
+               "subject": t["subject"]} for t in tickets if (t["status"] or "") in OPEN]
+    ends = max([p.get("ends") or "" for p in provisioning] or [""])
     found = bool(tickets or sos or sso or provisioning)
     times = ([t["created_ms"] for t in tickets if t["created_ms"]] + [p["created_ms"] for p in provisioning if p["created_ms"]] +
              [s["requested_ms"] for s in sos] + [s["requested_ms"] for s in sso])
@@ -187,7 +231,8 @@ def profile(key, brief=False):
             "orgs": [o for o, _ in sorted(orgs.items(), key=lambda x: -x[1])][:5],
             "tickets": len(tickets), "open": sum(1 for t in tickets if (t["status"] or "") in OPEN),
             "sos": len(sos), "flagged": sum(1 for s in sos if s["verdict"] in ("needs_review", "suspicious")),
-            "sso": len(sso), "provisioning": len(provisioning),
+            "sso": len(sso), "provisioning": len(provisioning), "ends": ends,
+            "trial": any(str(_pkg_type(s)).lower() == "trial" for s in sos) and not provisioning,
             "first_ms": min(times) if times else None, "last_ms": max(times) if times else None}
     if brief or not found:
         return base
@@ -247,6 +292,7 @@ def profile(key, brief=False):
                 tags=[{"tag": g, "n": n} for g, n in sorted(tags.items(), key=lambda x: (-x[1], x[0]))[:12]],
                 topics=topics,
                 recent_tickets=[{k: t[k] for k in ("ticket_id", "created_ms", "status", "subject", "requester_email")} for t in tickets[:15]],
+                open_tickets=open_t[:10],
                 packages=[pkg(s) for s in sos[:15]],
                 provisioning_requests=provisioning[:15],
                 sso_requests=sso[:10],

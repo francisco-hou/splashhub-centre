@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=1.17.0">
+  <link rel="stylesheet" href="app.css?v=1.18.2">
 </head>
 <body>
   <nav class="snav" id="snav" aria-label="Pages">
@@ -197,11 +197,14 @@
 
           <div class="wiki-sec" id="customers">
             <h3>Customers</h3>
-            <p>Everything Centre knows about one customer on one page. Search an e-mail domain, an address, or a company name. A customer is a domain &mdash; or, for free e-mail providers, one address.</p>
+            <p>A search first: an e-mail domain, an address, or a company name &mdash; matches appear as you type (part of a domain or a company name is enough), with the customers you looked at lately underneath. A customer is a domain &mdash; or, for free e-mail providers, one address.</p>
             <ul>
-              <li><b>Shows:</b> organizations and country, first and last contact, quick links (ACP, Zendesk search); their 2026 tickets (count, still open, per month, top tags and topics, latest); Custom SOS packages with verdicts; SSO requests; PO / provisioning requests; the people who wrote in.</li>
+              <li><b>At a glance:</b> the company, domain, country, first seen and last contact, quick links (Zendesk search, ACP), and chips: Paying / Trial, the latest order, &ldquo;Renews in N days&rdquo; (the provision end date), open tickets, SOS packages to check, the SSO request&rsquo;s state.</li>
               <li><b>AI summary:</b> a short Spark briefing on the customer.</li>
-              <li>With no search, it lists the most active customers of the last 30 days. Splashtop&rsquo;s own domain is never a customer. It uses data already downloaded; nothing new is read from Zendesk.</li>
+              <li><b>Needs attention:</b> their open and pending tickets, with when each was last updated.</li>
+              <li><b>Timeline:</b> tickets, orders (PO / provisioning), Custom SOS packages and SSO requests, newest first, with filter chips; the first 10, then Show all. A ticket or an order opens in a <b>preview</b> &mdash; the whole conversation, read from Zendesk now (only that customer&rsquo;s own tickets); an SOS package or SSO request opens its own page.</li>
+              <li><b>People and topics:</b> the addresses that write in (the most active one marked) and what they write about.</li>
+              <li>Splashtop&rsquo;s own domain is never a customer. Besides the preview, it uses data already downloaded.</li>
             </ul>
           </div>
 
@@ -306,7 +309,7 @@
               <li><b>Needs attention:</b> one list across SOS, PO and SSO, oldest first.</li>
               <li><b>SOS / SSO / PO</b> tiles, <b>RR queue by language</b>.</li>
               <li><b>AI usage:</b> runs and cost this week vs last, by tool; by member for 30 days, with a member filter.</li>
-              <li><b>Knowledge Base</b> (least helpful, outdated translations) and <b>most active customers</b>.</li>
+              <li><b>Knowledge Base</b> (least helpful, outdated translations).</li>
             </ul>
           </div>
 

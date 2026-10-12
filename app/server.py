@@ -475,6 +475,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path == "/api/customers/top":
                 import customers
                 return self.json(customers.top())
+            if u.path == "/api/customers/ticket":
+                # The page's ticket preview: only one of the customer's own tickets, read from Zendesk now.
+                import customers
+                try:
+                    return self.json(customers.ticket(((qs.get("key") or [""])[0])[:200], int((qs.get("id") or ["0"])[0])))
+                except ValueError as e:
+                    return self.json({"error": str(e)}, 400)
+                except Exception as e:
+                    return self.json({"error": str(e)[:200] if "Zendesk" in str(e) else "Zendesk didn't answer (%s)" % type(e).__name__}, 502)
             # ---- Knowledge Base (kb.py): the page is open to the team; the sync is admin ----
             if u.path == "/api/kb":
                 import kb

@@ -425,7 +425,8 @@ def _card(r):
         prods = json.loads(d.pop("products_json") or "[]")
     except ValueError:
         prods = []
-    d["products"] = [{"name": p.get("Product Name"), "qty": p.get("Quantity") or p.get("Additional Quantity") or ""} for p in prods][:6]
+    d["products"] = [{"name": p.get("Product Name"), "qty": p.get("Quantity") or p.get("Additional Quantity") or "",
+                      "end": p.get("Provision End Date") or ""} for p in prods][:6]
     return d
 
 

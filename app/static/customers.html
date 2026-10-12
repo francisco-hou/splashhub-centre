@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=1.17.0">
+  <link rel="stylesheet" href="app.css?v=1.18.2">
 </head>
 <body>
   <nav class="snav" id="snav" aria-label="Pages">
@@ -42,27 +42,38 @@
   </nav>
   <script src="nav.js?v=1.9.2"></script>
 
-  <main class="page" id="page">
-    <div class="hdr">
-      <div class="hdr-left">
-        <h1 class="hdr-title">Customers</h1>
-        <div class="hdr-sub">Everything SplashHub Centre has about one customer &mdash; their 2026 tickets, Custom SOS packages and SSO requests &mdash; on one page. Search an e-mail domain, an address, or a company name.</div>
-      </div>
-    </div>
-
-    <section class="card cu-searchcard">
-      <form class="cu-search" id="form" autocomplete="off">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input type="search" id="q" placeholder="datamaas.com, bob@datamaas.com, or a company name" spellcheck="false" aria-label="Customer">
-        <button type="submit" class="btn btn-primary">Look up</button>
+  <main class="page page-narrow" id="page">
+    <section class="cs-search" id="searchView" hidden>
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <h1 class="cs-h1">Find a customer</h1>
+      <div class="muted">A domain, an email address, or a company name</div>
+      <form class="cs-form" id="form" autocomplete="off">
+        <div class="search cs-input">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" id="q" placeholder="datamaas.com" spellcheck="false" aria-label="Customer">
+        </div>
+        <div class="cs-err" id="err" aria-live="polite"></div>
+        <div class="cs-sugg" id="sugg" hidden></div>
       </form>
-      <div class="cu-msg" id="msg" aria-live="polite"></div>
-      <div class="cu-matches" id="matches"></div>
+      <div class="cs-recent muted" id="recent"></div>
     </section>
 
-    <div id="view"></div>
+    <div id="view" hidden></div>
   </main>
 
-  <script src="customers.js?v=1.1.0"></script>
+  <!-- A ticket: the whole conversation, read from Zendesk now (one of this customer's own). -->
+  <div class="pn-overlay" id="pnWrap" hidden>
+    <aside class="pn" id="panel" role="dialog" aria-modal="true" aria-label="Ticket" tabindex="-1">
+      <div class="pn-bar">
+        <span class="pn-pos">Ticket preview</span>
+        <button type="button" class="btn btn-icon btn-sm" id="pnClose" title="Close (Esc)" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="pn-body" id="detail"></div>
+    </aside>
+  </div>
+
+  <script src="customers.js?v=2.0.1"></script>
 </body>
 </html>
