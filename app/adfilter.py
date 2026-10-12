@@ -132,7 +132,9 @@ def _ask(items, examples):
               "lists, outsourcing, crypto -- a cold sales pitch, or a newsletter. It is NOT spam when a customer or a prospect "
               "asks for help with Splashtop, asks to buy it or for a quote, a reseller or partner writes, it is about an "
               "invoice or an existing order, or someone reports a security problem. A chat where someone asks about "
-              "Splashtop is never spam; neither is a message with no real text. When unsure, it is not spam.\n\n"
+              "Splashtop is never spam; neither is a message with no real text. A message that is only an email address -- "
+              "even with the @ missing or replaced by a space (\"alan.jaques ghfip.com.au\"), as some SMS services send it -- "
+              "is a customer verifying their account for 2FA and is never spam. When unsure, it is not spam.\n\n"
               "Examples of spam this desk has received:\n" + ex + "\n\n"
               'Answer with JSON only, one entry per ticket: {"<ticket id>": {"spam": true or false, "confidence": '
               '"high|medium|low", "why": "<at most 8 words>"}}')
@@ -269,6 +271,19 @@ def run_once(limit=PER_ROUND):
                if int(r[0]) not in seen]
     if missing:
         _check_gone(missing)
+    if store.get_setting("adfilter_sms_v1", "") != "yes":
+        # Once: text messages (SMS) are 2FA verifications -- the customer's account email, sometimes
+        # without the @ -- never ads. Those flagged before this rule leave the list (not ones a
+        # person already checked or silently closed).
+        c = store.connect(True)
+        try:
+            c.cursor().execute("UPDATE adfilter SET spam = 0, why = 'SMS (2FA verification)' WHERE spam = 1 AND verdict IS NULL AND "
+                               "silent_ms IS NULL AND (lower(coalesce(channel, '')) IN ('sms', 'text') OR "
+                               "lower(coalesce(subject, '')) LIKE 'message from: text user%')")
+            c.commit()
+        finally:
+            c.close()
+        store.set_setting("adfilter_sms_v1", "yes", "adfilter")
     if store.get_setting("adfilter_chats_v2", "") != "yes":
         c = store.connect(True)
         try:
@@ -298,6 +313,12 @@ def run_once(limit=PER_ROUND):
         _save(list(rows.values()))
 
 
+def _is_sms(channel, subject):
+    """A text message (Zendesk Text / SMS): customers send their account email to the 2FA
+    verification number -- some SMS services drop the @ ("alan.jaques ghfip.com.au")."""
+    return (channel or "").lower() in ("sms", "text") or (subject or "").strip().lower().startswith("message from: text user")
+
+
 def _judge(batch, s, skip):
     """Read each ticket and decide, with today's rules: ({ticket id: row}, [ids
     Spark didn't answer for]). A chat still going is left out (judged once its
@@ -310,6 +331,8 @@ def _judge(batch, s, skip):
              "status": t.get("status"), "channel": ch, "requester": "", "sample": "", "spam": 0}
         if autotag._is_call(ch, t.get("subject"), t.get("tags")):          # a phone call: not an ad, not read
             r["why"] = "phone call"
+        elif _is_sms(ch, t.get("subject")):                                # a text message: 2FA verification, never an ad
+            r["why"] = "SMS (2FA verification)"
         else:
             text, email, ready = autotag._customer_words(t)
             if not ready:                          # a chat still going: judged once its transcript arrives
