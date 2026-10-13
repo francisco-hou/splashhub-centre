@@ -15,6 +15,13 @@ by hand, or none.
 The prompt in use is kept in settings (replylab_prompt), so it can be tuned
 over time; empty means DEFAULT_PROMPT. Spark's drafts are kept in Spark
 activity (area reply_lab), like every other Spark call.
+
+The ticket sidebar (TestHub's Reply Lab tile) drafts through sidebar_draft():
+same prompt, templates and agent's notes, but always on SIDEBAR_MODEL, and on
+the conversation the sidebar SENDS -- the agent's browser reads the ticket it
+has open, so this path never reads a ticket from Zendesk by number (Spark
+activity area reply_lab_sidebar). Still read only: the draft goes back to the
+sidebar, which puts it in the agent's reply box for them to send.
 """
 import difflib, json, os, re, time
 
@@ -23,6 +30,7 @@ import store
 KEY = "replylab_prompt"
 MAX_TEXT = 14000                # the conversation given to the model, newest kept when longer
 CLAUDE_MODELS = ["claude-haiku-5-5"]     # Claude in Reply Lab, for now: Haiku 5.5 only
+SIDEBAR_MODEL = "qwen3.6-35b-a3b"        # the ticket sidebar's Reply Lab: this Spark model only, for now
 DEFAULT_PROMPT = """You are a Splashtop technical support agent writing the next PUBLIC reply on a Zendesk ticket.
 Splashtop makes remote access and remote support software (Splashtop Business Access, Remote Support, Enterprise, SOS, On-Prem).
 
@@ -202,11 +210,15 @@ def _transcript(tk, include_notes):
 
 def draft(ticket_id, model_id, prompt_text=None, notes=None, include_notes=True, template="auto"):
     """One draft: {model, provider, text, ms, tokens_in, tokens_out, templates}. Nothing goes to Zendesk."""
-    provider, _, name = str(model_id or "").partition(":")
     have, _ = models()
     if not any(m["id"] == model_id for m in have):
         raise ValueError("that model isn't available")
-    tk = ticket(ticket_id)
+    return _draft(ticket(ticket_id), model_id, prompt_text, notes, include_notes, template)
+
+
+def _draft(tk, model_id, prompt_text=None, notes=None, include_notes=True, template="auto", area="reply_lab"):
+    provider, _, name = str(model_id or "").partition(":")
+    ticket_id = tk["ticket"]["id"]
     system = (prompt_text or "").strip() or prompt()
     tpl_text, used = _template_part(tk, template or "auto")
     user = _transcript(tk, include_notes) + tpl_text + "\n\n---\nWrite the next reply to the customer."
@@ -215,7 +227,7 @@ def draft(ticket_id, model_id, prompt_text=None, notes=None, include_notes=True,
     t0 = time.time()
     if provider == "spark":
         import spark
-        text = spark.chat(system, user, max_tokens=1800, log={"area": "reply_lab", "tickets": [int(ticket_id)]}, use_model=name)
+        text = spark.chat(system, user, max_tokens=1800, log={"area": area, "tickets": [int(ticket_id)]}, use_model=name)
         u = getattr(spark._LAST, "usage", None) or {}
         tin, tout = u.get("prompt_tokens"), u.get("completion_tokens")
     else:
@@ -234,6 +246,47 @@ def draft(ticket_id, model_id, prompt_text=None, notes=None, include_notes=True,
     return {"model": name, "provider": "Spark" if provider == "spark" else "Claude", "model_id": model_id, "text": text,
             "ms": int((time.time() - t0) * 1000), "tokens_in": tin, "tokens_out": tout, "ticket_id": int(ticket_id), "templates": used,
             "template_used": tused, "similarity": alike}
+
+
+# ---- the ticket sidebar ------------------------------------------------------------------------
+
+_KINDS = ("customer", "agent", "note")
+
+
+def sidebar_draft(data):
+    """A draft for the ticket sidebar, on SIDEBAR_MODEL, from the conversation the
+    sidebar sends: {ticket_id, subject, status, conversation: [{kind, text, ms}],
+    notes, include_notes}. ValueError = a message for the agent."""
+    import spark
+    try:
+        tid = int(str(data.get("ticket_id") or "").strip().lstrip("#"))
+    except (ValueError, TypeError):
+        raise ValueError("Give a ticket number.")
+    convo = []
+    for m in (data.get("conversation") or [])[-200:]:
+        if not isinstance(m, dict) or m.get("kind") not in _KINDS:
+            continue
+        text = str(m.get("text") or "").strip()[:8000]
+        if not text:
+            continue
+        try:
+            ms = int(m.get("ms")) if m.get("ms") is not None else None
+        except (ValueError, TypeError):
+            ms = None
+        convo.append({"kind": m["kind"], "who": "", "ms": ms, "text": text})
+    if tid <= 0 or not convo:
+        raise ValueError("This ticket has no conversation to reply to yet.")
+    if not spark.available():
+        raise ValueError("Spark isn't connected to SplashHub Centre yet.")
+    if SIDEBAR_MODEL not in spark.models():
+        raise ValueError("Spark doesn't offer %s right now." % SIDEBAR_MODEL)
+    tk = {"ticket": {"id": tid, "subject": str(data.get("subject") or "")[:300], "status": str(data.get("status") or "")[:40],
+                     "channel": "", "created_at": "", "tags": []},
+          "conversation": convo}
+    out = _draft(tk, "spark:" + SIDEBAR_MODEL, None, data.get("notes"), data.get("include_notes", True) is not False,
+                 "auto", area="reply_lab_sidebar")
+    return {k: out.get(k) for k in ("model", "provider", "text", "ms", "tokens_in", "tokens_out", "ticket_id",
+                                    "templates", "template_used", "similarity")}
 
 
 def info():

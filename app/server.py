@@ -148,6 +148,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
+    # The endpoints SplashHub / TestHub's ticket sidebars call from the agent's browser.
+    SIDEBAR_PATHS = ("/api/sidebar/review", "/api/sidebar/replylab")
+
     def _sidebar_origin(self):
         """The Origin of SplashHub's sidebar in an agent's browser (a Zendesk app
         page), or None. Only such pages may call /api/sidebar/review cross-site;
@@ -162,7 +165,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         # The browser's pre-flight for the sidebar's call.
         origin = self._sidebar_origin()
-        if urlparse(self.path).path != "/api/sidebar/review" or not origin:
+        if urlparse(self.path).path not in self.SIDEBAR_PATHS or not origin:
             return self._send(404, "", "text/plain")
         return self._send(204, "", "text/plain", self._cors(origin) + [
             ("Access-Control-Allow-Methods", "POST"), ("Access-Control-Allow-Headers", "Content-Type"),
@@ -620,7 +623,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         u = urlparse(self.path)
         n = int(self.headers.get("Content-Length") or 0)
         # 64 KB is plenty for every form here; the Price Book's cached prices are the one bigger save.
-        raw = self.rfile.read(min(n, (2 * 1024 * 1024) if u.path == "/api/pricebook/store" else 64 * 1024)) if n else b""
+        raw = self.rfile.read(min(n, (2 * 1024 * 1024) if u.path == "/api/pricebook/store" else
+                                  (256 * 1024) if u.path == "/api/sidebar/replylab" else 64 * 1024)) if n else b""   # a long ticket's conversation
         if u.path == "/api/sidebar/review":
             # SplashHub's sidebar: the review made here for a ticket, or one
             # started now -- never a second AI call. It calls from the agent's
@@ -649,6 +653,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json({"state": "error", "error": "SplashHub Centre could not look this up (%s)" % type(e).__name__}, 500, cors)
             if data.get("press") or out.get("state") != "pending":
                 sys.stderr.write("[sidebar] #%s %s%s\n" % (tid, out.get("state"), " (Review again)" if data.get("again") else ""))
+            return self.json(out, 200, cors)
+        if u.path == "/api/sidebar/replylab":
+            # TestHub's sidebar Reply Lab: a draft of the next reply, on the Spark
+            # model the sidebar uses (replylab.SIDEBAR_MODEL), from the conversation
+            # the agent's browser sends -- this never reads a ticket by number. Same
+            # callers as /api/sidebar/review: a Zendesk app page, or the feed's key.
+            import feed, replylab
+            origin = self._sidebar_origin()
+            key, given = feed._secret(), (self.headers.get("X-SplashHub-Key") or "").strip()
+            keyed = bool(key and given and hmac.compare_digest(given.encode("utf-8"), key.encode("utf-8")))
+            if not (origin or keyed):
+                return self.json({"error": "not allowed"}, 403)
+            cors = self._cors(origin)
+            try:
+                data = json.loads(raw or b"{}") or {}
+                out = replylab.sidebar_draft(data)
+            except (ValueError, TypeError) as e:
+                return self.json({"error": str(e) or "bad request"}, 400, cors)
+            except Exception as e:                     # the model: worded, never a library's text
+                msg = str(e)[:240] if type(e).__name__ == "SparkError" else "SplashHub Centre could not draft this (%s)" % type(e).__name__
+                sys.stderr.write("[sidebar] reply lab #%s failed: %s\n" % (data.get("ticket_id"), type(e).__name__))
+                return self.json({"error": msg}, 502, cors)
+            sys.stderr.write("[sidebar] reply lab #%s %s ms\n" % (out.get("ticket_id"), out.get("ms")))
             return self.json(out, 200, cors)
         if u.path == "/login":
             try:
