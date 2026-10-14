@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=1.19.0">
+  <link rel="stylesheet" href="app.css?v=1.19.2">
 </head>
 <body>
   <nav class="snav" id="snav" aria-label="Pages">
@@ -68,7 +68,7 @@
     </div>
 
     <!-- One row of filters above everything they scope: period first. -->
-    <section class="filters card" aria-label="Filters">
+    <section class="filters card lg-filters" aria-label="Filters">
       <div class="frow">
         <div class="seg" id="period" role="group" aria-label="Period">
           <button type="button" class="seg-btn" data-days="7">7 days</button>
@@ -78,13 +78,13 @@
           <button type="button" class="seg-btn" data-days="-1">Custom</button>
         </div>
         <span class="lg-range" id="range" hidden>
-          <input type="date" class="sel" id="from" aria-label="From"> <span class="muted">to</span> <input type="date" class="sel" id="to" aria-label="To">
+          <input type="date" class="sel" id="from" aria-label="From"><span class="muted">&ndash;</span><input type="date" class="sel" id="to" aria-label="To">
         </span>
         <select class="sel" id="agent" aria-label="Agent"><option value="">All agents</option></select>
         <select class="sel" id="model" aria-label="Model"><option value="">All models</option></select>
         <div class="search">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <input type="search" id="q" placeholder="Search topic, ticket # or agent" autocomplete="off" spellcheck="false">
+          <input type="search" id="q" placeholder="Search runs" title="Topic, ticket # or agent" autocomplete="off" spellcheck="false">
         </div>
         <button type="button" class="link-btn" id="clearFilters" hidden>Clear filters</button>
       </div>

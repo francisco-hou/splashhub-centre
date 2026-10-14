@@ -1387,3 +1387,28 @@ textarea.sc-input { width: 100%; box-sizing: border-box; }
 .lg-tbar { display: block; width: 100%; height: 4px; border-radius: 999px; background: #eceff2; margin-top: 4px; overflow: hidden; }
 .lg-tbar i { display: block; height: 100%; background: #0071ce; border-radius: 999px; }
 tr.lg-day td { background: #f7f9fb; font-size: 12.5px; padding: 7px 12px; border-top: 1px solid #e4e6ea; }
+
+/* Logs: the filters on one compact row */
+.lg-filters .frow { gap: 8px; align-items: center; }
+.lg-filters .seg-btn { padding: 0 10px; height: 32px; font-size: 12.5px; }
+.lg-filters .sel { height: 32px; font-size: 13px; width: auto; max-width: 170px; padding-right: 26px; }
+.lg-range { gap: 4px; }
+.lg-range input[type=date] { width: 132px; height: 32px; font-size: 12.5px; padding: 0 6px; }
+.lg-filters .search { flex: 1 1 160px; max-width: none; min-width: 160px; }
+.lg-filters .search input { height: 32px; font-size: 13px; }
+.lg-filters .lg-tools { margin-top: 8px; }
+
+/* Logs: more compact still */
+.lg-filters { padding: 10px 12px; }
+.lg-filters .frow { gap: 6px; flex-wrap: wrap; }
+.lg-filters .seg-btn { padding: 0 8px; height: 30px; font-size: 12px; }
+.lg-filters .sel { height: 30px; font-size: 12.5px; max-width: 150px; }
+.lg-range input[type=date] { width: 118px; height: 30px; font-size: 12px; padding: 0 4px; }
+.lg-filters .search { flex: 1 1 140px; min-width: 140px; }
+.lg-filters .search input { height: 30px; font-size: 12.5px; }
+.lg-tools { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 6px; }
+.lg-tool { padding: 7px 10px; gap: 1px; border-radius: 8px; }
+.lg-tl { font-size: 11.5px; }
+.lg-tn { font-size: 16px; }
+.lg-ts { font-size: 11px; }
+.lg-tbar { height: 3px; margin-top: 3px; }
