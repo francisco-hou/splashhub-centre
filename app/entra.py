@@ -398,11 +398,37 @@ body{margin:0;font:14px/1.55 Poppins,system-ui,-apple-system,Segoe UI,sans-serif
  animation:sweep 7s ease-in-out infinite}
 @keyframes sweep{0%{transform:translateX(-120%)}60%,100%{transform:translateX(320%)}}
 .logo{position:relative;height:30px;width:auto;align-self:flex-start}
-.pitch{position:relative;margin-top:auto;max-width:440px;animation:up .7s ease both}
-.pitch h1{font-size:30px;line-height:1.2;font-weight:600;margin:0 0 10px;letter-spacing:-.01em}
+.pitch{position:relative;max-width:460px;animation:up .7s ease both}
+.pitch h1{font-size:28px;line-height:1.2;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
 .pitch p{margin:0;font-size:15px;opacity:.88}
-.tags{position:relative;display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
-.tags span{font-size:12px;padding:5px 11px;border:1px solid rgba(255,255,255,.35);border-radius:999px;opacity:0;animation:up .6s ease forwards}
+.stage{position:relative;flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:28px 0;animation:up .8s ease .1s both}
+.win{position:relative;width:min(500px,100%);height:270px;border-radius:14px;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.26);
+ box-shadow:0 24px 60px rgba(0,30,70,.25);padding:30px 14px 14px;animation:float 7s ease-in-out infinite}
+.win:before{content:"";position:absolute;left:14px;top:12px;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.45);
+ box-shadow:13px 0 rgba(255,255,255,.45),26px 0 rgba(255,255,255,.45)}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.sl{position:absolute;left:14px;right:14px;top:30px;bottom:14px;opacity:0;animation:cyc 20s ease-in-out infinite}
+.cap{position:absolute;left:0;right:0;top:0;opacity:0;animation:cyc 20s ease-in-out infinite;text-align:center}
+.s2{animation-delay:5s}.s3{animation-delay:10s}.s4{animation-delay:15s}
+@keyframes cyc{0%{opacity:0;transform:translateY(8px)}4%,21%{opacity:1;transform:none}25%,100%{opacity:0;transform:translateY(-6px)}}
+.caps{position:relative;width:min(500px,100%);height:52px;margin-top:22px}
+.cap b{display:block;font-size:15px;font-weight:600}.cap span{font-size:13px;opacity:.85}
+.dots{display:flex;gap:7px;margin-top:10px}.dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.35);animation:dot 20s infinite}
+@keyframes dot{0%,22%{background:#fff;transform:scale(1.15)}25%,100%{background:rgba(255,255,255,.35);transform:none}}
+.mc{background:#fff;color:#1D242C;border-radius:9px;padding:10px;height:100%;display:flex;flex-direction:column;gap:7px;font-size:11px}
+.mt{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.mt div{border:1px solid #e6edf4;border-radius:7px;padding:6px 7px;font-size:16px;font-weight:600;color:#0071CE;line-height:1.1}
+.mt small{display:block;font-size:9px;color:#8a96a3;font-weight:500}
+.mr{display:flex;align-items:center;gap:8px;padding:5px 2px;border-top:1px solid #f0f3f7}
+.mr b{color:#0071CE;font-weight:600}.mr span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl{font-size:9px;font-weight:600;color:#fff;border-radius:3px;padding:1px 6px}
+.ln{height:7px;border-radius:4px;background:#e9eef4}
+.th{display:flex;gap:6px}.th i{flex:1;height:46px;border-radius:6px;background:#eef3f8;border:1px solid #e3eaf2}
+.bu{max-width:82%;border-radius:10px;padding:7px 9px;line-height:1.4}
+.bu.me{align-self:flex-end;background:#0071CE;color:#fff}.bu.ai{align-self:flex-start;background:#f1f5f9}
+.ch{display:flex;gap:5px}.ch i{font-style:normal;font-size:9.5px;color:#0071CE;background:#eaf4fd;border-radius:999px;padding:1px 7px}
+.qr{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid #f0f3f7}
+@media (max-width:1100px){.win{height:230px}}
 .side{display:flex;flex-direction:column;padding:40px 56px}
 .form{margin:auto 0;width:100%;max-width:360px;animation:up .6s ease .15s both}
 .form h2{font-size:24px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
@@ -426,9 +452,10 @@ details button{background:#0071CE;color:#fff;border:0;border-radius:8px;padding:
 .pwerr{color:#b42318;min-height:1.2em;font-size:12.5px}
 .foot{display:flex;justify-content:space-between;font-size:12px;color:#8a96a3}
 @keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-@media (max-width:820px){.wrap{grid-template-columns:1fr}.brand{padding:24px;min-height:auto}.pitch{margin-top:36px}
+@media (max-width:820px){.wrap{grid-template-columns:1fr}.brand{padding:24px;min-height:auto}.stage{display:none}.pitch{margin-top:24px}
  .pitch h1{font-size:24px}.side{padding:32px 24px}.form{margin:0 auto}}
-@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.tags span{opacity:1}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.s1{opacity:1}
+ .dots i:first-child{background:#fff}}
 """
 
 
@@ -436,11 +463,42 @@ def _esc(s):
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
+_TOOLS = (
+    ("My Dashboard", "Your tickets, pins and RR queue in one view",
+     '<div class="mc"><div class="mt"><div>6<small>Assigned by RR</small></div><div>19<small>Open</small></div>'
+     '<div>7<small>Pending</small></div><div>37<small>Solved</small></div></div>'
+     '<div class="mr"><b>#905106</b><span>SSO setup question</span><i class="pl" style="background:#e34f32">Open</i></div>'
+     '<div class="mr"><b>#905112</b><span>Black screen after update</span><i class="pl" style="background:#3091ec">Pending</i></div>'
+     '<div class="mr"><b>#905118</b><span>Mac permissions prompt</span><i class="pl" style="background:#e34f32">Open</i></div></div>'),
+    ("SOS and SSO checks", "Brand reviews and DNS checks before you reply",
+     '<div class="mc"><div style="display:flex;align-items:center;gap:8px"><b style="font-size:12px">Custom SOS package</b>'
+     '<span style="color:#8a96a3">Northwind IT</span><i class="pl" style="background:#00B74F;margin-left:auto">Verified</i></div>'
+     '<div class="th"><i></i><i></i><i></i></div><div class="ln" style="width:92%"></div><div class="ln" style="width:70%"></div>'
+     '<div style="display:flex;gap:8px;align-items:center;margin-top:auto;padding-top:6px;border-top:1px solid #f0f3f7">'
+     '<span style="color:#0071CE;font-weight:600">SSO</span><span>northwind.com &middot; TXT record found</span>'
+     '<i class="pl" style="background:#00B74F;margin-left:auto">Enabled</i></div></div>'),
+    ("AI and Reply Lab", "Similar cases, fixes and reply drafts with Spark",
+     '<div class="mc" style="justify-content:center"><div class="bu me">Any cases similar to #905112?</div>'
+     '<div class="bu ai">4 similar cases this month. Most were fixed by updating the Streamer and the display driver.</div>'
+     '<div class="ch"><i>#904871</i><i>#904902</i><i>#905011</i></div></div>'),
+    ("PriceBook and POs", "List prices, quotes and purchase orders",
+     '<div class="mc"><b style="font-size:12px">Option 1 &middot; Remote Support</b>'
+     '<div class="qr"><span>Technician licences &times; 3</span><span class="ln" style="width:54px;margin-top:3px"></span></div>'
+     '<div class="qr"><span>Volume price applied</span><span style="color:#00B74F;font-weight:600">4+ seats</span></div>'
+     '<div class="qr"><b>Total per year</b><span class="ln" style="width:70px;margin-top:3px;background:#cfe1f5"></span></div>'
+     '<div style="margin-top:auto;display:flex;gap:8px;align-items:center;padding-top:6px;border-top:1px solid #f0f3f7">'
+     '<span style="color:#0071CE;font-weight:600">PO</span><span>Order received &middot; provisioning</span>'
+     '<i class="pl" style="background:#3091ec;margin-left:auto">Open</i></div></div>'),
+)
+
+
 def page(title, side):
-    """Design F: the blue brand panel (white Splashtop logo, fine grid, one slow
-    light sweep) and the sign-in side. Self-contained but for the logo and font."""
-    tags = "".join('<span style="animation-delay:%.2fs">%s</span>' % (0.35 + i * 0.08, t)
-                   for i, t in enumerate(("SOS Scans", "SSO Requests", "Cases and AI", "PriceBook", "Reply Lab")))
+    """The blue brand panel (white Splashtop logo, fine grid, one slow light sweep,
+    a floating window cycling through four of Centre's tools with their captions)
+    and the sign-in side. Self-contained but for the logo and font."""
+    slides = "".join('<div class="sl s%d">%s</div>' % (i + 1, html) for i, (_, _, html) in enumerate(_TOOLS))
+    caps = "".join('<div class="cap s%d"><b>%s</b><span>%s</span></div>' % (i + 1, name, cap) for i, (name, cap, _) in enumerate(_TOOLS))
+    dots = "".join('<i style="animation-delay:%ds"></i>' % (i * 5) for i in range(len(_TOOLS)))
     return ("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
             "<title>%s · SplashHub Centre</title><link rel=\"icon\" href=\"/splashtop-icon.png\">"
             "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\"><link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>"
@@ -448,11 +506,11 @@ def page(title, side):
             "<style>%s</style></head><body><div class=\"wrap\">"
             "<section class=\"brand\"><div class=\"grid\"></div><div class=\"sweep\"></div>"
             "<img class=\"logo\" src=\"/splashtop-logo-white.png\" alt=\"Splashtop\" width=\"148\" height=\"30\">"
-            "<div class=\"pitch\"><h1>SplashHub Centre</h1><p>SOS reviews, SSO checks, cases and pricing for the support team, in one place.</p></div>"
-            "<div class=\"tags\">%s</div></section>"
+            "<div class=\"stage\" aria-hidden=\"true\"><div class=\"win\">%s</div><div class=\"caps\">%s</div><div class=\"dots\">%s</div></div>"
+            "<div class=\"pitch\"><h1>SplashHub Centre</h1><p>The Splashtop support team&rsquo;s workspace.</p></div></section>"
             "<main class=\"side\"><div class=\"form\">%s</div>"
             "<div class=\"foot\"><span>&copy; Splashtop Inc.</span><span>Internal use only</span></div></main>"
-            "</div></body></html>" % (_esc(title), _CSS, tags, side))
+            "</div></body></html>" % (_esc(title), _CSS, slides, caps, dots, side))
 
 
 def _ms_button(label="Continue with Microsoft"):
@@ -473,7 +531,7 @@ def _downloads_link():
 
 def bounce_page():
     """What a signed-out visitor sees instead of a page: the sign-in landing."""
-    return page("Sign in", "<h2>Welcome back</h2><p class=\"lead\">Sign in with your Splashtop work account to continue.</p>"
+    return page("Sign in", "<h2>Welcome back</h2><p class=\"lead\">Sign in with your Splashtop work account.</p>"
                 + _ms_button() + _downloads_link())
 
 
