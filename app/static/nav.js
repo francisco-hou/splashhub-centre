@@ -138,9 +138,12 @@
     if (me) {
       bar.querySelector('.tb-name').textContent = me.name || me.email;
       bar.querySelector('.tb-who b').textContent = me.name || me.email;
-      document.getElementById('userSub').textContent = me.email + (admin ? ' · admin password entered' : '');
+      document.getElementById('userSub').textContent = me.email + (s.admin_via === 'password' ? ' · admin password entered' : '');
       document.getElementById('ssoOut').hidden = false;
-      if (admin) document.getElementById('signOut').lastChild.textContent = 'Leave admin';
+      // An Admin by role (Settings > People) has nothing to leave; the password one does.
+      document.getElementById('signOut').hidden = s.admin_via !== 'password';
+      if (s.admin_via === 'password') document.getElementById('signOut').lastChild.textContent = 'Leave admin';
+      document.getElementById('adminIn').hidden = admin || !s.required;
     }
     // Admins: try it, then switch it on or off for everyone.
     if (admin && sso.configured) {

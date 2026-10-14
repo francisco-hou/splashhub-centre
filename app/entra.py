@@ -261,8 +261,95 @@ def finish(params, cookie_jar):
     user = {"e": email, "n": str(claims.get("name") or "")[:120], "o": str(claims.get("oid") or claims.get("sub") or "")[:80],
             "exp": int(time.time()) + SESSION_HOURS * 3600}
     activity(email, "sign_in", "completed")
+    try:
+        record_sign_in(email, user["n"], user["o"])
+    except Exception as e:                       # the People list is a nicety; never block a sign-in on it
+        sys.stderr.write("[sign-in] people list not updated: %s\n" % type(e).__name__)
     return ({"email": email, "name": user["n"] or email, "oid": user["o"]}, flow.get("x") or "/",
             [_cookie(USER_COOKIE, seal(user), SESSION_HOURS * 3600), _cookie(FLOW_COOKIE, "", 0, "/auth")])
+
+
+# ---- people and roles ---------------------------------------------------------------------
+# Everyone who has signed in with Microsoft, with a role: member (every team page)
+# or admin (also Logs, Settings, managing Downloads, and this list). Roles are read
+# on each request (cached a few seconds), so a change applies at once -- no
+# signing out. The admin password still works beside them, and is how the first
+# admin is made.
+
+ROLES = ("member", "admin")
+_ROLE_CACHE = {}
+_people_ready = False
+
+
+def _people_table():
+    global _people_ready
+    if _people_ready:
+        return
+    store.ensure_schema()
+    big = "BIGINT" if store.backend() == "postgres" else "INTEGER"
+    c = store.connect(True)
+    try:
+        c.cursor().execute("CREATE TABLE IF NOT EXISTS people (email TEXT PRIMARY KEY, name TEXT, oid TEXT, "
+                           "role TEXT NOT NULL DEFAULT 'member', first_ms %s, last_ms %s, signins %s NOT NULL DEFAULT 0, "
+                           "role_by TEXT, role_ms %s)" % (big, big, big, big))
+        c.commit()
+    finally:
+        c.close()
+    _people_ready = True
+
+
+def record_sign_in(email, name, oid):
+    _people_table()
+    now = int(time.time() * 1000)
+    c = store.connect(True)
+    try:
+        cur = c.cursor()
+        cur.execute(store._q("UPDATE people SET name = %s, oid = %s, last_ms = %s, signins = signins + 1 WHERE email = %s"),
+                    [name or None, oid or None, now, email])
+        if not cur.rowcount:
+            cur.execute(store._q("INSERT INTO people (email, name, oid, role, first_ms, last_ms, signins) VALUES (%s,%s,%s,'member',%s,%s,1)"),
+                        [email, name or None, oid or None, now, now])
+        c.commit()
+    finally:
+        c.close()
+
+
+def role_of(email):
+    """'admin', 'member', or None for someone who never signed in here."""
+    if not email:
+        return None
+    hit = _ROLE_CACHE.get(email)
+    if hit and time.time() - hit[0] < 10:
+        return hit[1]
+    _people_table()
+    rows = store._read("SELECT role FROM people WHERE email = %s", [email], fresh=True)
+    role = rows[0][0] if rows else None
+    _ROLE_CACHE[email] = (time.time(), role)
+    return role
+
+
+def set_role(email, role, by):
+    if role not in ROLES:
+        raise SignInError("Unknown role.")
+    _people_table()
+    c = store.connect(True)
+    try:
+        cur = c.cursor()
+        cur.execute(store._q("UPDATE people SET role = %s, role_by = %s, role_ms = %s WHERE email = %s"),
+                    [role, by, int(time.time() * 1000), (email or "").strip().lower()])
+        found = cur.rowcount
+        c.commit()
+    finally:
+        c.close()
+    if not found:
+        raise SignInError("%s hasn't signed in to SplashHub Centre yet." % email)
+    _ROLE_CACHE.pop((email or "").strip().lower(), None)
+
+
+def people():
+    _people_table()
+    cols = ("email", "name", "role", "first_ms", "last_ms", "signins", "role_by", "role_ms")
+    return [dict(zip(cols, r)) for r in store._read("SELECT %s FROM people ORDER BY role = 'admin' DESC, last_ms DESC" % ", ".join(cols), [])]
 
 
 def sign_out(user):

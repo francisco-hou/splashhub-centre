@@ -24,14 +24,49 @@
 
   fetch('/api/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
     if (s.required && !s.authed) { location.href = '/logs?next=/settings'; return; }
-    $('signOut').hidden = !s.required;
+    $('signOut').hidden = !s.required || (s.admin_via && s.admin_via !== 'password');
     $('page').hidden = false;
-    setup(); settings(); pollImport(); pollCases(); pollKb(); pollPo(); loadNotify(); loadAsk();
+    setup(); settings(); pollImport(); pollCases(); pollKb(); pollPo(); loadNotify(); loadAsk(); loadPeople();
     // The Price Book's feed settings: SplashHub's own pbsettings.js.
     if (window.PricebookSettingsPage) PricebookSettingsPage.boot(window.CentrePriceClient);
     showSect();
     if (location.hash === '#pricebook') { var u = document.getElementById('pbsUrl'); if (u) u.focus(); }
   });
+  // ---- People: who has signed in with Microsoft, and their role ------------------------
+  function ago(ms) {
+    if (!ms) return '';
+    var m = Math.round((Date.now() - ms) / 60000);
+    return m < 2 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : new Date(ms).toLocaleDateString();
+  }
+  function drawPeople(d) {
+    var ppl = d.people || [];
+    $('pplState').innerHTML = !d.sso.configured ? 'Company sign-in isn&rsquo;t set up yet, so nobody has signed in with Microsoft.'
+      : (d.sso.on ? '<b>Company sign-in is on.</b> ' : 'Company sign-in is off; people listed here have signed in to test it. ') +
+        ppl.length + ' ' + (ppl.length === 1 ? 'person' : 'people') + ', ' +
+        ppl.filter(function (p) { return p.role === 'admin'; }).length + ' admin.';
+    if (!ppl.length) { $('ppl').innerHTML = ''; return; }
+    $('ppl').innerHTML = '<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Last sign-in</th><th>Sign-ins</th></tr></thead><tbody>' +
+      ppl.map(function (p) {
+        return '<tr><td>' + esc(p.name || '—') + (p.email === d.me ? ' <span class="ppl-you">you</span>' : '') + '</td>' +
+          '<td>' + esc(p.email) + '</td>' +
+          '<td><select data-email="' + esc(p.email) + '" aria-label="Role for ' + esc(p.email) + '">' +
+            d.roles.map(function (r) { return '<option value="' + r + '"' + (r === p.role ? ' selected' : '') + '>' + (r === 'admin' ? 'Admin' : 'Member') + '</option>'; }).join('') +
+          '</select>' + (p.role_by ? '<small>by ' + esc(p.role_by) + '</small>' : '') + '</td>' +
+          '<td>' + esc(ago(p.last_ms)) + '</td><td>' + (p.signins || 0) + '</td></tr>';
+      }).join('') + '</tbody>';
+  }
+  function loadPeople() { api('/api/people').then(drawPeople).catch(function () {}); }
+  $('ppl').addEventListener('change', function (ev) {
+    var sel = ev.target.closest('select[data-email]'); if (!sel) return;
+    var email = sel.getAttribute('data-email'), role = sel.value, msg = $('pplMsg');
+    if (!confirm((role === 'admin' ? 'Make ' + email + ' an Admin?\n\nThey get Logs, Settings, managing Downloads and this list.'
+                                   : 'Make ' + email + ' a Member?\n\nThey keep every team page, but lose Logs, Settings and this list.'))) { loadPeople(); return; }
+    msg.textContent = 'Saving…';
+    post('/api/people', { email: email, role: role })
+      .then(function (d) { msg.textContent = email + ' is now ' + (role === 'admin' ? 'an Admin' : 'a Member') + '.'; api('/api/people').then(drawPeople); })
+      .catch(function (e) { msg.textContent = e.message; loadPeople(); });
+  });
+
   // One section at a time, picked on the left (the link's #hash, so it can be shared and survives a reload).
   function showSect() {
     var want = (location.hash || '').slice(1), items = document.querySelectorAll('.set-nav-item');

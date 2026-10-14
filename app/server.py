@@ -49,9 +49,9 @@ PW_FILE = os.path.join(APP, "admin_password.txt")
 COOKIE = "shcadmin"
 # What needs the admin session: the Logs page's data and the Settings page's.
 # Everything else (SOS Scans, SSO Requests, PriceBook, AI) is open to the team.
-ADMIN_GET = {"/api/sso-login", "/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases",
+ADMIN_GET = {"/api/people", "/api/sso-login", "/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases",
              "/api/kb", "/api/po", "/api/notify", "/api/teams-ask", "/api/overview", "/api/spark-log", "/api/stats"}
-ADMIN_POST = {"/api/sso-login", "/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
+ADMIN_POST = {"/api/people", "/api/sso-login", "/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
               "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop", "/api/po/import", "/api/po/update", "/api/po/stop", "/api/notify",
               "/api/notify/test", "/api/notify/run", "/api/notify/languages", "/api/teams-ask", "/api/teams-ask/key", "/api/theme",
               "/api/autotag/settings", "/api/autotag/run", "/api/adfilter/settings", "/api/adfilter/run", "/api/stats/run"}
@@ -176,10 +176,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send(code, json.dumps(obj, ensure_ascii=False), "application/json; charset=utf-8", extra)
 
     def authed(self):
+        """Admin: the admin password was entered here, or the person signed in with
+        Microsoft holds the Admin role (Settings > People)."""
         if not login_required():
             return True
+        return self.admin_via() is not None
+
+    def admin_via(self):
         c = cookies.SimpleCookie(self.headers.get("Cookie") or "")
-        return COOKIE in c and check_token(c[COOKIE].value)
+        if COOKIE in c and check_token(c[COOKIE].value):
+            return "password"
+        u = self.sso_user()
+        try:
+            if u and entra.role_of(u["email"]) == "admin":
+                return "role"
+        except Exception:
+            pass
+        return None
+
+    def who(self):
+        """Who is doing this, for the record: the signed-in person, else "Centre admin"."""
+        u = self.sso_user()
+        return u["email"] if u else "Centre admin"
 
     # ---- company sign-in (entra.py) ----
     # Outside sign-in: Spluki's health check, the sign-in flow itself, the Zendesk
@@ -294,7 +312,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path in ("/api/list", "/api/downloads/list"):
                 # The catalogue; /api/list is the Extension Hub's own address, kept for the add-on.
                 import downloads
-                return self.json(dict(downloads.catalogue(), can_manage=self._admin_cookie() or not login_required()))
+                return self.json(dict(downloads.catalogue(), can_manage=self.authed()))
             m = re.match(r"^/d/([0-9a-f]{16})/([^/]+)$", u.path)
             if m:
                 import downloads
@@ -315,13 +333,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
             if u.path == "/api/session":
                 return self.json({"required": login_required(), "authed": self.authed(),
-                                  "configured": bool(admin_password()), "user": self.sso_user(),
+                                  "configured": bool(admin_password()), "user": self.sso_user(), "admin_via": self.admin_via(),
                                   "sso": {"on": entra.active(), "configured": entra.configured()}})
             if u.path in ADMIN_GET and not self.authed():
                 return self.json({"error": "login required"}, 401)
             if u.path.startswith("/api/replylab") and not self.authed():     # Reply Lab reads any ticket: signed in only
                 return self.json({"error": "login required"}, 401)
 
+            if u.path == "/api/people":
+                # Admin: everyone who has signed in with Microsoft, and their role.
+                return self.json({"people": entra.people(), "roles": list(entra.ROLES), "me": (self.sso_user() or {}).get("email"),
+                                  "sso": {"on": entra.active(), "configured": entra.configured()}})
             if u.path == "/api/sso-login":
                 # Admin: the company sign-in switch and what it still needs.
                 return self.json({"on": entra.active(), "configured": entra.configured(), "missing": entra.missing(),
@@ -780,6 +802,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.json({"ok": True}, 200, [("Set-Cookie", "%s=; Path=/; Max-Age=0" % COOKIE)])
         if (u.path in ADMIN_POST or u.path.startswith("/api/replylab")) and not self.authed():
             return self.json({"error": "login required"}, 401)
+        if u.path == "/api/people":
+            # Admin: change someone's role.
+            try:
+                d = json.loads(raw or b"{}")
+                entra.set_role(str(d.get("email") or ""), str(d.get("role") or ""), self.who())
+            except ValueError:
+                return self.json({"error": "bad request"}, 400)
+            except entra.SignInError as e:
+                return self.json({"error": str(e)}, 400)
+            sys.stderr.write("[people] %s is now %s (by %s)\n" % (d.get("email"), d.get("role"), self.who()))
+            return self.json({"ok": True, "people": entra.people()})
         if u.path == "/api/sso-login":
             # Admin: turn company sign-in on or off. On only once this admin has
             # signed in with Microsoft here -- proof the registration works, so
@@ -965,16 +998,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     if "spark_model" in data:
                         if data["spark_model"] not in spark.models():
                             return self.json({"error": "Spark doesn't offer that model"}, 400)
-                        store.set_setting("spark_model", data["spark_model"], "Centre admin")
+                        store.set_setting("spark_model", data["spark_model"], self.who())
                     if "spark_thinking" in data:
-                        store.set_setting("spark_thinking", "on" if data["spark_thinking"] else "off", "Centre admin")
+                        store.set_setting("spark_thinking", "on" if data["spark_thinking"] else "off", self.who())
                 except spark.SparkError as e:
                     return self.json({"error": str(e)}, 400)
                 return self.json({"ok": True, "spark_model": spark.model(), "spark_thinking": "on" if spark.thinking_on() else "off"})
             if data.get("translate_engine") in ("claude", "spark"):
-                store.set_setting("translate_engine", data["translate_engine"], "Centre admin")
+                store.set_setting("translate_engine", data["translate_engine"], self.who())
             if "auto_note" in data:
-                store.set_setting("auto_note", "on" if data["auto_note"] else "off", "Centre admin")
+                store.set_setting("auto_note", "on" if data["auto_note"] else "off", self.who())
                 sys.stderr.write("[note] automatic internal notes switched %s\n" % ("on" if data["auto_note"] else "off"))
             return self.json({"ok": True, "auto_note": "on" if sosscan.auto_note() else "off",
                               "translate_engine": sosscan.translate_engine()})
@@ -985,7 +1018,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 on = bool(json.loads(raw or b"{}").get("on"))
             except ValueError:
                 return self.json({"error": "bad request"}, 400)
-            store.set_setting("ai_review", "on" if on else "off", "Centre admin")
+            store.set_setting("ai_review", "on" if on else "off", self.who())
             sys.stderr.write("[scan] AI review switched %s\n" % ("on" if on else "off"))
             return self.json({"ok": True, "ai_review": "on" if on else "off"})
         if u.path.startswith("/api/sso"):
@@ -1090,7 +1123,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.json({"error": "Give a ticket number."}, 400)
             if tid <= 0:
                 return self.json({"error": "Give a ticket number."}, 400)
-            sid = sosscan.request(tid, "manual", "Centre admin", force=bool(data.get("force")))
+            sid = sosscan.request(tid, "manual", self.who(), force=bool(data.get("force")))
             return self.json({"ok": True, "id": sid})
         return self.json({"error": "not found"}, 404)
 
