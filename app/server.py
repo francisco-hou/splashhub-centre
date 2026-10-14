@@ -287,7 +287,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 data, ctype, fname = got
                 return self._send(200, data, ctype, [("Content-Disposition", 'attachment; filename="%s"' % fname)])
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/replylab.js", "/statistics.js", "/sparklog.js", "/wiki.js", "/downloads.js", "/splashtop-icon.png",
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/replylab.js", "/statistics.js", "/sparklog.js", "/wiki.js", "/downloads.js", "/me.js", "/splashtop-icon.png",
                           "/splashtop-logo-white.png", "/splashtop-icon-white.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
@@ -304,6 +304,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path.startswith("/api/replylab") and not self.authed():     # Reply Lab reads any ticket: signed in only
                 return self.json({"error": "login required"}, 401)
 
+            if u.path == "/api/me/dashboard":
+                # My Dashboard: the signed-in person's own queue (mydash.py).
+                import mydash
+                me = self.sso_user()
+                if not me:
+                    return self.json({"signin": True, "error": "Sign in with your Splashtop Microsoft account to see your dashboard."})
+                try:
+                    return self.json(mydash.build(me["email"], fresh=(qs.get("fresh") or [""])[0] == "1"))
+                except (mydash.DashError, zendesk.ZendeskError) as e:
+                    return self.json({"error": str(e)}, 502)
             if u.path == "/api/people":
                 # Admin: everyone who has signed in with Microsoft, and their role.
                 return self.json({"people": entra.people(), "roles": list(entra.ROLES), "me": (self.sso_user() or {}).get("email"),

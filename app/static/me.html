@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=1.19.5">
+  <link rel="stylesheet" href="app.css?v=1.19.6">
 </head>
 <body>
   <nav class="snav" id="snav" aria-label="Pages">
@@ -18,7 +18,7 @@
       <button type="button" class="snav-toggle" id="navToggle" title="Collapse the menu" aria-label="Collapse the menu"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9.5" y1="4" x2="9.5" y2="20"/><polyline points="16 9.5 13.5 12 16 14.5"/></svg></button>
     </div>
     <div class="snav-scroll">
-      <a class="snav-item active" href="/me" aria-current="page" title="My Dashboard"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg><span class="snav-label">My Dashboard</span><span class="snav-beta">Soon</span></a>
+      <a class="snav-item active" href="/me" aria-current="page" title="My Dashboard"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg><span class="snav-label">My Dashboard</span></a>
       <a class="snav-item" href="/scans" title="SOS Scans"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg><span class="snav-label">SOS Scans</span></a>
       <a class="snav-item" href="/sso" title="SSO Requests"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3L21 2"/><path d="M16 7l3 3"/><path d="M19 4l2 2"/></svg><span class="snav-label">SSO Requests</span></a>
       <a class="snav-item" href="/po?r=jp" data-po="jp" title="JP POs"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg><span class="snav-label">JP POs</span></a>
@@ -43,25 +43,46 @@
   <script src="nav.js?v=1.9.7"></script>
 
   <main class="page" id="page">
-    <div class="me-wrap">
-      <svg class="me-art" viewBox="0 0 320 220" role="img" aria-label="Under construction">
-        <rect x="40" y="150" width="240" height="14" rx="3" fill="#e3edf7"/>
-        <rect x="70" y="60" width="180" height="92" rx="10" fill="#fff" stroke="#cfe1f5" stroke-width="3"/>
-        <rect x="86" y="78" width="60" height="10" rx="5" fill="#0071ce" opacity=".85"/>
-        <rect x="86" y="98" width="148" height="8" rx="4" fill="#dce7f2"/>
-        <rect x="86" y="114" width="120" height="8" rx="4" fill="#dce7f2"/>
-        <rect x="86" y="130" width="90" height="8" rx="4" fill="#dce7f2"/>
-        <g transform="translate(212 34) rotate(18)"><rect x="-6" y="0" width="12" height="70" rx="3" fill="#f2a65a"/>
-          <rect x="-22" y="-6" width="44" height="18" rx="4" fill="#55606b"/></g>
-        <g><rect x="38" y="164" width="244" height="22" fill="url(#stripes)"/></g>
-        <defs><pattern id="stripes" width="22" height="22" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <rect width="11" height="22" fill="#f2c94c"/><rect x="11" width="11" height="22" fill="#2f3941"/></pattern></defs>
-        <circle cx="62" cy="58" r="16" fill="#ddeefb"/><path d="M55 58l5 5 9-10" stroke="#0071ce" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <h1 class="hdr-title">My Dashboard is under construction</h1>
-      <p class="me-sub">Soon this page will be <b>yours</b>: once SplashHub Centre has Splashtop sign-in (SSO), it knows who you are and shows your own day &mdash; your open and RR tickets, your pins, your Jira issues, tickets in your languages, the SOS and PO requests you&rsquo;re on, and your AI usage.</p>
-      <div class="me-links"><a class="btn btn-primary" href="/scans">Go to SOS Scans</a><a class="btn" href="/ask">Ask the AI</a></div>
+    <div class="hdr">
+      <div class="hdr-left">
+        <h1 class="hdr-title">My Dashboard</h1>
+        <div class="hdr-sub" id="mdSub">Your queue at a glance.</div>
+      </div>
+      <div class="hdr-right">
+        <span class="stamp" id="mdStamp"></span>
+        <button type="button" class="btn btn-icon" id="mdRefresh" title="Refresh" aria-label="Refresh">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="md-note" id="mdNote" hidden></div>
+    <div class="md-stats" id="mdStats" aria-live="polite"></div>
+    <div class="md-grid">
+      <section class="card md-card md-full" id="mdRr">
+        <div class="md-h"><h2>Open tickets &mdash; RR</h2><span class="md-count" id="mdRrCount"></span></div>
+        <div class="md-list" id="mdRrList"></div>
+      </section>
+      <section class="card md-card md-full" id="mdOpen">
+        <div class="md-h"><h2>Your open tickets</h2><span class="md-count" id="mdOpenCount"></span></div>
+        <div class="md-list" id="mdOpenList"></div>
+        <div class="md-pager" id="mdOpenPager" hidden>
+          <button type="button" class="btn btn-sm" id="mdPrev">&larr; Newer</button><span id="mdPage"></span><button type="button" class="btn btn-sm" id="mdNext">Older &rarr;</button>
+        </div>
+      </section>
+      <section class="card md-card" id="mdPins">
+        <div class="md-h"><h2>Pins awaiting reply</h2><span class="md-count" id="mdPinsCount"></span></div>
+        <div class="md-list" id="mdPinsList"></div>
+      </section>
+      <section class="card md-card" id="mdLang" hidden>
+        <div class="md-h"><h2>Tickets in your languages</h2><span class="md-count" id="mdLangCount"></span></div>
+        <div class="md-list" id="mdLangList"></div>
+      </section>
+      <section class="card md-card md-soon" id="mdJira">
+        <div class="md-h"><h2>Jira</h2><span class="md-count">coming later</span></div>
+        <p>Latest Jiras, My Jiras and My Jira Reviews will appear here once SplashHub Centre is connected to Jira.</p>
+      </section>
     </div>
   </main>
+  <script src="me.js?v=1.0.0"></script>
 </body>
 </html>
