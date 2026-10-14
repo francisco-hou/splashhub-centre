@@ -7,7 +7,7 @@ Add-On's update check and its "Update now" script only change host:
 
 Both are open: no sign-in, no admin -- the add-on and its .bat have no session,
 and the Downloads page is reachable from the sign-in page. Adding, updating and
-deleting need the admin password (server.py, ADMIN_POST).
+deleting need the Admin role (server.py).
 
 Storage: this app's own bucket (SPLUKI_STORAGE, imagestore.py), under
 downloads/ -- downloads/index.json (one record per extension with its version

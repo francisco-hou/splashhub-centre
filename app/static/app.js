@@ -100,26 +100,12 @@
   }
 
   // ---- sign-in ----------------------------------------------------------------
+  // Not an admin: Logs and Settings are for the Admin role (Settings > People); there is no password.
   function showLogin(msg) {
     $('page').hidden = true;
     $('login').hidden = false;
     if (msg) { $('loginErr').textContent = msg; $('loginErr').hidden = false; }
-    setTimeout(function () { $('pw').focus(); }, 0);
   }
-  $('loginForm').addEventListener('submit', function (ev) {
-    ev.preventDefault();
-    $('loginErr').hidden = true;
-    fetch('/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
-                      body: JSON.stringify({ password: $('pw').value }) })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (!j.ok) { $('loginErr').textContent = j.error || 'Sign-in failed.'; $('loginErr').hidden = false; return; }
-        // back to the page that sent us here to sign in (only our own paths)
-        var next = new URLSearchParams(location.search).get('next');
-        if (/^\/(settings)(#[a-z]+)?$/.test(next || '')) { location.href = next; return; }   // only ever back to these pages
-        $('pw').value = ''; $('login').hidden = true; $('signOut').hidden = false; start();
-      });
-  });
   $('signOut').addEventListener('click', function () {
     fetch('/logout', { method: 'POST', credentials: 'same-origin' }).then(function () { location.href = '/scans'; });
   });
@@ -128,12 +114,11 @@
   function boot() {
     fetch('/api/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
       if (s.required && !s.authed) {
-        showLogin(s.configured ? '' : 'No ADMIN_PASSWORD is set for this app yet, so the log stays locked.');
+        showLogin(s.user ? '' : 'Sign in with your Splashtop Microsoft account first.');
         return;
       }
       var nx = new URLSearchParams(location.search).get('next');
       if (/^\/(settings)(#[a-z]+)?$/.test(nx || '')) { location.href = nx; return; }
-      $('signOut').hidden = !s.required;
       start();
     }).catch(function () { showLogin('Could not reach the server.'); });
   }

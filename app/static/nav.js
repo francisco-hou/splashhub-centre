@@ -39,13 +39,12 @@
   });
 })();
 
-/* The top bar: who you are, top right. "Splashtop Support" for now (SSO will
-   put a real name here later), with the role under it: Member for anybody,
-   Admin once the admin password has been entered. Its menu: Admin login (the
-   password, right there) or Log out. An admin also gets Logs and Settings in
-   the left menu, under AI. Its
-   menu holds the two admin pages (Logs, Settings) and Admin sign-in / Sign out.
-   Each page's own script handles the Sign out button (#signOut). */
+/* The top bar: who you are, top right -- the name and e-mail of the person
+   signed in with Microsoft, and their role (Member, or Admin from Settings >
+   People). Admins also get the Admin group in the left menu. The menu holds
+   Downloads, Sign out and, for admins, the company sign-in switch. #signOut is
+   the retired admin password's Log out: always hidden now, kept because each
+   page's own script still wires it. */
 (function () {
   var SV = function (d) { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'; };
   var I = {
@@ -72,12 +71,6 @@
           '<span><b>Splashtop Support</b><span class="tb-role" id="userRole2">Member</span><small id="userSub">Everyone on the team</small></span></div>' +
         '<div class="tb-sep"></div>' +
         '<a class="tb-item" role="menuitem" href="/downloads">' + SV('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>') + 'Downloads</a>' +
-        '<button type="button" class="tb-item" id="adminIn" role="menuitem" hidden>' + SV(I.key) + 'Admin login</button>' +
-        '<form class="tb-login" id="adminForm" hidden>' +
-          '<input type="password" id="adminPw" placeholder="Admin password" autocomplete="current-password" aria-label="Admin password">' +
-          '<button type="submit" class="btn btn-primary btn-sm">Log in</button>' +
-          '<div class="tb-err" id="adminErr" aria-live="polite"></div>' +
-        '</form>' +
         '<a class="tb-item" id="ssoTest" role="menuitem" href="/auth/login" hidden>' + SV(I.key) + 'Test company sign-in</a>' +
         '<button type="button" class="tb-item" id="ssoToggle" role="menuitem" hidden>' + SV(I.lock) + '<span>Company sign-in</span></button>' +
         '<button type="button" class="tb-item" id="signOut" role="menuitem" hidden>' + SV(I.out) + 'Log out</button>' +
@@ -93,57 +86,27 @@
   document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target)) open(false); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) { open(false); btn.focus(); } });
 
-  // Admin login, right here in the menu: the password goes to /login, then the page reloads as Admin.
-  var form = document.getElementById('adminForm'), pw = document.getElementById('adminPw'), err = document.getElementById('adminErr');
-  document.getElementById('adminIn').addEventListener('click', function () {
-    form.hidden = !form.hidden; err.textContent = '';
-    if (!form.hidden) pw.focus();
-  });
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
-    if (!pw.value) { pw.focus(); return; }
-    var b = form.querySelector('button'); b.disabled = true; err.textContent = '';
-    fetch('/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ password: pw.value }) })
-      .then(function (r) {
-        if (r.ok) { location.reload(); return; }
-        return r.json().catch(function () { return {}; }).then(function (j) {
-          b.disabled = false; pw.value = ''; pw.focus();
-          err.textContent = r.status === 401 || r.status === 403 ? 'That password isn’t right.' : (j.error || 'Could not log in (HTTP ' + r.status + ').');
-        });
-      })
-      .catch(function () { b.disabled = false; err.textContent = 'Could not reach SplashHub Centre.'; });
-  });
-
-  // Who: Admin when the admin password is set and was entered here; else User.
+  // Who: the signed-in person; Admin when they hold the Admin role.
   fetch('/api/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
     var admin = !!(s.required && s.authed);
     var role = admin ? 'Admin' : 'Member';
     ['userRole', 'userRole2'].forEach(function (id) { document.getElementById(id).textContent = role; });
     ['userAv', 'userAv2'].forEach(function (id) { document.getElementById(id).innerHTML = SV(admin ? I.admin : I.user); });
     bar.classList.toggle('is-admin', admin);
-    document.getElementById('userSub').textContent = admin ? 'Signed in with the admin password'
-      : (s.required ? 'Logs and Settings need the admin password' : 'No admin password is set yet');
-    // Logs and Settings (left menu, under AI): for an admin only -- or for
-    // everyone while no admin password is set, as the server allows then.
+    document.getElementById('userSub').textContent = s.required ? 'Logs and Settings are for admins' : 'Everyone on the team';
+    // The Admin group in the left menu: for admins (and everyone in a local preview).
     Array.prototype.forEach.call(document.querySelectorAll('.snav-adm, .snav-adm-h'), function (el) {
       if (!el.classList.contains('active')) el.hidden = !(admin || !s.required);
     });
     var h = document.querySelector('.snav-adm-h'); if (h) h.hidden = !(admin || !s.required);
-    document.getElementById('adminIn').hidden = admin || !s.required;
-    document.getElementById('signOut').hidden = !admin;
+    document.getElementById('signOut').hidden = true;
 
-    // Company sign-in: the signed-in person's name, and Sign out.
     var sso = s.sso || {}, me = s.user;
     if (me) {
       bar.querySelector('.tb-name').textContent = me.name || me.email;
       bar.querySelector('.tb-who b').textContent = me.name || me.email;
-      document.getElementById('userSub').textContent = me.email + (s.admin_via === 'password' ? ' · admin password entered' : '');
+      document.getElementById('userSub').textContent = me.email;
       document.getElementById('ssoOut').hidden = false;
-      // An Admin by role (Settings > People) has nothing to leave; the password one does.
-      document.getElementById('signOut').hidden = s.admin_via !== 'password';
-      if (s.admin_via === 'password') document.getElementById('signOut').lastChild.textContent = 'Leave admin';
-      document.getElementById('adminIn').hidden = admin || !s.required;
     }
     // Admins: try it, then switch it on or off for everyone.
     if (admin && sso.configured) {

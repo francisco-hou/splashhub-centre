@@ -273,8 +273,7 @@ def finish(params, cookie_jar):
 # Everyone who has signed in with Microsoft, with a role: member (every team page)
 # or admin (also Logs, Settings, managing Downloads, and this list). Roles are read
 # on each request (cached a few seconds), so a change applies at once -- no
-# signing out. The admin password still works beside them, and is how the first
-# admin is made.
+# signing out. There is no admin password: the last Admin can't be made a Member.
 
 ROLES = ("member", "admin")
 _ROLE_CACHE = {}
@@ -343,6 +342,9 @@ def set_role(email, role, by):
         c.close()
     if not found:
         raise SignInError("%s hasn't signed in to SplashHub Centre yet." % email)
+    if role != "admin" and not store._read("SELECT 1 FROM people WHERE role = 'admin' LIMIT 1", [], fresh=True):
+        set_role(email, "admin", by)             # put it back: someone must be able to reach Settings
+        raise SignInError("%s is the last admin. Make someone else an Admin first." % email)
     _ROLE_CACHE.pop((email or "").strip().lower(), None)
 
 
@@ -479,13 +481,7 @@ def error_page(msg):
     return page("Sign-in problem",
                 "<h2>Couldn&rsquo;t sign you in</h2><div class=\"err\">%s</div>" % _esc(msg)
                 + _ms_button("Try again with Microsoft")
-                + "<details><summary>Admins: sign in with the admin password</summary>"
-                  "<form id=\"f\"><input type=\"password\" id=\"p\" placeholder=\"Admin password\" autocomplete=\"current-password\" aria-label=\"Admin password\">"
-                  "<div class=\"pwerr\" id=\"e\" aria-live=\"polite\"></div><button type=\"submit\">Log in</button></form></details>"
-                  "<script>document.getElementById('f').addEventListener('submit',function(ev){ev.preventDefault();"
-                  "fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',"
-                  "body:JSON.stringify({password:document.getElementById('p').value})}).then(function(r){if(r.ok){location.href='/logs';}"
-                  "else{document.getElementById('e').textContent='That password isn\\u2019t right.';}});});</script>"
+                + "<p class=\"lead\" style=\"margin:18px 0 0;font-size:13px\">If it keeps happening, tell a SplashHub Centre admin.</p>"
                 + _downloads_link())
 
 

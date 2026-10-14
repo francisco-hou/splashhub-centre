@@ -8,7 +8,7 @@ app:
     SplashHub Centre: the Spluki home for SplashHub's run log. One row per run (who ran
     which tool, when, on which model, with tokens and estimated cost), filterable by
     period, tool, agent and model, with per-day and per-tool charts and CSV export.
-    Logs and Settings are admin-only behind ADMIN_PASSWORD; the other pages are open to the team. Also reviews
+    Everyone signs in with their Splashtop Microsoft account; Logs and Settings are for the Admin role. Also reviews
     Custom SOS package requests (brand impersonation check on the thumbnails, Claude
     vision) when a Zendesk trigger sends them; results are kept here, and a review is
     added to the ticket as an internal note only when an agent presses that button.
@@ -25,7 +25,7 @@ app:
   port: 8795
   health_check_path: /health
   stage: in_development
-  version: "0.12.21"
+  version: "0.12.22"
 
 deployment:
   environment: dev
@@ -33,9 +33,6 @@ deployment:
   instance_size: medium
 
 secrets:
-  ADMIN_PASSWORD:
-    name: ADMIN_PASSWORD
-    required: true
   # Company sign-in (app/entra.py): the Entra app registration's client secret, from IT.
   # Not required: sign-in stays off until it is set AND an admin turns it on from the
   # top bar's menu. The tenant and client ID are not secrets; they are in entra.py.

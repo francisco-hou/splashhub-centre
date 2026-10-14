@@ -1,5 +1,5 @@
 // SplashHub Centre -- Downloads (downloads.py). Open to everyone, signed in or not;
-// adding, updating and removing need the admin password (the server says so in
+// adding, updating and removing need the Admin role (the server says so in
 // can_manage, and refuses otherwise).
 (function () {
   'use strict';

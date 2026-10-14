@@ -6,24 +6,19 @@ Routes
   GET  /health                          Spluki health check (no login)
   GET  /                                -> /scans
   GET  /logs                            the Logs page (admin)
-  POST /login  {password}               sets the session cookie
-  POST /logout
+  GET  /auth/login, /auth/callback, /auth/logout   company sign-in (entra.py)
+  POST /login                           retired (410): the admin password is gone
   GET  /api/meta                        tools, agents, models, backend, sample flag
   GET  /api/summary?<filters>&tz=       totals, per-day, per-tool
   GET  /api/runs?<filters>&page=        one page of rows, newest first
   GET  /api/runs.csv?<filters>          the filtered rows as CSV
   <filters> = since, until (epoch ms), tool, agent, model, q
 
-Access. Every page is open to the team except the two under Admin in the left
-menu -- Logs and Settings -- which need the one ADMIN_PASSWORD (a sealed Spluki
-secret; locally an env var or app/admin_password.txt, gitignored), as SplashHub
-shows its Logs page to admins only. Locally with no password set those are open
-too, for previewing. On Spluki (PostgreSQL backend) a missing password keeps
-them locked instead of opening them.
-
-The table is filled by feed.py: SplashHub posts each run (and, on request, its
-Zendesk history) to the platform's SPLUKI_WEBHOOK intake, and a background loop
-here takes it. SplashHub keeps writing to Zendesk as well.
+Access. Everyone signs in with their Splashtop Microsoft account (entra.py).
+Admins -- Logs, Settings, managing Downloads, the People list -- are the people
+with the Admin role in Settings > People; there is no admin password any more.
+Locally (SQLite) with company sign-in off, everything is open, for previewing.
+On Spluki (PostgreSQL) admin pages are closed to anyone without the role.
 """
 import base64, csv, hashlib, hmac, http.server, io, json, os, re, secrets, sys, time
 import gzip
@@ -45,8 +40,7 @@ import zendesk
 STATIC = os.path.join(APP, "static")
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", "8795"))
 HOST = os.environ.get("HOST", "127.0.0.1")      # the container sets 0.0.0.0
-PW_FILE = os.path.join(APP, "admin_password.txt")
-COOKIE = "shcadmin"
+COOKIE = "shcadmin"        # the retired admin password's cookie: only ever cleared now
 # What needs the admin session: the Logs page's data and the Settings page's.
 # Everything else (SOS Scans, SSO Requests, PriceBook, AI) is open to the team.
 ADMIN_GET = {"/api/people", "/api/sso-login", "/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases",
@@ -60,32 +54,10 @@ SAMPLE = store.backend() == "sqlite" and os.environ.get("SAMPLE_DATA", "1") != "
 
 
 # ---- session ------------------------------------------------------------------
-_KEY = secrets.token_bytes(32)      # per process: a redeploy logs everyone out
-
-
-def admin_password():
-    pw = os.environ.get("ADMIN_PASSWORD")
-    if not pw and os.path.exists(PW_FILE):
-        pw = open(PW_FILE, encoding="utf-8").read().strip()
-    return pw or None
-
-
 def login_required():
-    return bool(admin_password()) or store.backend() == "postgres"
-
-
-def make_token(hours=12):
-    exp = str(int(time.time()) + hours * 3600).encode()
-    return base64.urlsafe_b64encode(exp + b"." + hmac.new(_KEY, exp, hashlib.sha256).digest()).decode()
-
-
-def check_token(tok):
-    try:
-        raw = base64.urlsafe_b64decode((tok or "").encode())
-        exp, sig = raw.split(b".", 1)
-        return hmac.compare_digest(hmac.new(_KEY, exp, hashlib.sha256).digest(), sig) and int(exp) > time.time()
-    except Exception:
-        return False
+    """Are admin pages closed to people without the Admin role? Always on Spluki;
+    locally only once company sign-in is on (so the preview stays open)."""
+    return store.backend() == "postgres" or entra.active()
 
 
 # ---- request helpers ------------------------------------------------------------
@@ -176,16 +148,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send(code, json.dumps(obj, ensure_ascii=False), "application/json; charset=utf-8", extra)
 
     def authed(self):
-        """Admin: the admin password was entered here, or the person signed in with
-        Microsoft holds the Admin role (Settings > People)."""
+        """Admin: the person signed in with Microsoft holds the Admin role (Settings > People)."""
         if not login_required():
             return True
         return self.admin_via() is not None
 
     def admin_via(self):
-        c = cookies.SimpleCookie(self.headers.get("Cookie") or "")
-        if COOKIE in c and check_token(c[COOKIE].value):
-            return "password"
         u = self.sso_user()
         try:
             if u and entra.role_of(u["email"]) == "admin":
@@ -202,7 +170,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # ---- company sign-in (entra.py) ----
     # Outside sign-in: Spluki's health check, the sign-in flow itself, the Zendesk
     # sidebar's two endpoints (an agent's browser, no cookie; their own origin
-    # check), the admin password login (the way in if Entra is down) and the
+    # check), the retired /login (it only says so) and the
     # static styles, scripts and icon.
     OPEN_PATHS = ("/health", "/login", "/logout", "/api/sidebar/review", "/api/sidebar/replylab", "/splashtop-icon.png",
                   "/splashtop-logo-white.png", "/splashtop-icon-white.png",
@@ -219,15 +187,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception:
             return None
 
-    def _admin_cookie(self):
-        c = self._jar()
-        return bool(admin_password()) and COOKIE in c and check_token(c[COOKIE].value)
-
     def signin_gate(self, path):
         """True when the request was answered with "sign in first"."""
         if path in self.OPEN_PATHS or path.startswith("/auth/") or path.startswith("/d/") or re.fullmatch(r"/[\w.-]+\.(?:css|js)", path):
             return False
-        if not entra.active() or self.sso_user() or self._admin_cookie():
+        if not entra.active() or self.sso_user():
             return False
         if path.startswith("/api/") or self.command == "POST":
             self.json({"error": "Signed out -- sign in again.", "signin": "/auth/login"}, 401, [("X-Centre-Signin", "1")])
@@ -333,7 +297,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
             if u.path == "/api/session":
                 return self.json({"required": login_required(), "authed": self.authed(),
-                                  "configured": bool(admin_password()), "user": self.sso_user(), "admin_via": self.admin_via(),
+                                  "configured": True, "user": self.sso_user(), "admin_via": self.admin_via(),
                                   "sso": {"on": entra.active(), "configured": entra.configured()}})
             if u.path in ADMIN_GET and not self.authed():
                 return self.json({"error": "login required"}, 401)
@@ -787,17 +751,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             sys.stderr.write("[sidebar] reply lab #%s %s ms\n" % (out.get("ticket_id"), out.get("ms")))
             return self.json(out, 200, cors)
         if u.path == "/login":
-            try:
-                given = (json.loads(raw or b"{}").get("password") or "")
-            except ValueError:
-                given = ""
-            pw = admin_password()
-            if pw and hmac.compare_digest(given.encode("utf-8"), pw.encode("utf-8")):
-                return self.json({"ok": True}, 200, [("Set-Cookie", "%s=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200%s"
-                                                      % (COOKIE, make_token(), "; Secure" if store.backend() == "postgres" else ""))])
-            time.sleep(0.6)                      # blunt brute force a little
-            return self.json({"ok": False, "error": "Wrong password." if pw else
-                              "No ADMIN_PASSWORD is set for this app yet."}, 401)
+            # The admin password is retired: admins are the Admin role (Settings > People).
+            return self.json({"ok": False, "error": "The admin password has been retired. Admins are set in Settings > People."}, 410)
         if u.path == "/logout":
             return self.json({"ok": True}, 200, [("Set-Cookie", "%s=; Path=/; Max-Age=0" % COOKIE)])
         if (u.path in ADMIN_POST or u.path.startswith("/api/replylab")) and not self.authed():
@@ -1131,7 +1086,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 def _downloads_post(self, u, n):
     import downloads
     if not self.authed():
-        return self.json({"error": "Adding or changing downloads needs the admin password."}, 401)
+        return self.json({"error": "Adding or changing downloads is for admins."}, 401)
     if n > downloads.MAX_UPLOAD:
         return self.json({"error": "That file is too large (limit %d MB)." % (downloads.MAX_UPLOAD // 1048576)}, 413)
     raw = self.rfile.read(n) if n else b""

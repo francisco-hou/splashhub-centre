@@ -10,8 +10,8 @@ how SplashHub Centre works.
 GUIDE = {
     "overview": """SplashHub Centre is the Splashtop support team's web app on Spluki, next to SplashHub (the Zendesk
 sidebar app). Pages in the left menu: SOS Scans, SSO Requests, PO Requests, Customers, PriceBook, Knowledge Base, AI -- and, for an admin, Logs and Settings
-(under an "Admin" heading). Top right: "Splashtop Support" with the role under it -- Member for everybody, Admin once the
-admin password is entered (its menu: Admin login / Log out; SSO sign-in with real names comes later). The left menu
+(under an "Admin" heading). Everyone signs in with their Splashtop Microsoft account (company sign-in); top right shows
+their name with the role under it -- Member, or Admin (set in Settings > People). The menu there has Downloads and Sign out. The left menu
 collapses to icons with the button next to the logo. SplashHub Centre only READS Zendesk, with one exception: adding an
 internal note (see "internal notes"). It is reachable only inside the company network.""",
 
@@ -137,9 +137,9 @@ Export CSV.""",
 - Spark: the model, Test speed, and "Let the model think first" (slower; off by default).
 - Price feed: where the PriceBook reads its prices.""",
 
-    "admin": """Admin: Logs and Settings need the admin password (ADMIN_PASSWORD, set on Spluki). Log in from the top
-right menu > Admin login; Logs and Settings then appear in the left menu under AI. Log out from the same menu. Everything
-else is open to the team.""",
+    "admin": """Admin: Logs, Settings, managing Downloads and the People list are for people with the Admin role. An admin
+sets roles in Settings > People (Member or Admin; it applies at once). There is no admin password. Everything else is
+open to everyone signed in.""",
 }
 
 
