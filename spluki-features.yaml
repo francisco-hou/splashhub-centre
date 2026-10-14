@@ -1,0 +1,20 @@
+version: 1
+features:
+  - id: sos_review
+    name: SOS package review
+    description: Review a Custom SOS package request for brand impersonation (AI review), from SOS Scans or the Zendesk sidebar.
+  - id: internal_note
+    name: Internal note
+    description: Add a review or an SSO check result to its Zendesk ticket as an internal (agent-only) note.
+  - id: sso_check
+    name: SSO DNS check
+    description: Look up a customer's DNS TXT record to see whether their SSO validation record has been added.
+  - id: ai_question
+    name: AI question
+    description: Ask the AI (Spark) about cases, SOS and SSO requests, plans and prices.
+  - id: reply_draft
+    name: Reply Lab draft
+    description: Draft a reply to a ticket from the team's templates and similar solved cases.
+  - id: price_quote
+    name: PriceBook quote
+    description: Look up Splashtop list prices and build a plan quote.

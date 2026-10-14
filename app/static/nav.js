@@ -1,3 +1,22 @@
+/* Company sign-in (entra.py): when a session runs out, any call to the server
+   answers 401 with X-Centre-Signin. Every page's own fetches pass through here
+   first, so it takes the browser to sign in and back to this exact page (its
+   #part too) -- instead of each page showing an error. */
+(function () {
+  if (!window.fetch || window.__centreSignin) return;
+  window.__centreSignin = true;
+  var real = window.fetch, going = false;
+  window.fetch = function () {
+    return real.apply(this, arguments).then(function (r) {
+      if (r.status === 401 && r.headers.get('X-Centre-Signin') && !going) {
+        going = true;
+        location.href = '/auth/login?next=' + encodeURIComponent(location.pathname + location.search + location.hash);
+      }
+      return r;
+    });
+  };
+})();
+
 /* The left menu (same look as SplashHub's dashboard in Zendesk): collapses to
    an icon rail with the button by the logo, remembered per browser, and
    always a rail on narrow windows. */
@@ -58,7 +77,10 @@
           '<button type="submit" class="btn btn-primary btn-sm">Log in</button>' +
           '<div class="tb-err" id="adminErr" aria-live="polite"></div>' +
         '</form>' +
+        '<a class="tb-item" id="ssoTest" role="menuitem" href="/auth/login" hidden>' + SV(I.key) + 'Test company sign-in</a>' +
+        '<button type="button" class="tb-item" id="ssoToggle" role="menuitem" hidden>' + SV(I.lock) + '<span>Company sign-in</span></button>' +
         '<button type="button" class="tb-item" id="signOut" role="menuitem" hidden>' + SV(I.out) + 'Log out</button>' +
+        '<a class="tb-item" id="ssoOut" role="menuitem" href="/auth/logout" hidden>' + SV(I.out) + 'Sign out</a>' +
       '</div>' +
     '</div>';
   var nav = document.getElementById('snav');
@@ -109,6 +131,33 @@
     var h = document.querySelector('.snav-adm-h'); if (h) h.hidden = !(admin || !s.required);
     document.getElementById('adminIn').hidden = admin || !s.required;
     document.getElementById('signOut').hidden = !admin;
+
+    // Company sign-in: the signed-in person's name, and Sign out.
+    var sso = s.sso || {}, me = s.user;
+    if (me) {
+      bar.querySelector('.tb-name').textContent = me.name || me.email;
+      bar.querySelector('.tb-who b').textContent = me.name || me.email;
+      document.getElementById('userSub').textContent = me.email + (admin ? ' · admin password entered' : '');
+      document.getElementById('ssoOut').hidden = false;
+      if (admin) document.getElementById('signOut').lastChild.textContent = 'Leave admin';
+    }
+    // Admins: try it, then switch it on or off for everyone.
+    if (admin && sso.configured) {
+      var test = document.getElementById('ssoTest'), tog = document.getElementById('ssoToggle');
+      test.href = '/auth/login?next=' + encodeURIComponent(location.pathname + location.search + location.hash);
+      test.hidden = !!me;
+      tog.hidden = false;
+      tog.querySelector('span').textContent = sso.on ? 'Company sign-in: On — turn off' : 'Company sign-in: Off — turn on';
+      tog.addEventListener('click', function () {
+        var on = !sso.on;
+        if (!confirm(on ? 'Turn on company sign-in?\n\nEveryone will need to sign in with their Splashtop Microsoft account to use SplashHub Centre. The Zendesk sidebar (Scan SOS package, Reply Lab) keeps working as it is.'
+                        : 'Turn off company sign-in?\n\nSplashHub Centre goes back to being open on the company network.')) return;
+        fetch('/api/sso-login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ on: on }) })
+          .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); location.reload(); }); })
+          .catch(function (e) { alert(e.message); });
+      });
+    }
   }).catch(function () {});
 })();
 

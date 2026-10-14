@@ -37,6 +37,7 @@ import store
 import feed
 import imagestore
 import sosdash
+import entra
 import sosscan
 import ssocheck
 import zendesk
@@ -48,9 +49,9 @@ PW_FILE = os.path.join(APP, "admin_password.txt")
 COOKIE = "shcadmin"
 # What needs the admin session: the Logs page's data and the Settings page's.
 # Everything else (SOS Scans, SSO Requests, PriceBook, AI) is open to the team.
-ADMIN_GET = {"/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases",
+ADMIN_GET = {"/api/sso-login", "/api/meta", "/api/summary", "/api/runs", "/api/runs.csv", "/api/settings", "/api/import-past", "/api/cases",
              "/api/kb", "/api/po", "/api/notify", "/api/teams-ask", "/api/overview", "/api/spark-log", "/api/stats"}
-ADMIN_POST = {"/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
+ADMIN_POST = {"/api/sso-login", "/api/import-past", "/api/import-past/stop", "/api/settings", "/api/ai-review", "/api/spark/test",
               "/api/cases/download", "/api/cases/stop", "/api/cases/update", "/api/kb/sync", "/api/kb/stop", "/api/po/import", "/api/po/update", "/api/po/stop", "/api/notify",
               "/api/notify/test", "/api/notify/run", "/api/notify/languages", "/api/teams-ask", "/api/teams-ask/key", "/api/theme",
               "/api/autotag/settings", "/api/autotag/run", "/api/adfilter/settings", "/api/adfilter/run", "/api/stats/run"}
@@ -180,6 +181,56 @@ class Handler(http.server.BaseHTTPRequestHandler):
         c = cookies.SimpleCookie(self.headers.get("Cookie") or "")
         return COOKIE in c and check_token(c[COOKIE].value)
 
+    # ---- company sign-in (entra.py) ----
+    # Outside sign-in: Spluki's health check, the sign-in flow itself, the Zendesk
+    # sidebar's two endpoints (an agent's browser, no cookie; their own origin
+    # check), the admin password login (the way in if Entra is down) and the
+    # static styles, scripts and icon.
+    OPEN_PATHS = ("/health", "/login", "/logout", "/api/sidebar/review", "/api/sidebar/replylab", "/splashtop-icon.png")
+
+    def _jar(self):
+        return cookies.SimpleCookie(self.headers.get("Cookie") or "")
+
+    def sso_user(self):
+        try:
+            return entra.user_from(self._jar())
+        except Exception:
+            return None
+
+    def _admin_cookie(self):
+        c = self._jar()
+        return bool(admin_password()) and COOKIE in c and check_token(c[COOKIE].value)
+
+    def signin_gate(self, path):
+        """True when the request was answered with "sign in first"."""
+        if path in self.OPEN_PATHS or path.startswith("/auth/") or re.fullmatch(r"/[\w.-]+\.(?:css|js)", path):
+            return False
+        if not entra.active() or self.sso_user() or self._admin_cookie():
+            return False
+        if path.startswith("/api/") or self.command == "POST":
+            self.json({"error": "Signed out -- sign in again.", "signin": "/auth/login"}, 401, [("X-Centre-Signin", "1")])
+        else:
+            self._send(200, entra.bounce_page(), "text/html; charset=utf-8")
+        return True
+
+    def auth_route(self, u, qs):
+        one = lambda k: (qs.get(k) or [""])[0]
+        html = "text/html; charset=utf-8"
+        try:
+            if u.path == "/auth/login":
+                loc, cks = entra.start(one("next") or "/")
+                return self._send(302, "", "text/plain; charset=utf-8", [("Location", loc)] + cks)
+            if u.path == entra.REDIRECT_PATH:
+                user, nxt, cks = entra.finish({k: one(k) for k in ("code", "state", "error", "error_description")}, self._jar())
+                sys.stderr.write("[sign-in] %s signed in\n" % user["email"])
+                return self._send(302, "", "text/plain; charset=utf-8", [("Location", entra.safe_next(nxt))] + cks)
+            if u.path == "/auth/logout":
+                return self._send(200, entra.signed_out_page(), html, entra.sign_out(self.sso_user()))
+        except entra.SignInError as e:
+            sys.stderr.write("[sign-in] %s\n" % e)
+            return self._send(400, entra.error_page(str(e)), html)
+        return self._send(404, "Not found", "text/plain; charset=utf-8")
+
     def static(self, name, ctype):
         path = os.path.join(STATIC, name)
         with open(path, "rb") as fh:
@@ -192,6 +243,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             if u.path == "/health":
                 return self._send(200, "ok", "text/plain; charset=utf-8")
+            if u.path.startswith("/auth/"):
+                return self.auth_route(u, qs)
+            if self.signin_gate(u.path):
+                return
             if u.path in ("/", "/index.html"):
                 return self._send(302, "", "text/plain; charset=utf-8", [("Location", "/scans")])
             if u.path in ("/logs", "/logs.html"):
@@ -240,12 +295,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
             if u.path == "/api/session":
                 return self.json({"required": login_required(), "authed": self.authed(),
-                                  "configured": bool(admin_password())})
+                                  "configured": bool(admin_password()), "user": self.sso_user(),
+                                  "sso": {"on": entra.active(), "configured": entra.configured()}})
             if u.path in ADMIN_GET and not self.authed():
                 return self.json({"error": "login required"}, 401)
             if u.path.startswith("/api/replylab") and not self.authed():     # Reply Lab reads any ticket: signed in only
                 return self.json({"error": "login required"}, 401)
 
+            if u.path == "/api/sso-login":
+                # Admin: the company sign-in switch and what it still needs.
+                return self.json({"on": entra.active(), "configured": entra.configured(), "missing": entra.missing(),
+                                  "redirect_uri": entra.redirect_uri(), "tenant": entra.TENANT_ID, "user": self.sso_user()})
             if u.path == "/api/meta":
                 fac = store.facets()
                 return self.json({"tools": [{"key": k, "label": l} for k, l in store.TOOLS],
@@ -625,6 +685,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # 64 KB is plenty for every form here; the Price Book's cached prices are the one bigger save.
         raw = self.rfile.read(min(n, (2 * 1024 * 1024) if u.path == "/api/pricebook/store" else
                                   (256 * 1024) if u.path == "/api/sidebar/replylab" else 64 * 1024)) if n else b""   # a long ticket's conversation
+        if self.signin_gate(u.path):
+            return
         if u.path == "/api/sidebar/review":
             # SplashHub's sidebar: the review made here for a ticket, or one
             # started now -- never a second AI call. It calls from the agent's
@@ -693,6 +755,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.json({"ok": True}, 200, [("Set-Cookie", "%s=; Path=/; Max-Age=0" % COOKIE)])
         if (u.path in ADMIN_POST or u.path.startswith("/api/replylab")) and not self.authed():
             return self.json({"error": "login required"}, 401)
+        if u.path == "/api/sso-login":
+            # Admin: turn company sign-in on or off. On only once this admin has
+            # signed in with Microsoft here -- proof the registration works, so
+            # turning it on can't lock everyone out.
+            try:
+                on = bool(json.loads(raw or b"{}").get("on"))
+            except ValueError:
+                return self.json({"error": "bad request"}, 400)
+            if on and not entra.configured():
+                return self.json({"error": "Company sign-in isn't set up yet (missing: %s)." % ", ".join(entra.missing())}, 400)
+            me = self.sso_user()
+            if on and not me:
+                return self.json({"error": "Sign in with Microsoft once first (Test company sign-in), so we know it works."}, 400)
+            store.set_setting("sso_login", "on" if on else "off", (me or {}).get("email") or "Centre admin")
+            sys.stderr.write("[sign-in] company sign-in switched %s by %s\n" % ("on" if on else "off", (me or {}).get("email") or "an admin"))
+            return self.json({"ok": True, "on": entra.active()})
         if u.path == "/api/import-past/stop":
             return self.json({"ok": sosscan.stop_job("import")})
         if u.path == "/api/import-past":

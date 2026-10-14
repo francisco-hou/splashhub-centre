@@ -36,6 +36,12 @@ secrets:
   ADMIN_PASSWORD:
     name: ADMIN_PASSWORD
     required: true
+  # Company sign-in (app/entra.py): the Entra app registration's client secret, from IT.
+  # Not required: sign-in stays off until it is set AND an admin turns it on from the
+  # top bar's menu. The tenant and client ID are not secrets; they are in entra.py.
+  ENTRA_CLIENT_SECRET:
+    name: ENTRA_CLIENT_SECRET
+    required: false
   # Shared with SplashHub (its secure "Run log secret" setting): every post to the
   # webhook must carry it in X-SplashHub-Key, or the run is discarded.
   RUNLOG_SECRET:
