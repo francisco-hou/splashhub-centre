@@ -223,7 +223,6 @@
     $('model').classList.toggle('on', !!S.model);
     $('clearFilters').hidden = !(S.tool || S.agent || S.model || S.q);
     $('dayTitle').textContent = S.measure === 'cost' ? 'Estimated cost per day' : 'Runs per day';
-    $('toolTitle').textContent = S.measure === 'cost' ? 'Cost by tool' : 'Runs by tool';
   }
   $('period').addEventListener('click', function (ev) {
     var b = ev.target.closest('[data-days]'); if (!b) return;
@@ -393,7 +392,7 @@
   // ---- by tool: horizontal bars, value at the tip; a row filters to it -------------
   function drawTools() {
     var box = $('toolChart');
-    if (!SUM) return;
+    if (!SUM || !box) return;                    // the tool cards above show runs per tool now
     var cost = S.measure === 'cost';
     var rows = SUM.by_tool.filter(function (t) { return t.runs > 0; })
       .sort(function (a, b) { return (cost ? b.cost - a.cost : b.runs - a.runs) || a.label.localeCompare(b.label); });
@@ -410,7 +409,7 @@
         '<span class="tb-val">' + esc(cost ? usdShort(t.cost) : int(t.runs)) + '</span></span></button>';
     }).join('');
   }
-  $('toolChart').addEventListener('click', function (ev) {
+  if ($('toolChart')) $('toolChart').addEventListener('click', function (ev) {
     var b = ev.target.closest('[data-tool]'); if (!b) return;
     var k = b.getAttribute('data-tool');
     S.tool = S.tool === k ? '' : k; refilter();
