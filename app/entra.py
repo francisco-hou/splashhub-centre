@@ -397,24 +397,25 @@ body{margin:0;font:14px/1.55 Poppins,system-ui,-apple-system,Segoe UI,sans-serif
 .sweep{position:absolute;top:0;bottom:0;left:0;width:35%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.09),transparent);
  animation:sweep 7s ease-in-out infinite}
 @keyframes sweep{0%{transform:translateX(-120%)}60%,100%{transform:translateX(320%)}}
-.logo{position:relative;height:30px;width:auto;align-self:flex-start}
+.logo{position:relative;display:flex;align-items:center;gap:12px;align-self:flex-start;font-size:20px;font-weight:600;letter-spacing:-.01em}
+.logo img{width:34px;height:34px;display:block}
+.logo .sub{font-weight:400;opacity:.82}
 .pitch{position:relative;max-width:460px;animation:up .7s ease both}
-.pitch h1{font-size:28px;line-height:1.2;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
-.pitch p{margin:0;font-size:15px;opacity:.88}
+.pitch p{margin:0;font-size:19px;font-weight:500;line-height:1.35;opacity:.92;max-width:360px}
 .stage{position:relative;flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:28px 0;animation:up .8s ease .1s both}
 .win{position:relative;width:min(500px,100%);height:270px;border-radius:14px;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.26);
  box-shadow:0 24px 60px rgba(0,30,70,.25);padding:30px 14px 14px;animation:float 7s ease-in-out infinite}
 .win:before{content:"";position:absolute;left:14px;top:12px;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.45);
  box-shadow:13px 0 rgba(255,255,255,.45),26px 0 rgba(255,255,255,.45)}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-.sl{position:absolute;left:14px;right:14px;top:30px;bottom:14px;opacity:0;animation:cyc 20s ease-in-out infinite}
-.cap{position:absolute;left:0;right:0;top:0;opacity:0;animation:cyc 20s ease-in-out infinite;text-align:center}
-.s2{animation-delay:5s}.s3{animation-delay:10s}.s4{animation-delay:15s}
-@keyframes cyc{0%{opacity:0;transform:translateY(8px)}4%,21%{opacity:1;transform:none}25%,100%{opacity:0;transform:translateY(-6px)}}
+.sl{position:absolute;left:14px;right:14px;top:30px;bottom:14px;opacity:0;animation:cyc 25s ease-in-out infinite}
+.cap{position:absolute;left:0;right:0;top:0;opacity:0;animation:cyc 25s ease-in-out infinite;text-align:center}
+.s2{animation-delay:5s}.s3{animation-delay:10s}.s4{animation-delay:15s}.s5{animation-delay:20s}
+@keyframes cyc{0%{opacity:0;transform:translateY(8px)}3%,17%{opacity:1;transform:none}20%,100%{opacity:0;transform:translateY(-6px)}}
 .caps{position:relative;width:min(500px,100%);height:52px;margin-top:22px}
 .cap b{display:block;font-size:15px;font-weight:600}.cap span{font-size:13px;opacity:.85}
-.dots{display:flex;gap:7px;margin-top:10px}.dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.35);animation:dot 20s infinite}
-@keyframes dot{0%,22%{background:#fff;transform:scale(1.15)}25%,100%{background:rgba(255,255,255,.35);transform:none}}
+.dots{display:flex;gap:7px;margin-top:10px}.dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.35);animation:dot 25s infinite}
+@keyframes dot{0%,18%{background:#fff;transform:scale(1.15)}20%,100%{background:rgba(255,255,255,.35);transform:none}}
 .mc{background:#fff;color:#1D242C;border-radius:9px;padding:10px;height:100%;display:flex;flex-direction:column;gap:7px;font-size:11px}
 .mt{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .mt div{border:1px solid #e6edf4;border-radius:7px;padding:6px 7px;font-size:16px;font-weight:600;color:#0071CE;line-height:1.1}
@@ -429,7 +430,10 @@ body{margin:0;font:14px/1.55 Poppins,system-ui,-apple-system,Segoe UI,sans-serif
 .ch{display:flex;gap:5px}.ch i{font-style:normal;font-size:9.5px;color:#0071CE;background:#eaf4fd;border-radius:999px;padding:1px 7px}
 .qr{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid #f0f3f7}
 @media (max-width:1100px){.win{height:230px}}
-.side{display:flex;flex-direction:column;padding:40px 56px}
+.side{display:flex;flex-direction:column;padding:28px 56px 40px}
+.sidetop{display:flex;justify-content:flex-end}
+.dl{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:500;color:#3d4650;text-decoration:none;border:1px solid #dce5ef;border-radius:8px;padding:7px 12px;transition:border-color .2s,color .2s,background .2s}
+.dl:hover{border-color:#0071CE;color:#0071CE;background:#f5f9fd}
 .form{margin:auto 0;width:100%;max-width:360px;animation:up .6s ease .15s both}
 .form h2{font-size:24px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
 .form .lead{color:#5b6672;margin:0 0 26px}
@@ -450,10 +454,9 @@ details{margin-top:18px;font-size:13px;color:#5b6672}summary{cursor:pointer}
 details input{width:100%;padding:9px 11px;border:1px solid #c9d3de;border-radius:8px;font:inherit;margin:10px 0 8px}
 details button{background:#0071CE;color:#fff;border:0;border-radius:8px;padding:9px 16px;font:500 13px Poppins,system-ui,sans-serif;cursor:pointer}
 .pwerr{color:#b42318;min-height:1.2em;font-size:12.5px}
-.foot{display:flex;justify-content:space-between;font-size:12px;color:#8a96a3}
+.foot{display:flex;justify-content:space-between;font-size:12px;color:#8a96a3;margin-top:32px}
 @keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-@media (max-width:820px){.wrap{grid-template-columns:1fr}.brand{padding:24px;min-height:auto}.stage{display:none}.pitch{margin-top:24px}
- .pitch h1{font-size:24px}.side{padding:32px 24px}.form{margin:0 auto}}
+@media (max-width:820px){.wrap{grid-template-columns:1fr}.brand{padding:24px;min-height:auto}.stage{display:none}.pitch{margin-top:24px}.side{padding:32px 24px}.form{margin:0 auto}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.s1{opacity:1}
  .dots i:first-child{background:#fff}}
 """
@@ -477,10 +480,6 @@ _TOOLS = (
      '<div style="display:flex;gap:8px;align-items:center;margin-top:auto;padding-top:6px;border-top:1px solid #f0f3f7">'
      '<span style="color:#0071CE;font-weight:600">SSO</span><span>northwind.com &middot; TXT record found</span>'
      '<i class="pl" style="background:#00B74F;margin-left:auto">Enabled</i></div></div>'),
-    ("AI and Reply Lab", "Similar cases, fixes and reply drafts with Spark",
-     '<div class="mc" style="justify-content:center"><div class="bu me">Any cases similar to #905112?</div>'
-     '<div class="bu ai">4 similar cases this month. Most were fixed by updating the Streamer and the display driver.</div>'
-     '<div class="ch"><i>#904871</i><i>#904902</i><i>#905011</i></div></div>'),
     ("PriceBook and POs", "List prices, quotes and purchase orders",
      '<div class="mc"><b style="font-size:12px">Option 1 &middot; Remote Support</b>'
      '<div class="qr"><span>Technician licences &times; 3</span><span class="ln" style="width:54px;margin-top:3px"></span></div>'
@@ -489,6 +488,21 @@ _TOOLS = (
      '<div style="margin-top:auto;display:flex;gap:8px;align-items:center;padding-top:6px;border-top:1px solid #f0f3f7">'
      '<span style="color:#0071CE;font-weight:600">PO</span><span>Order received &middot; provisioning</span>'
      '<i class="pl" style="background:#3091ec;margin-left:auto">Open</i></div></div>'),
+    ("AutoTag", "The language of every new ticket, read by Spark",
+     '<div class="mc"><div style="display:flex;align-items:center;gap:8px"><b style="font-size:12px">New tickets</b>'
+     '<i class="pl" style="background:#eaf4fd;color:#0071CE;margin-left:auto">Spark</i></div>'
+     '<div class="mr"><b>#905140</b><span>リモート接続ができません</span><i class="pl" style="background:#7c5cd6">Japanese</i></div>'
+     '<div class="mr"><b>#905141</b><span>Lizenz verl&auml;ngern f&uuml;r 12 Benutzer</span><i class="pl" style="background:#0f9d8a">German</i></div>'
+     '<div class="mr"><b>#905142</b><span>&Eacute;cran noir apr&egrave;s la mise &agrave; jour</span><i class="pl" style="background:#d9822b">French</i></div>'
+     '<div class="mr"><b>#905143</b><span>No puedo transferir archivos</span><i class="pl" style="background:#c2410c">Spanish</i></div></div>'),
+    ("Jira", "Your CUS issues and the tickets linked to them",
+     '<div class="mc"><div style="display:flex;align-items:center;gap:8px"><b style="font-size:12px">My Jiras</b>'
+     '<span style="color:#8a96a3">CUS</span><span style="margin-left:auto;color:#8a96a3">3 reported</span></div>'
+     '<div class="mr"><b>CUS-2481</b><span>Black screen on macOS 15 after update</span><i class="pl" style="background:#3091ec">In progress</i></div>'
+     '<div class="mr"><b>CUS-2466</b><span>File transfer stops at 99%</span><i class="pl" style="background:#87929d">To do</i></div>'
+     '<div class="mr"><b>CUS-2410</b><span>Audio drops in long sessions</span><i class="pl" style="background:#00B74F">Done</i></div>'
+     '<div style="display:flex;gap:6px;align-items:center;margin-top:auto;padding-top:6px;border-top:1px solid #f0f3f7">'
+     '<span style="color:#8a96a3">Linked tickets</span><span class="ch"><i>#905112</i><i>#904871</i></span></div></div>'),
 )
 
 
@@ -505,12 +519,13 @@ def page(title, side):
             "<link href=\"https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap\" rel=\"stylesheet\">"
             "<style>%s</style></head><body><div class=\"wrap\">"
             "<section class=\"brand\"><div class=\"grid\"></div><div class=\"sweep\"></div>"
-            "<img class=\"logo\" src=\"/splashtop-logo-white.png\" alt=\"Splashtop\" width=\"148\" height=\"30\">"
+            "<div class=\"logo\"><img src=\"/splashtop-icon-white.png\" alt=\"\" width=\"34\" height=\"34\"><span>SplashHub <span class=\"sub\">Centre</span></span></div>"
             "<div class=\"stage\" aria-hidden=\"true\"><div class=\"win\">%s</div><div class=\"caps\">%s</div><div class=\"dots\">%s</div></div>"
-            "<div class=\"pitch\"><h1>SplashHub Centre</h1><p>The Splashtop support team&rsquo;s workspace.</p></div></section>"
-            "<main class=\"side\"><div class=\"form\">%s</div>"
+            "<div class=\"pitch\"><p>The Splashtop support team&rsquo;s workspace.</p></div></section>"
+            "<main class=\"side\"><div class=\"sidetop\"><a class=\"dl\" href=\"/downloads\">%sDownloads</a></div>"
+            "<div class=\"form\">%s</div>"
             "<div class=\"foot\"><span>&copy; Splashtop Inc.</span><span>Internal use only</span></div></main>"
-            "</div></body></html>" % (_esc(title), _CSS, slides, caps, dots, side))
+            "</div></body></html>" % (_esc(title), _CSS, slides, caps, dots, _DL_ICON, side))
 
 
 def _ms_button(label="Continue with Microsoft"):
@@ -525,14 +540,10 @@ def _ms_button(label="Continue with Microsoft"):
             % (_MS, label, _LOCK_ICON, json.dumps(label)))
 
 
-def _downloads_link():
-    return "<div class=\"alt\">Looking for the team&rsquo;s extensions? <a href=\"/downloads\">%sDownloads</a></div>" % _DL_ICON
-
-
 def bounce_page():
     """What a signed-out visitor sees instead of a page: the sign-in landing."""
     return page("Sign in", "<h2>Welcome back</h2><p class=\"lead\">Sign in with your Splashtop work account.</p>"
-                + _ms_button() + _downloads_link())
+                + _ms_button())
 
 
 def error_page(msg):
@@ -540,9 +551,9 @@ def error_page(msg):
                 "<h2>Couldn&rsquo;t sign you in</h2><div class=\"err\">%s</div>" % _esc(msg)
                 + _ms_button("Try again with Microsoft")
                 + "<p class=\"lead\" style=\"margin:18px 0 0;font-size:13px\">If it keeps happening, tell a SplashHub Centre admin.</p>"
-                + _downloads_link())
+               )
 
 
 def signed_out_page():
     return page("Signed out", "<h2>You&rsquo;re signed out</h2><p class=\"lead\">Your Microsoft account stays signed in for Outlook, "
-                "Teams and the rest.</p>" + _ms_button("Sign in again") + _downloads_link())
+                "Teams and the rest.</p>" + _ms_button("Sign in again"))

@@ -1459,3 +1459,23 @@ tr.lg-day td { background: #f7f9fb; font-size: 12.5px; padding: 7px 12px; border
 .md-soon p { margin: 0; color: #8a96a3; font-size: 13px; }
 @media (max-width: 1100px) { .md-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .md-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .md-grid { grid-template-columns: 1fr; } .md-row { grid-template-columns: 64px minmax(0, 1fr) auto; } .md-age { display: none; } }
+
+/* Left menu groups: Requests, Reference headings and the collapsible Labs */
+.snav-h { font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #98a3ae; padding: 14px 18px 4px; }
+.nav-mini .snav-h { font-size: 0; padding: 6px 0; margin: 6px 14px 0; border-top: 1px solid #eef0f3; }
+.snav-grp { margin-top: 6px; }
+.snav-grp .snav-caret { margin-left: 6px; color: #8a96a3; transition: transform .2s ease; flex: none; }
+.snav-grp .snav-beta { margin-left: auto; }
+.snav-grp.open .snav-caret { transform: rotate(180deg); }
+.snav-grp.here { color: #0071ce; }
+.snav-sub:not([hidden]) { animation: shcIn .2s ease both; }
+.snav-lab { padding-left: 38px; font-size: 13px; }
+.nav-mini .snav-grp .snav-caret { display: none; }
+.nav-mini .snav-lab { padding-left: 0; }
+@media (prefers-reduced-motion: reduce) { .snav-sub:not([hidden]) { animation: none; } }
+.snav-in { padding-left: 38px; font-size: 13px; }
+.nav-mini .snav-in { padding-left: 0; }
+.snav-grp[hidden] { display: none; }
+.snav-grp.snav-adm-h { font-size: 13.5px; font-weight: 400; letter-spacing: 0; text-transform: none; color: #3d4650; padding: 10px 16px 10px 15px; margin: 0; border-top: 0; }
+.nav-mini .snav-grp.snav-adm-h { font-size: 13.5px; padding: 11px 0; margin: 0; }
+.snav-grp.here { color: #0071ce; }

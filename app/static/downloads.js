@@ -20,12 +20,10 @@
   function link(v) { return '/d/' + v.vid + '/' + encodeURIComponent(v.file); }
 
   function draw() {
-    var q = ($('q').value || '').toLowerCase().trim();
-    var rows = ITEMS.filter(function (x) { return !q || (x.name + ' ' + x.description).toLowerCase().indexOf(q) >= 0; });
+    var rows = ITEMS;
     $('addBtn').hidden = !CAN;
     if (!rows.length) {
-      $('list').innerHTML = '<div class="empty">' + (ITEMS.length ? 'Nothing matches &ldquo;' + esc(q) + '&rdquo;.' :
-        'No extensions here yet.' + (CAN ? ' Press <b>Add extension</b> to upload the first one.' : '')) + '</div>';
+      $('list').innerHTML = '<div class="empty">No extensions here yet.' + (CAN ? ' Press <b>Add extension</b> to upload the first one.' : '') + '</div>';
       return;
     }
     $('list').innerHTML = rows.map(function (x, i) {
@@ -33,22 +31,21 @@
       var older = vs.slice(1).map(function (v) {
         return '<div class="vrow"><div><b>' + esc(v.version ? 'v' + v.version : '—') + '</b><small>' + esc(when(v.uploaded_at)) + '</small></div>' +
           '<div>' + (v.whats_new ? esc(v.whats_new) : '<span style="color:#8a96a3">First version</span>') + '</div>' +
-          '<a class="btn btn-sm" href="' + link(v) + '">' + ICON.dl + 'Download</a></div>';
+          '<a class="btn btn-sm" href="' + link(v) + '">' + ICON.dl + '</a></div>';
       }).join('');
-      return '<article class="card" style="animation-delay:' + (i * 0.05).toFixed(2) + 's">' +
-        '<div class="ic">' + ICON.puzzle + '</div>' +
-        '<div><div class="nm"><h3>' + esc(x.name) + '</h3>' + (x.version ? '<span class="ver">v' + esc(x.version) + '</span>' : '') + '</div>' +
-          '<p class="desc">' + esc(x.description) + '</p>' +
-          '<div class="meta"><span>Updated ' + esc(when(x.uploaded_at)) + '</span><span>' + esc(size(x.size)) + '</span>' +
-            (x.added_by ? '<span>By ' + esc(x.added_by) + '</span>' : '') + '<span>' + esc(x.file) + '</span></div>' +
-          (x.whats_new ? '<div class="new"><b>What&rsquo;s new:</b> ' + esc(x.whats_new) + '</div>' : '') +
-          (x.permissions && x.permissions.length ? '<div class="perm">' + x.permissions.map(function (p) { return '<span>' + esc(p) + '</span>'; }).join('') + '</div>' : '') +
-          (older ? '<details class="vers"><summary>Earlier versions (' + (vs.length - 1) + ')</summary>' + older + '</details>' : '') +
-        '</div>' +
-        '<div class="acts"><a class="btn btn-primary" href="' + link(vs[0] || x) + '">' + ICON.dl + 'Download</a>' +
-          (CAN ? '<button type="button" class="btn btn-sm" data-upd="' + esc(x.id) + '">New version</button>' +
-                 '<button type="button" class="btn btn-sm btn-danger" data-del="' + esc(x.id) + '">Remove</button>' : '') +
-        '</div></article>';
+      var more = (x.whats_new ? '<div class="new"><b>What&rsquo;s new:</b> ' + esc(x.whats_new) + '</div>' : '') +
+        (older ? '<div style="margin-top:8px"><b style="font-weight:500">Earlier versions</b>' + older + '</div>' : '');
+      return '<article class="tile" style="animation-delay:' + (i * 0.05).toFixed(2) + 's">' +
+        '<div class="tile-top"><div class="ic">' + ICON.puzzle + '</div><div class="tt"><h3>' + esc(x.name) + '</h3>' +
+          (x.version ? '<span class="ver">v' + esc(x.version) + '</span>' : '') + '</div>' +
+          '<a class="dlicon" href="' + link(vs[0] || x) + '" title="Download ' + esc(x.name) + (x.version ? ' v' + esc(x.version) : '') + '" ' +
+          'aria-label="Download ' + esc(x.name) + (x.version ? ' v' + esc(x.version) : '') + '">' + ICON.dl + '</a></div>' +
+        '<p class="sd" title="' + esc(x.description) + '">' + esc(x.description) + '</p>' +
+        '<div class="meta"><span>Updated ' + esc(when(x.uploaded_at)) + '</span><span>' + esc(size(x.size)) + '</span></div>' +
+        (more ? '<details class="more"><summary>What&rsquo;s new and earlier versions</summary>' + more + '</details>' : '') +
+        (CAN ? '<div class="adm"><button type="button" class="btn btn-sm" data-upd="' + esc(x.id) + '">New version</button>' +
+               '<button type="button" class="btn btn-sm btn-danger" data-del="' + esc(x.id) + '">Remove</button></div>' : '') +
+        '</article>';
     }).join('');
   }
 
@@ -99,6 +96,5 @@
         .then(load).catch(function (e) { alert(e.message); });
     }
   });
-  $('q').addEventListener('input', draw);
   load();
 })();

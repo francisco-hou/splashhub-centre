@@ -204,6 +204,7 @@
     [].forEach.call($('period').children, function (b) { b.classList.toggle('active', +b.getAttribute('data-days') === S.days); });
     $('range').hidden = S.days !== -1;
     [].forEach.call($('measure').children, function (b) { b.classList.toggle('active', b.getAttribute('data-m') === S.measure); });
+    $('tool').classList.toggle('on', !!S.tool);
     $('agent').classList.toggle('on', !!S.agent);
     $('model').classList.toggle('on', !!S.model);
     $('clearFilters').hidden = !(S.tool || S.agent || S.model || S.q);
@@ -240,13 +241,10 @@
     clearTimeout(typing);
     typing = setTimeout(function () { if (v !== S.q) { S.q = v; refilter(); } }, 250);
   });
-  $('tools').addEventListener('click', function (ev) {
-    var b = ev.target.closest('[data-tool]'); if (!b) return;
-    S.tool = b.getAttribute('data-tool'); refilter();
-  });
+  $('tool').addEventListener('change', function () { S.tool = this.value; refilter(); });
   $('clearFilters').addEventListener('click', function () {
     S.tool = S.agent = S.model = S.q = '';
-    $('q').value = ''; $('agent').value = ''; $('model').value = '';
+    $('q').value = ''; $('tool').value = ''; $('agent').value = ''; $('model').value = '';
     refilter();
   });
   $('refresh').addEventListener('click', function () { load(); });
@@ -268,21 +266,16 @@
     $('sAgentsSub').title = $('sAgentsSub').textContent;
   }
 
-  // ---- tool chips (counts follow every filter except the tool itself) ---------
+  // ---- the tool filter: a dropdown, busiest tool first, with its runs (counts follow every filter but the tool itself) ----
   function drawChips() {
     var total = SUM.by_tool.reduce(function (a, t) { return a + t.runs; }, 0);
-    var card = function (key, label, runs, cost, share) {
-      return '<button type="button" class="lg-tool' + (S.tool === key ? ' active' : '') + (runs ? '' : ' empty') + '" data-tool="' + esc(key) + '">' +
-        '<span class="lg-tl">' + esc(label) + '</span><span class="lg-tn">' + int(runs) + '</span>' +
-        '<span class="lg-ts">' + (key ? Math.round(share) + '% of runs' : 'runs') + ' · ' + esc(formatUsd(cost)) + '</span>' +
-        '<span class="lg-tbar"><i style="width:' + Math.max(runs ? 2 : 0, Math.round(share)) + '%"></i></span></button>';
-    };
-    var html = card('', 'All tools', total, SUM.by_tool.reduce(function (a, t) { return a + (t.cost || 0); }, 0), 100);
+    var html = '<option value="">All tools (' + int(total) + ')</option>';
     SUM.by_tool.slice().sort(function (a, b) { return b.runs - a.runs; }).forEach(function (t) {
       if (t.key === 'other' && !t.runs && S.tool !== 'other') return;
-      html += card(t.key, t.label, t.runs, t.cost || 0, total ? 100 * t.runs / total : 0);
+      html += '<option value="' + esc(t.key) + '"' + (S.tool === t.key ? ' selected' : '') + '>' + esc(t.label) + ' (' + int(t.runs) + ')</option>';
     });
-    $('tools').innerHTML = html;
+    $('tool').innerHTML = html;
+    $('tool').value = S.tool || '';
   }
 
   // ---- runs / cost per day: one series, columns, hover per column ----------------

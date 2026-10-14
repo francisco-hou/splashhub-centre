@@ -430,3 +430,28 @@
  }
  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();   // the list comes after this script
 })();
+
+/* The two dropdowns at the bottom of the left menu: TestHub (the tools still
+   being tried out: AI, Reply Lab, Ad/Spam Filter) and Admin (admins
+   only). Each is open on one of its own pages, else as last left (per browser). */
+(function () {
+  [['testBtn', 'testGrp'], ['adminBtn', 'adminGrp']].forEach(function (ids) {
+    var btn = document.getElementById(ids[0]), grp = document.getElementById(ids[1]), KEY = 'shcNav.' + ids[1];
+    if (!btn || !grp) return;
+    var here = !!grp.querySelector('.snav-item.active');
+    function show(open) {
+      grp.hidden = !open;
+      btn.setAttribute('aria-expanded', open);
+      btn.classList.toggle('open', open);
+      btn.classList.toggle('here', here && !open);
+    }
+    var kept = false;
+    try { kept = localStorage.getItem(KEY) === '1'; } catch (e) {}
+    show(here || kept);
+    btn.addEventListener('click', function () {
+      var open = grp.hidden;
+      show(open);
+      try { localStorage.setItem(KEY, open ? '1' : '0'); } catch (e) {}
+    });
+  });
+})();
