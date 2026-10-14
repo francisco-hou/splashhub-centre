@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Downloads · SplashHub Centre</title>
+  <link rel="icon" href="splashtop-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root { --blue: #0071CE; --ink: #1D242C; --mute: #5b6672; --mute2: #8a96a3; --line: #e3eaf2; --light: #F2F9FF; }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; font: 14px/1.55 Poppins, system-ui, -apple-system, Segoe UI, sans-serif; color: var(--ink); background: #f7f9fc; }
+    a { color: var(--blue); }
+    .band { position: relative; overflow: hidden; background: var(--blue); color: #fff; }
+    .band .grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px); background-size: 32px 32px; }
+    .band .sweep { position: absolute; top: 0; bottom: 0; left: 0; width: 30%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.09), transparent);
+      animation: sweep 8s ease-in-out infinite; }
+    @keyframes sweep { 0% { transform: translateX(-120%); } 60%, 100% { transform: translateX(420%); } }
+    .band-in { position: relative; max-width: 1040px; margin: 0 auto; padding: 22px 24px 34px; }
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .top img { height: 26px; width: auto; display: block; }
+    .top a { color: #fff; text-decoration: none; font-size: 13px; font-weight: 500; border: 1px solid rgba(255,255,255,.4); border-radius: 8px; padding: 7px 14px; transition: background .2s; }
+    .top a:hover { background: rgba(255,255,255,.12); }
+    .hero { margin-top: 34px; animation: up .6s ease both; }
+    .hero h1 { margin: 0 0 6px; font-size: 30px; font-weight: 600; letter-spacing: -.01em; }
+    .hero p { margin: 0; opacity: .88; max-width: 620px; }
+    main { max-width: 1040px; margin: -18px auto 0; padding: 0 24px 48px; position: relative; }
+    .bar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    .search { flex: 1; min-width: 220px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: #fff; box-shadow: 0 6px 20px rgba(15,30,50,.06); }
+    .search:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(0,113,206,.15); }
+    .btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #c9d3de; background: #fff; color: var(--ink); border-radius: 8px; padding: 9px 14px;
+      font: 500 13px Poppins, system-ui, sans-serif; cursor: pointer; text-decoration: none; transition: border-color .2s, box-shadow .2s, background .2s; }
+    .btn:hover { border-color: var(--blue); }
+    .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .btn-primary:hover { background: #0063b5; }
+    .btn-sm { padding: 6px 10px; font-size: 12px; }
+    .btn-danger { color: #b42318; }
+    .list { display: grid; gap: 14px; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 16px;
+      align-items: start; opacity: 0; animation: up .5s ease forwards; transition: box-shadow .2s, border-color .2s; }
+    .card:hover { border-color: #cfdceb; box-shadow: 0 8px 24px rgba(15,30,50,.06); }
+    .ic { width: 44px; height: 44px; border-radius: 10px; background: var(--light); color: var(--blue); display: flex; align-items: center; justify-content: center; }
+    .nm { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .nm h3 { margin: 0; font-size: 16px; font-weight: 600; }
+    .ver { font-size: 11.5px; font-weight: 500; color: var(--blue); background: var(--light); border-radius: 999px; padding: 2px 9px; }
+    .desc { margin: 4px 0 8px; color: #3d4650; white-space: pre-line; }
+    .meta { font-size: 12px; color: var(--mute2); display: flex; gap: 14px; flex-wrap: wrap; }
+    .new { margin-top: 10px; font-size: 12.5px; background: #f7fafd; border: 1px solid #edf2f7; border-radius: 8px; padding: 8px 10px; white-space: pre-line; color: #3d4650; }
+    .new b { font-weight: 500; color: var(--ink); }
+    .acts { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+    details.vers { margin-top: 10px; font-size: 12.5px; }
+    details.vers summary { cursor: pointer; color: var(--mute); }
+    .vrow { display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; padding: 7px 0; border-top: 1px solid #f0f3f7; align-items: start; }
+    .vrow:first-child { border-top: 0; }
+    .vrow small { color: var(--mute2); display: block; }
+    .perm { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .perm span { font-size: 11px; color: var(--mute); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; }
+    .help { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin-bottom: 16px; }
+    .help summary { cursor: pointer; font-weight: 500; }
+    .help ol { margin: 10px 0 2px; padding-left: 20px; color: #3d4650; }
+    .help code { background: var(--light); color: var(--blue); padding: 1px 6px; border-radius: 5px; font-size: 12.5px; }
+    .empty { text-align: center; color: var(--mute); padding: 48px 16px; background: #fff; border: 1px dashed #d5dfea; border-radius: 12px; }
+    .sheet { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; animation: up .3s ease both; }
+    .sheet h3 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+    .fld { display: grid; gap: 5px; margin-bottom: 12px; font-size: 12.5px; color: var(--mute); }
+    .fld input, .fld textarea { font: inherit; color: var(--ink); padding: 9px 11px; border: 1px solid #c9d3de; border-radius: 8px; background: #fff; }
+    .fld textarea { min-height: 70px; resize: vertical; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .msg { font-size: 13px; min-height: 1.3em; }
+    .msg.err { color: #b42318; }
+    .foot { max-width: 1040px; margin: 0 auto; padding: 0 24px 28px; display: flex; justify-content: space-between; font-size: 12px; color: var(--mute2); }
+    @keyframes up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    @media (max-width: 720px) { .card { grid-template-columns: 1fr; } .ic { display: none; } .acts { flex-direction: row; flex-wrap: wrap; } .row2 { grid-template-columns: 1fr; } .hero h1 { font-size: 24px; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .card { opacity: 1; } }
+  </style>
+</head>
+<body>
+  <header class="band">
+    <div class="grid"></div><div class="sweep"></div>
+    <div class="band-in">
+      <div class="top">
+        <img src="splashtop-logo-white.png" alt="Splashtop" width="128" height="26">
+        <a href="/scans">Open SplashHub Centre</a>
+      </div>
+      <div class="hero">
+        <h1>Downloads</h1>
+        <p>The support team&rsquo;s Chrome extensions and add-ons. Download the latest version, or an earlier one from its history.</p>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="bar">
+      <input class="search" id="q" type="search" placeholder="Search extensions" aria-label="Search extensions">
+      <button type="button" class="btn btn-primary" id="addBtn" hidden>Add extension</button>
+    </div>
+    <div id="sheet"></div>
+    <details class="help">
+      <summary>How to install an extension from a .zip</summary>
+      <ol>
+        <li>Download it and unzip it to a folder you&rsquo;ll keep (Chrome loads it from there).</li>
+        <li>Open <code>chrome://extensions</code> and switch on <b>Developer mode</b> (top right).</li>
+        <li>Press <b>Load unpacked</b> and choose the unzipped folder.</li>
+        <li>To update later: download the new version, unzip it over the same folder, then press the reload icon on the extension&rsquo;s card.</li>
+      </ol>
+    </details>
+    <div class="list" id="list" aria-live="polite"></div>
+  </main>
+  <div class="foot"><span>&copy; Splashtop Inc.</span><span>Internal use only</span></div>
+  <script src="downloads.js?v=1.0.0"></script>
+</body>
+</html>

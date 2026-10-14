@@ -287,46 +287,121 @@ def activity(user, feature, stage, error=None, run=None, detail=None):
     sys.stdout.flush()
 
 
-# ---- the few pages this flow shows itself ---------------------------------------------
+# ---- the pages this flow shows itself (design F: brand panel with a fine grid) ----------
 
-def page(title, body):
-    return ("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-            "<title>%s · SplashHub Centre</title><link rel=\"icon\" href=\"/splashtop-icon.png\"><style>"
-            ":root{color-scheme:light}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;"
-            "background:#f5f8fb;font:15px/1.5 Poppins,system-ui,sans-serif;color:#14171c}"
-            ".c{background:#fff;border:1px solid #dce7f2;border-radius:12px;padding:28px 32px;max-width:420px;margin:16px;"
-            "box-shadow:0 10px 30px rgba(15,20,26,.06)}h1{font-size:18px;margin:10px 0 6px}p{color:#3d4650;margin:0 0 14px}"
-            "a.b,button{display:inline-block;background:#0071ce;color:#fff;border:0;border-radius:8px;padding:9px 16px;"
-            "font:inherit;text-decoration:none;cursor:pointer}small{color:#6b7682}input{width:100%%;box-sizing:border-box;"
-            "padding:8px 10px;border:1px solid #dce7f2;border-radius:8px;font:inherit;margin:6px 0}.e{color:#b42318;min-height:1em}"
-            "</style></head><body><div class=\"c\"><img src=\"/splashtop-icon.png\" alt=\"\" width=\"32\" height=\"32\">%s</div></body></html>"
-            % (title, body))
+_MS = ('<svg width="16" height="16" viewBox="0 0 21 21" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#F25022"/>'
+       '<rect x="11" y="1" width="9" height="9" fill="#7FBA00"/><rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>'
+       '<rect x="11" y="11" width="9" height="9" fill="#FFB900"/></svg>')
+_LOCK_ICON = ('<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+              'stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>')
+_DL_ICON = ('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+            'stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/>'
+            '<line x1="12" y1="15" x2="12" y2="3"/></svg>')
+
+_CSS = """
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;font:14px/1.55 Poppins,system-ui,-apple-system,Segoe UI,sans-serif;color:#1D242C;background:#fff}
+.wrap{display:grid;grid-template-columns:minmax(0,52fr) minmax(0,48fr);min-height:100vh}
+.brand{position:relative;overflow:hidden;background:#0071CE;color:#fff;padding:40px 48px;display:flex;flex-direction:column}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.07) 1px,transparent 1px),
+ linear-gradient(90deg,rgba(255,255,255,.07) 1px,transparent 1px);background-size:32px 32px}
+.sweep{position:absolute;top:0;bottom:0;left:0;width:35%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.09),transparent);
+ animation:sweep 7s ease-in-out infinite}
+@keyframes sweep{0%{transform:translateX(-120%)}60%,100%{transform:translateX(320%)}}
+.logo{position:relative;height:30px;width:auto;align-self:flex-start}
+.pitch{position:relative;margin-top:auto;max-width:440px;animation:up .7s ease both}
+.pitch h1{font-size:30px;line-height:1.2;font-weight:600;margin:0 0 10px;letter-spacing:-.01em}
+.pitch p{margin:0;font-size:15px;opacity:.88}
+.tags{position:relative;display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{font-size:12px;padding:5px 11px;border:1px solid rgba(255,255,255,.35);border-radius:999px;opacity:0;animation:up .6s ease forwards}
+.side{display:flex;flex-direction:column;padding:40px 56px}
+.form{margin:auto 0;width:100%;max-width:360px;animation:up .6s ease .15s both}
+.form h2{font-size:24px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
+.form .lead{color:#5b6672;margin:0 0 26px}
+.ms{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:12px 16px;border:1px solid #c9d3de;border-radius:8px;
+ background:#fff;color:#1D242C;font:500 14px Poppins,system-ui,sans-serif;text-decoration:none;cursor:pointer;transition:border-color .2s,box-shadow .2s,background .2s}
+.ms:hover{border-color:#0071CE;box-shadow:0 0 0 3px rgba(0,113,206,.12)}
+.ms:focus-visible{outline:none;border-color:#0071CE;box-shadow:0 0 0 3px rgba(0,113,206,.25)}
+.ms.busy{pointer-events:none;background:#f5f8fb}
+.spin{width:16px;height:16px;border:2px solid #c9d3de;border-top-color:#0071CE;border-radius:50%;animation:spin .8s linear infinite;display:none}
+.ms.busy .spin{display:block}.ms.busy svg{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.secure{display:flex;align-items:center;gap:7px;color:#6b7682;font-size:12.5px;margin-top:14px}
+.alt{margin-top:28px;padding-top:20px;border-top:1px solid #eef2f6;font-size:13px;color:#5b6672}
+.alt a{color:#0071CE;text-decoration:none;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+.alt a:hover{text-decoration:underline}
+.err{background:#fef3f2;border:1px solid #fecdca;color:#b42318;border-radius:8px;padding:10px 12px;font-size:13px;margin:0 0 20px}
+details{margin-top:18px;font-size:13px;color:#5b6672}summary{cursor:pointer}
+details input{width:100%;padding:9px 11px;border:1px solid #c9d3de;border-radius:8px;font:inherit;margin:10px 0 8px}
+details button{background:#0071CE;color:#fff;border:0;border-radius:8px;padding:9px 16px;font:500 13px Poppins,system-ui,sans-serif;cursor:pointer}
+.pwerr{color:#b42318;min-height:1.2em;font-size:12.5px}
+.foot{display:flex;justify-content:space-between;font-size:12px;color:#8a96a3}
+@keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (max-width:820px){.wrap{grid-template-columns:1fr}.brand{padding:24px;min-height:auto}.pitch{margin-top:36px}
+ .pitch h1{font-size:24px}.side{padding:32px 24px}.form{margin:0 auto}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.tags span{opacity:1}}
+"""
 
 
 def _esc(s):
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
+def page(title, side):
+    """Design F: the blue brand panel (white Splashtop logo, fine grid, one slow
+    light sweep) and the sign-in side. Self-contained but for the logo and font."""
+    tags = "".join('<span style="animation-delay:%.2fs">%s</span>' % (0.35 + i * 0.08, t)
+                   for i, t in enumerate(("SOS Scans", "SSO Requests", "Cases and AI", "PriceBook", "Reply Lab")))
+    return ("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+            "<title>%s · SplashHub Centre</title><link rel=\"icon\" href=\"/splashtop-icon.png\">"
+            "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\"><link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>"
+            "<link href=\"https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap\" rel=\"stylesheet\">"
+            "<style>%s</style></head><body><div class=\"wrap\">"
+            "<section class=\"brand\"><div class=\"grid\"></div><div class=\"sweep\"></div>"
+            "<img class=\"logo\" src=\"/splashtop-logo-white.png\" alt=\"Splashtop\" width=\"148\" height=\"30\">"
+            "<div class=\"pitch\"><h1>SplashHub Centre</h1><p>SOS reviews, SSO checks, cases and pricing for the support team, in one place.</p></div>"
+            "<div class=\"tags\">%s</div></section>"
+            "<main class=\"side\"><div class=\"form\">%s</div>"
+            "<div class=\"foot\"><span>&copy; Splashtop Inc.</span><span>Internal use only</span></div></main>"
+            "</div></body></html>" % (_esc(title), _CSS, tags, side))
+
+
+def _ms_button(label="Continue with Microsoft"):
+    # The address bar's #part never reaches the server, so the link is finished
+    # in the browser: sign in, then come back to exactly this page.
+    return ("<a class=\"ms\" id=\"ms\" href=\"/auth/login\">%s<span class=\"spin\"></span><span id=\"msl\">%s</span></a>"
+            "<div class=\"secure\">%sSecured by Microsoft Entra ID</div>"
+            "<script>(function(){var a=document.getElementById('ms'),p=location.pathname;"
+            "if(p.indexOf('/auth/')!==0){a.href='/auth/login?next='+encodeURIComponent(p+location.search+location.hash);}"
+            "a.addEventListener('click',function(){a.classList.add('busy');document.getElementById('msl').textContent='Opening Microsoft sign-in\\u2026';});"
+            "window.addEventListener('pageshow',function(){a.classList.remove('busy');document.getElementById('msl').textContent=%s;});})();</script>"
+            % (_MS, label, _LOCK_ICON, json.dumps(label)))
+
+
+def _downloads_link():
+    return "<div class=\"alt\">Looking for the team&rsquo;s extensions? <a href=\"/downloads\">%sDownloads</a></div>" % _DL_ICON
+
+
 def bounce_page():
-    """Sent instead of a page while signed out: the address bar's #part never
-    reaches the server, so the browser itself sends us to sign in, all of it."""
-    return page("Signing in", "<h1>Signing you in…</h1><p>One moment.</p><script>location.replace('/auth/login?next=' + "
-                "encodeURIComponent(location.pathname + location.search + location.hash));</script>")
+    """What a signed-out visitor sees instead of a page: the sign-in landing."""
+    return page("Sign in", "<h2>Welcome back</h2><p class=\"lead\">Sign in with your Splashtop work account to continue.</p>"
+                + _ms_button() + _downloads_link())
 
 
 def error_page(msg):
     return page("Sign-in problem",
-                "<h1>Couldn&rsquo;t sign you in</h1><p>%s</p><p><a class=\"b\" href=\"/auth/login\">Try again</a></p>"
-                "<details><summary><small>Admins: sign in with the admin password</small></summary>"
-                "<form id=\"f\"><input type=\"password\" id=\"p\" placeholder=\"Admin password\" autocomplete=\"current-password\">"
-                "<div class=\"e\" id=\"e\"></div><button type=\"submit\">Log in</button></form></details>"
-                "<script>document.getElementById('f').addEventListener('submit',function(ev){ev.preventDefault();"
-                "fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',"
-                "body:JSON.stringify({password:document.getElementById('p').value})}).then(function(r){if(r.ok){location.href='/logs';}"
-                "else{document.getElementById('e').textContent='That password isn\\u2019t right.';}});});</script>" % _esc(msg))
+                "<h2>Couldn&rsquo;t sign you in</h2><div class=\"err\">%s</div>" % _esc(msg)
+                + _ms_button("Try again with Microsoft")
+                + "<details><summary>Admins: sign in with the admin password</summary>"
+                  "<form id=\"f\"><input type=\"password\" id=\"p\" placeholder=\"Admin password\" autocomplete=\"current-password\" aria-label=\"Admin password\">"
+                  "<div class=\"pwerr\" id=\"e\" aria-live=\"polite\"></div><button type=\"submit\">Log in</button></form></details>"
+                  "<script>document.getElementById('f').addEventListener('submit',function(ev){ev.preventDefault();"
+                  "fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',"
+                  "body:JSON.stringify({password:document.getElementById('p').value})}).then(function(r){if(r.ok){location.href='/logs';}"
+                  "else{document.getElementById('e').textContent='That password isn\\u2019t right.';}});});</script>"
+                + _downloads_link())
 
 
 def signed_out_page():
-    return page("Signed out", "<h1>You&rsquo;re signed out of SplashHub Centre</h1>"
-                "<p>Your Microsoft account stays signed in for Outlook, Teams and the rest.</p>"
-                "<p><a class=\"b\" href=\"/auth/login\">Sign in again</a></p>")
+    return page("Signed out", "<h2>You&rsquo;re signed out</h2><p class=\"lead\">Your Microsoft account stays signed in for Outlook, "
+                "Teams and the rest.</p>" + _ms_button("Sign in again") + _downloads_link())

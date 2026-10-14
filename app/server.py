@@ -186,7 +186,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # sidebar's two endpoints (an agent's browser, no cookie; their own origin
     # check), the admin password login (the way in if Entra is down) and the
     # static styles, scripts and icon.
-    OPEN_PATHS = ("/health", "/login", "/logout", "/api/sidebar/review", "/api/sidebar/replylab", "/splashtop-icon.png")
+    OPEN_PATHS = ("/health", "/login", "/logout", "/api/sidebar/review", "/api/sidebar/replylab", "/splashtop-icon.png",
+                  "/splashtop-logo-white.png", "/splashtop-icon-white.png",
+                  # Downloads (downloads.py): the page, the catalogue and the files are open --
+                  # the SplashHub Add-On's update check and its .bat have no session.
+                  "/downloads", "/downloads.html", "/downloads.js", "/api/list", "/api/downloads/list")
 
     def _jar(self):
         return cookies.SimpleCookie(self.headers.get("Cookie") or "")
@@ -203,7 +207,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def signin_gate(self, path):
         """True when the request was answered with "sign in first"."""
-        if path in self.OPEN_PATHS or path.startswith("/auth/") or re.fullmatch(r"/[\w.-]+\.(?:css|js)", path):
+        if path in self.OPEN_PATHS or path.startswith("/auth/") or path.startswith("/d/") or re.fullmatch(r"/[\w.-]+\.(?:css|js)", path):
             return False
         if not entra.active() or self.sso_user() or self._admin_cookie():
             return False
@@ -285,8 +289,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("po.html", "text/html; charset=utf-8")
             if u.path in ("/customers", "/customers.html"):
                 return self.static("customers.html", "text/html; charset=utf-8")
+            if u.path in ("/downloads", "/downloads.html"):
+                return self.static("downloads.html", "text/html; charset=utf-8")
+            if u.path in ("/api/list", "/api/downloads/list"):
+                # The catalogue; /api/list is the Extension Hub's own address, kept for the add-on.
+                import downloads
+                return self.json(dict(downloads.catalogue(), can_manage=self._admin_cookie() or not login_required()))
+            m = re.match(r"^/d/([0-9a-f]{16})/([^/]+)$", u.path)
+            if m:
+                import downloads
+                from urllib.parse import unquote
+                got = downloads.file_for(m.group(1), unquote(m.group(2)))
+                if not got:
+                    return self._send(404, "Not found", "text/plain; charset=utf-8")
+                data, ctype, fname = got
+                return self._send(200, data, ctype, [("Content-Disposition", 'attachment; filename="%s"' % fname)])
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/replylab.js", "/statistics.js", "/sparklog.js", "/wiki.js", "/splashtop-icon.png"):
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/replylab.js", "/statistics.js", "/sparklog.js", "/wiki.js", "/downloads.js", "/splashtop-icon.png",
+                          "/splashtop-logo-white.png", "/splashtop-icon-white.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
                 return self.static(u.path.lstrip("/"), ctype)
@@ -683,6 +703,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         u = urlparse(self.path)
         n = int(self.headers.get("Content-Length") or 0)
         # 64 KB is plenty for every form here; the Price Book's cached prices are the one bigger save.
+        if u.path.startswith("/api/downloads/") and self.signin_gate(u.path):
+            return
+        if u.path.startswith("/api/downloads/"):
+            # Downloads: add, update or remove an extension. Admin only; the file can be large.
+            return self.downloads_post(u, n)
         raw = self.rfile.read(min(n, (2 * 1024 * 1024) if u.path == "/api/pricebook/store" else
                                   (256 * 1024) if u.path == "/api/sidebar/replylab" else 64 * 1024)) if n else b""   # a long ticket's conversation
         if self.signin_gate(u.path):
@@ -1068,6 +1093,41 @@ class Handler(http.server.BaseHTTPRequestHandler):
             sid = sosscan.request(tid, "manual", "Centre admin", force=bool(data.get("force")))
             return self.json({"ok": True, "id": sid})
         return self.json({"error": "not found"}, 404)
+
+
+def _downloads_post(self, u, n):
+    import downloads
+    if not self.authed():
+        return self.json({"error": "Adding or changing downloads needs the admin password."}, 401)
+    if n > downloads.MAX_UPLOAD:
+        return self.json({"error": "That file is too large (limit %d MB)." % (downloads.MAX_UPLOAD // 1048576)}, 413)
+    raw = self.rfile.read(n) if n else b""
+    try:
+        m = re.match(r"^/api/downloads/([0-9a-f]{16})/delete$", u.path)
+        if m:
+            rec = downloads.remove(m.group(1))
+            sys.stderr.write("[downloads] removed %s (%s)\n" % (rec.get("name"), m.group(1)))
+            return self.json({"ok": True, "deleted": m.group(1)})
+        ctype = self.headers.get("Content-Type") or ""
+        if not ctype.startswith("multipart/form-data"):
+            return self.json({"error": "bad request"}, 400)
+        f = downloads.parse_multipart(ctype, raw)
+        txt = lambda k: f.get(k, (None, b""))[1].decode("utf-8", "replace")
+        filename, data = f.get("file", (None, b""))
+        if u.path == "/api/downloads/upload":
+            rec = downloads.add(filename, data, txt("name"), txt("description"), txt("added_by"))
+        else:
+            m = re.match(r"^/api/downloads/([0-9a-f]{16})/update$", u.path)
+            if not m:
+                return self.json({"error": "not found"}, 404)
+            rec = downloads.update(m.group(1), filename, data, txt("whats_new"), txt("added_by"))
+        sys.stderr.write("[downloads] %s %s v%s\n" % (rec.get("name"), "added" if u.path.endswith("upload") else "updated", rec.get("version")))
+        return self.json({"ok": True, "item": rec})
+    except downloads.DownloadError as e:
+        return self.json({"error": str(e)}, 400)
+
+
+Handler.downloads_post = _downloads_post
 
 
 def _sso_post(self, u, raw):
