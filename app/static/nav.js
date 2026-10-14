@@ -42,7 +42,7 @@
 /* The top bar: who you are, top right -- the name and e-mail of the person
    signed in with Microsoft, and their role (Member, or Admin from Settings >
    People). Admins also get the Admin group in the left menu. The menu holds
-   Downloads, Sign out and, for admins, the company sign-in switch. #signOut is
+   Downloads and Sign out (the company sign-in switch is in Settings > People). #signOut is
    the retired admin password's Log out: always hidden now, kept because each
    page's own script still wires it. */
 (function () {
@@ -71,8 +71,6 @@
           '<span><b>Splashtop Support</b><span class="tb-role" id="userRole2">Member</span><small id="userSub">Everyone on the team</small></span></div>' +
         '<div class="tb-sep"></div>' +
         '<a class="tb-item" role="menuitem" href="/downloads">' + SV('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>') + 'Downloads</a>' +
-        '<a class="tb-item" id="ssoTest" role="menuitem" href="/auth/login" hidden>' + SV(I.key) + 'Test company sign-in</a>' +
-        '<button type="button" class="tb-item" id="ssoToggle" role="menuitem" hidden>' + SV(I.lock) + '<span>Company sign-in</span></button>' +
         '<button type="button" class="tb-item" id="signOut" role="menuitem" hidden>' + SV(I.out) + 'Log out</button>' +
         '<a class="tb-item" id="ssoOut" role="menuitem" href="/auth/logout" hidden>' + SV(I.out) + 'Sign out</a>' +
       '</div>' +
@@ -107,23 +105,6 @@
       bar.querySelector('.tb-who b').textContent = me.name || me.email;
       document.getElementById('userSub').textContent = me.email;
       document.getElementById('ssoOut').hidden = false;
-    }
-    // Admins: try it, then switch it on or off for everyone.
-    if (admin && sso.configured) {
-      var test = document.getElementById('ssoTest'), tog = document.getElementById('ssoToggle');
-      test.href = '/auth/login?next=' + encodeURIComponent(location.pathname + location.search + location.hash);
-      test.hidden = !!me;
-      tog.hidden = false;
-      tog.querySelector('span').textContent = sso.on ? 'Company sign-in: On — turn off' : 'Company sign-in: Off — turn on';
-      tog.addEventListener('click', function () {
-        var on = !sso.on;
-        if (!confirm(on ? 'Turn on company sign-in?\n\nEveryone will need to sign in with their Splashtop Microsoft account to use SplashHub Centre. The Zendesk sidebar (Scan SOS package, Reply Lab) keeps working as it is.'
-                        : 'Turn off company sign-in?\n\nSplashHub Centre goes back to being open on the company network.')) return;
-        fetch('/api/sso-login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ on: on }) })
-          .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); location.reload(); }); })
-          .catch(function (e) { alert(e.message); });
-      });
     }
   }).catch(function () {});
 })();

@@ -40,6 +40,8 @@
   }
   function drawPeople(d) {
     var ppl = d.people || [];
+    drawSwitch('ssoSwitch', 'ssoSw', 'ssoState', !!d.sso.on);
+    $('ssoSw').disabled = !d.sso.configured;
     $('pplState').innerHTML = !d.sso.configured ? 'Company sign-in isn&rsquo;t set up yet, so nobody has signed in with Microsoft.'
       : (d.sso.on ? '<b>Company sign-in is on.</b> ' : 'Company sign-in is off; people listed here have signed in to test it. ') +
         ppl.length + ' ' + (ppl.length === 1 ? 'person' : 'people') + ', ' +
@@ -56,6 +58,15 @@
       }).join('') + '</tbody>';
   }
   function loadPeople() { api('/api/people').then(drawPeople).catch(function () {}); }
+  $('ssoSw').addEventListener('change', function () {
+    var on = this.checked;
+    if (!confirm(on ? 'Turn on company sign-in?\n\nEveryone will need to sign in with their Splashtop Microsoft account to use SplashHub Centre. The Zendesk sidebar and Downloads keep working as they are.'
+                    : 'Turn off company sign-in?\n\nSplashHub Centre goes back to being open to anyone on the company network.')) {
+      drawSwitch('ssoSwitch', 'ssoSw', 'ssoState', !on); return;
+    }
+    post('/api/sso-login', { on: on }).then(loadPeople)
+      .catch(function (e) { drawSwitch('ssoSwitch', 'ssoSw', 'ssoState', !on); $('pplMsg').textContent = e.message; });
+  });
   $('ppl').addEventListener('change', function (ev) {
     var sel = ev.target.closest('select[data-email]'); if (!sel) return;
     var email = sel.getAttribute('data-email'), role = sel.value, msg = $('pplMsg');
