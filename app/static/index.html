@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=1.18.2">
+  <link rel="stylesheet" href="app.css?v=1.19.0">
 </head>
 <body>
   <nav class="snav" id="snav" aria-label="Pages">
@@ -75,7 +75,11 @@
           <button type="button" class="seg-btn active" data-days="30">30 days</button>
           <button type="button" class="seg-btn" data-days="90">90 days</button>
           <button type="button" class="seg-btn" data-days="0">All time</button>
+          <button type="button" class="seg-btn" data-days="-1">Custom</button>
         </div>
+        <span class="lg-range" id="range" hidden>
+          <input type="date" class="sel" id="from" aria-label="From"> <span class="muted">to</span> <input type="date" class="sel" id="to" aria-label="To">
+        </span>
         <select class="sel" id="agent" aria-label="Agent"><option value="">All agents</option></select>
         <select class="sel" id="model" aria-label="Model"><option value="">All models</option></select>
         <div class="search">
@@ -84,7 +88,7 @@
         </div>
         <button type="button" class="link-btn" id="clearFilters" hidden>Clear filters</button>
       </div>
-      <div class="chips" id="tools" role="group" aria-label="Tool"></div>
+      <div class="lg-tools" id="tools" role="group" aria-label="Tool"></div>
     </section>
 
     <div class="stats" id="stats">
@@ -148,6 +152,6 @@
   </div>
 
   <div class="tip" id="tip" role="tooltip" hidden></div>
-  <script src="app.js?v=1.1.0"></script>
+  <script src="app.js?v=1.2.0"></script>
 </body>
 </html>

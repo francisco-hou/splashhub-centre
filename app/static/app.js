@@ -10,7 +10,7 @@
 
   var DAY = 86400000;
   var TZ = new Date().getTimezoneOffset();      // minutes behind UTC (Taipei = -480)
-  var S = { days: 30, tool: '', agent: '', model: '', q: '', page: 0, measure: 'runs' };
+  var S = { days: 30, from: '', to: '', tool: '', agent: '', model: '', q: '', page: 0, measure: 'runs' };   // days -1: the custom range
   var META = null, SUM = null;
   try { var m0 = localStorage.getItem('shc.measure'); if (m0 === 'cost' || m0 === 'runs') S.measure = m0; } catch (e) {}
 
@@ -75,9 +75,19 @@
       return r.json();
     });
   }
+  function ymdIdx(ymd) { var p = String(ymd).split('-'); return dayIdx(new Date(+p[0], +p[1] - 1, +p[2], 12).getTime()); }
+  function idxYmd(idx) { var d = new Date(dayStart(idx) + 12 * 3600000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  // the days shown: [first, last] as day indexes (the viewer's calendar days)
+  function span() {
+    var today = dayIdx(Date.now());
+    if (S.days === -1 && S.from && S.to) return [Math.min(ymdIdx(S.from), ymdIdx(S.to)), Math.max(ymdIdx(S.from), ymdIdx(S.to))];
+    if (S.days > 0) return [today - S.days + 1, today];
+    return [META && META.first ? dayIdx(META.first) : today, today];
+  }
   function range() {
     if (!S.days) return {};
-    return { since: dayStart(dayIdx(Date.now()) - (S.days - 1)) };
+    var s = span();
+    return S.days === -1 ? { since: dayStart(s[0]), until: dayStart(s[1] + 1) } : { since: dayStart(s[0]) };
   }
   function params(extra) {
     var p = range();
@@ -207,6 +217,7 @@
   // ---- controls -------------------------------------------------------------------
   function syncControls() {
     [].forEach.call($('period').children, function (b) { b.classList.toggle('active', +b.getAttribute('data-days') === S.days); });
+    $('range').hidden = S.days !== -1;
     [].forEach.call($('measure').children, function (b) { b.classList.toggle('active', b.getAttribute('data-m') === S.measure); });
     $('agent').classList.toggle('on', !!S.agent);
     $('model').classList.toggle('on', !!S.model);
@@ -216,7 +227,20 @@
   }
   $('period').addEventListener('click', function (ev) {
     var b = ev.target.closest('[data-days]'); if (!b) return;
-    S.days = +b.getAttribute('data-days'); refilter();
+    var d = +b.getAttribute('data-days');
+    if (d === -1 && !(S.from && S.to)) {                 // Custom: start from the period shown now
+      var s = span(); S.from = idxYmd(s[0]); S.to = idxYmd(s[1]);
+      $('from').value = S.from; $('to').value = S.to;
+    }
+    S.days = d; refilter();
+  });
+  ['from', 'to'].forEach(function (k) {
+    $(k).addEventListener('change', function () {
+      if (!this.value) return;
+      S[k] = this.value;
+      if (S.from && S.to && S.from > S.to) { var t = S.from; S.from = S.to; S.to = t; $('from').value = S.from; $('to').value = S.to; }
+      refilter();
+    });
   });
   $('measure').addEventListener('click', function (ev) {
     var b = ev.target.closest('[data-m]'); if (!b) return;
@@ -246,11 +270,7 @@
   $('next').addEventListener('click', function () { S.page++; load(true); });
 
   // ---- stats ----------------------------------------------------------------------
-  function periodDays() {
-    var today = dayIdx(Date.now());
-    if (S.days) return S.days;
-    return META && META.first ? today - dayIdx(META.first) + 1 : 1;
-  }
+  function periodDays() { var s = span(); return Math.max(1, s[1] - s[0] + 1); }
   function drawStats() {
     var s = SUM, n = periodDays();
     $('sRuns').textContent = int(s.runs);
@@ -267,11 +287,16 @@
   // ---- tool chips (counts follow every filter except the tool itself) ---------
   function drawChips() {
     var total = SUM.by_tool.reduce(function (a, t) { return a + t.runs; }, 0);
-    var html = '<button type="button" class="chip' + (S.tool ? '' : ' active') + '" data-tool="">All <span class="chip-n">' + int(total) + '</span></button>';
-    SUM.by_tool.forEach(function (t) {
+    var card = function (key, label, runs, cost, share) {
+      return '<button type="button" class="lg-tool' + (S.tool === key ? ' active' : '') + (runs ? '' : ' empty') + '" data-tool="' + esc(key) + '">' +
+        '<span class="lg-tl">' + esc(label) + '</span><span class="lg-tn">' + int(runs) + '</span>' +
+        '<span class="lg-ts">' + (key ? Math.round(share) + '% of runs' : 'runs') + ' · ' + esc(formatUsd(cost)) + '</span>' +
+        '<span class="lg-tbar"><i style="width:' + Math.max(runs ? 2 : 0, Math.round(share)) + '%"></i></span></button>';
+    };
+    var html = card('', 'All tools', total, SUM.by_tool.reduce(function (a, t) { return a + (t.cost || 0); }, 0), 100);
+    SUM.by_tool.slice().sort(function (a, b) { return b.runs - a.runs; }).forEach(function (t) {
       if (t.key === 'other' && !t.runs && S.tool !== 'other') return;
-      html += '<button type="button" class="chip' + (S.tool === t.key ? ' active' : '') + (t.runs ? '' : ' empty') +
-        '" data-tool="' + esc(t.key) + '">' + esc(t.label) + ' <span class="chip-n">' + int(t.runs) + '</span></button>';
+      html += card(t.key, t.label, t.runs, t.cost || 0, total ? 100 * t.runs / total : 0);
     });
     $('tools').innerHTML = html;
   }
@@ -291,12 +316,11 @@
   function drawDays() {
     var box = $('dayChart');
     if (!SUM) return;
-    var today = dayIdx(Date.now());
-    var first = S.days ? today - S.days + 1 : (META && META.first ? dayIdx(META.first) : today);
+    var sp = span(), first = sp[0], lastDay = sp[1];
     var byDay = {};
     SUM.by_day.forEach(function (d) { byDay[d.day] = d; });
     var days = [];
-    for (var i = first; i <= today; i++) days.push({ day: i, runs: (byDay[i] || {}).runs || 0, cost: (byDay[i] || {}).cost || 0 });
+    for (var i = first; i <= lastDay; i++) days.push({ day: i, runs: (byDay[i] || {}).runs || 0, cost: (byDay[i] || {}).cost || 0 });
     var cost = S.measure === 'cost';
     var val = function (d) { return cost ? d.cost : d.runs; };
     var fmt = cost ? usdShort : int;
@@ -401,11 +425,20 @@
       tb.innerHTML = '<tr class="empty-row"><td colspan="8">' +
         (S.tool || S.agent || S.model || S.q ? 'No runs match these filters.' : 'No runs in this period.') + '</td></tr>';
     } else {
+      var byDay = {}, today = dayIdx(Date.now()), lastD = null;
+      ((SUM && SUM.by_day) || []).forEach(function (d) { byDay[d.day] = d; });
       tb.innerHTML = res.rows.map(function (r) {
+        var di = dayIdx(r.ts_ms), head = '';
+        if (di !== lastD) {
+          lastD = di;
+          var dd = byDay[di] || {}, name = di === today ? 'Today' : di === today - 1 ? 'Yesterday' : '';
+          head = '<tr class="lg-day"><td colspan="8"><b>' + esc(name ? name + ' · ' + dayLabel(di, true) : dayLabel(di, true)) + '</b>' +
+            (dd.runs != null ? '<span class="muted"> · ' + int(dd.runs) + (dd.runs === 1 ? ' run' : ' runs') + ' · ' + esc(formatUsd(dd.cost)) + '</span>' : '') + '</td></tr>';
+        }
         var model = shortModel(r.model);
         var zero = function (n) { return n ? int(n) : '<span class="muted">0</span>'; };
-        return '<tr>' +
-          '<td class="when">' + esc(whenTxt(r.ts_ms)) + '</td>' +
+        return head + '<tr>' +
+          '<td class="when">' + esc(String(new Date(r.ts_ms).getHours()).padStart(2, '0') + ':' + String(new Date(r.ts_ms).getMinutes()).padStart(2, '0')) + '</td>' +
           '<td>' + esc(r.agent || '—') + '</td>' +
           '<td>' + esc(r.kind) + '</td>' +
           '<td' + (model ? ' title="' + esc(r.model) + '"' : ' class="muted"') + '>' + esc(model || '—') + '</td>' +

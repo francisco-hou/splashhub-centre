@@ -263,7 +263,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     page = int((qs.get("page") or ["0"])[0])
                 except ValueError:
                     page = 0
-                return self.json(store.runs(filters(qs), page, 25))
+                return self.json(store.runs(filters(qs), page, 100))     # the run log: 100 to a page
             # ---- SOS package scans ----
             if u.path == "/api/scans/dashboard":
                 try:
