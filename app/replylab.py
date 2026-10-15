@@ -45,17 +45,24 @@ LANGUAGES = ["English", "Japanese", "Chinese (Traditional)", "Chinese (Simplifie
 DEFAULT_PROMPT = """You are a Splashtop technical support agent writing the next PUBLIC reply on a Zendesk ticket.
 Splashtop makes remote access and remote support software (Splashtop Business Access, Remote Support, Enterprise, SOS, On-Prem).
 
+TEAM TEMPLATES COME FIRST
+- When one of the team templates given fits this ticket, your reply IS that template: copy it exactly, character for character.
+  Keep every word, sentence, link, step and number, in the same order, with the same line breaks and blank lines.
+- Change ONLY the placeholders (XXX, [name] and the like) and a detail that must match this ticket (the customer's name, OS, version or computer name). Nothing else.
+- Do not rephrase, shorten, reorder, merge or split sentences, and do not add a sentence, a step, a greeting or a closing the template doesn't have.
+- Some templates hold two versions one after the other (each starting with "Hello"): use the one version that fits, not both.
+- If the customer wrote in another language, translate the template faithfully, sentence by sentence, keeping its layout.
+
+WHEN NO TEMPLATE FITS
+- Write a short reply in the team's style: "Hello," then a blank line; a line thanking them or saying sorry about the trouble; short paragraphs or numbered steps; a link to the matching Splashtop support article when there is one; then "Please let us know how it goes!"
 - Reply in the customer's language: the language of their latest message.
 - Answer what the customer asked in their latest message; don't repeat what was already said or asked.
 - Be accurate. If you're not sure of a product fact, say what you will check or ask for the detail you need (version, OS, logs, screenshots) -- never invent features, prices, dates or policies.
+
+ALWAYS
 - Internal notes are for you only: use what they say, never quote them or mention them.
-- TEAM TEMPLATES COME FIRST. When one of the team templates given fits this ticket, your reply IS that template, word for word (99% the same):
-  keep its greeting, every sentence, its steps and their numbering, its links and its closing exactly as written.
-  Change ONLY what must change for this ticket: the customer's name, a detail such as their OS, version or computer name, and placeholders like XXX.
-  Do not rephrase, shorten, add sentences, add steps or add a signature the template doesn't have.
-  Some templates hold two versions one after the other (each starting with "Hello"): use the one version that fits, not both.
-  If the customer wrote in another language, translate the template faithfully, sentence by sentence.
-- Only when NO template fits, write a short reply in the same style: "Hello,", a line thanking them or saying sorry about the trouble, short paragraphs or numbered steps, a link to the matching Splashtop support article when there is one, "Please let us know how it goes!", then "Regards," and "Splashtop Business Support Team".
+- Spacing: one blank line between paragraphs; each numbered step or bullet on its own line; no blank line between the steps of one list; no spaces at the ends of lines.
+- NO sign-off: never end with "Regards", "Best regards", "Thanks," a name, "Splashtop Business Support Team" or any signature -- Zendesk adds the signature by itself.
 - Plain text, no Markdown, no subject line.
 - Never promise refunds, discounts, delivery dates or new features.
 - The FIRST line of your answer is "TEMPLATE: <the template's title in brackets, exactly as given>" or "TEMPLATE: none"; the reply starts on the next line."""
@@ -334,13 +341,30 @@ def _template_part(tk, template):
         t = next((x for x in templates() if x["id"] == template), None)
         if not t:
             raise ValueError("unknown template")
-        return ("\n\n---\nThe team template to use (it fits this ticket; reply with it word for word, changing only what this ticket needs):\n\n[%s]\n%s" % (t["title"], t["text"]), [t["title"]])
+        return ("\n\n---\nThe team template to use (it fits this ticket). Your reply is this template, identical -- same words, same line breaks -- "
+                "with only its placeholders and this ticket's details filled in:\n\n[%s]\n%s" % (t["title"], _tidy(t["text"])), [t["title"]])
     picks = closest(tk)
     if not picks:
         return "", []
-    return ("\n\n---\nThe team's reply templates closest to this ticket. If one fits, reply with it word for word "
-            "(changing only what this ticket needs); if none fits, write in their style:\n\n" + "\n\n".join("[%s]\n%s" % (t["title"], t["text"]) for t in picks),
+    return ("\n\n---\nThe team's reply templates closest to this ticket. If one fits, your reply is that template, identical -- same words, "
+            "same line breaks -- with only its placeholders and this ticket's details filled in. If none fits, write in their style:\n\n" +
+            "\n\n".join("[%s]\n%s" % (t["title"], _tidy(t["text"])) for t in picks),
             [t["title"] for t in picks])
+
+
+_SIGNOFF = re.compile(r"^\s*((best|kind|warm|many)\s+)?(regards|wishes)[,.!]*\s*$|^\s*(sincerely|cheers|thanks|thank you)\s*,\s*$|"
+                      r"^\s*(the\s+)?splashtop(\s+\w+)*\s+(support\s+)?team[.!]?\s*$|^\s*splashtop\s+support[.!]?\s*$|"
+                      r"^\s*\[(agent|your)?\s*name\]\s*$", re.I)
+
+
+def _tidy(text):
+    """A reply as the team sends it: one blank line between paragraphs, no spaces at line ends,
+    and no sign-off at the bottom ("Regards," "Splashtop Business Support Team", "[Agent name]"):
+    Zendesk adds the agent's signature by itself."""
+    lines = [l.rstrip() for l in (text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    while lines and (not lines[-1].strip() or _SIGNOFF.match(lines[-1])):
+        lines.pop()
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
 
 def _which(text, given):
@@ -355,8 +379,10 @@ def _which(text, given):
     if not t:
         return reply, None, None
     norm = lambda s: re.sub(r"\s+", " ", s or "").strip().lower()
-    versions = [v for v in re.split(r"\n(?=Hello\b)", t["text"]) if v.strip()] or [t["text"]]
-    best = max(difflib.SequenceMatcher(None, norm(v), norm(reply)).ratio() for v in versions + [t["text"]])
+    tt = _tidy(t["text"])
+    versions = [_tidy(v) for v in re.split(r"\n(?=Hello\b)", tt) if v.strip()] or [tt]
+    reply = _tidy(reply)
+    best = max(difflib.SequenceMatcher(None, norm(v), norm(reply)).ratio() for v in versions + [tt])
     return reply, t["title"], int(round(best * 100))
 
 
@@ -428,6 +454,7 @@ def _draft(tk, model_id, prompt_text=None, notes=None, include_notes=True, templ
         u = res.get("usage") or {}
         tin, tout = u.get("input_tokens"), u.get("output_tokens")
     text, tused, alike = _which(text, used)
+    text = _tidy(text)
     return {"model": name, "provider": "Spark" if provider == "spark" else "Claude", "model_id": model_id, "text": text,
             "ms": int((time.time() - t0) * 1000), "tokens_in": tin, "tokens_out": tout, "ticket_id": int(ticket_id), "templates": used,
             "template_used": tused, "similarity": alike}
