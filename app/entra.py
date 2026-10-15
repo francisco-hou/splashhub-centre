@@ -423,51 +423,51 @@ _DL_ICON = ('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke=
 _CSS = """
 *{box-sizing:border-box}html,body{height:100%}
 body{margin:0;font:14px/1.55 Poppins,system-ui,-apple-system,Segoe UI,sans-serif;color:#1D242C;background:#fff}
-.wrap{display:grid;grid-template-columns:minmax(0,52fr) minmax(0,48fr);min-height:100vh}
-.brand{position:relative;overflow:hidden;background:#0071CE;color:#fff;padding:40px 48px;display:flex;flex-direction:column}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(460px,34%);min-height:100vh}
+.brand{position:relative;overflow:hidden;background:#0071CE;color:#fff;padding:44px 64px 52px;display:flex;flex-direction:column}
 .grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.07) 1px,transparent 1px),
  linear-gradient(90deg,rgba(255,255,255,.07) 1px,transparent 1px);background-size:32px 32px}
 .sweep{position:absolute;top:0;bottom:0;left:0;width:35%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.09),transparent);
  animation:sweep 7s ease-in-out infinite}
 @keyframes sweep{0%{transform:translateX(-120%)}60%,100%{transform:translateX(320%)}}
-.logo{position:relative;display:flex;align-items:center;gap:12px;align-self:flex-start;font-size:20px;font-weight:600;letter-spacing:-.01em}
-.logo img{width:34px;height:34px;display:block}
+.logo{position:relative;display:flex;align-items:center;gap:14px;align-self:flex-start;font-size:24px;font-weight:600;letter-spacing:-.01em}
+.logo img{width:40px;height:40px;display:block}
 .logo .sub{font-weight:400;opacity:.82}
-.pitch{position:relative;max-width:460px;animation:up .7s ease both}
-.pitch p{margin:0;font-size:19px;font-weight:500;line-height:1.35;opacity:.92;max-width:360px}
+.pitch{position:relative;max-width:560px;animation:up .7s ease both}
+.pitch p{margin:0;font-size:26px;font-weight:500;line-height:1.3;opacity:.94;max-width:460px;letter-spacing:-.01em}
 .stage{position:relative;flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:28px 0;animation:up .8s ease .1s both}
-.win{position:relative;width:min(500px,100%);height:270px;border-radius:14px;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.26);
- box-shadow:0 24px 60px rgba(0,30,70,.25);padding:30px 14px 14px;animation:float 7s ease-in-out infinite}
-.win:before{content:"";position:absolute;left:14px;top:12px;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.45);
- box-shadow:13px 0 rgba(255,255,255,.45),26px 0 rgba(255,255,255,.45)}
+.win{position:relative;width:min(700px,100%);height:380px;border-radius:18px;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.26);
+ box-shadow:0 30px 80px rgba(0,30,70,.28);padding:38px 18px 18px;animation:float 7s ease-in-out infinite}
+.win:before{content:"";position:absolute;left:18px;top:15px;width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.45);
+ box-shadow:16px 0 rgba(255,255,255,.45),32px 0 rgba(255,255,255,.45)}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-.sl{position:absolute;left:14px;right:14px;top:30px;bottom:14px;opacity:0;animation:cyc 25s ease-in-out infinite}
+.sl{position:absolute;left:18px;right:18px;top:38px;bottom:18px;opacity:0;animation:cyc 25s ease-in-out infinite}
 .cap{position:absolute;left:0;right:0;top:0;opacity:0;animation:cyc 25s ease-in-out infinite;text-align:center}
 .s2{animation-delay:5s}.s3{animation-delay:10s}.s4{animation-delay:15s}.s5{animation-delay:20s}
 @keyframes cyc{0%{opacity:0;transform:translateY(8px)}3%,17%{opacity:1;transform:none}20%,100%{opacity:0;transform:translateY(-6px)}}
-.caps{position:relative;width:min(500px,100%);height:52px;margin-top:22px}
-.cap b{display:block;font-size:15px;font-weight:600}.cap span{font-size:13px;opacity:.85}
-.dots{display:flex;gap:7px;margin-top:10px}.dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.35);animation:dot 25s infinite}
+.caps{position:relative;width:min(700px,100%);height:64px;margin-top:28px}
+.cap b{display:block;font-size:19px;font-weight:600}.cap span{font-size:15px;opacity:.88}
+.dots{display:flex;gap:9px;margin-top:12px}.dots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.35);animation:dot 25s infinite}
 @keyframes dot{0%,18%{background:#fff;transform:scale(1.15)}20%,100%{background:rgba(255,255,255,.35);transform:none}}
-.mc{background:#fff;color:#1D242C;border-radius:9px;padding:10px;height:100%;display:flex;flex-direction:column;gap:7px;font-size:11px}
+.mc{background:#fff;color:#1D242C;border-radius:12px;padding:16px;height:100%;display:flex;flex-direction:column;gap:10px;font-size:14px}
 .mt{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.mt div{border:1px solid #e6edf4;border-radius:7px;padding:6px 7px;font-size:16px;font-weight:600;color:#0071CE;line-height:1.1}
-.mt small{display:block;font-size:9px;color:#8a96a3;font-weight:500}
-.mr{display:flex;align-items:center;gap:8px;padding:5px 2px;border-top:1px solid #f0f3f7}
+.mt div{border:1px solid #e6edf4;border-radius:9px;padding:9px 10px;font-size:22px;font-weight:600;color:#0071CE;line-height:1.1}
+.mt small{display:block;font-size:11.5px;color:#8a96a3;font-weight:500}
+.mr{display:flex;align-items:center;gap:10px;padding:8px 2px;border-top:1px solid #f0f3f7}
 .mr b{color:#0071CE;font-weight:600}.mr span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pl{font-size:9px;font-weight:600;color:#fff;border-radius:3px;padding:1px 6px}
-.ln{height:7px;border-radius:4px;background:#e9eef4}
-.th{display:flex;gap:6px}.th i{flex:1;height:46px;border-radius:6px;background:#eef3f8;border:1px solid #e3eaf2}
+.pl{font-size:11.5px;font-weight:600;color:#fff;border-radius:4px;padding:2px 8px}
+.ln{height:9px;border-radius:5px;background:#e9eef4}
+.th{display:flex;gap:8px}.th i{flex:1;height:64px;border-radius:6px;background:#eef3f8;border:1px solid #e3eaf2}
 .bu{max-width:82%;border-radius:10px;padding:7px 9px;line-height:1.4}
 .bu.me{align-self:flex-end;background:#0071CE;color:#fff}.bu.ai{align-self:flex-start;background:#f1f5f9}
-.ch{display:flex;gap:5px}.ch i{font-style:normal;font-size:9.5px;color:#0071CE;background:#eaf4fd;border-radius:999px;padding:1px 7px}
-.qr{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid #f0f3f7}
-@media (max-width:1100px){.win{height:230px}}
-.side{display:flex;flex-direction:column;padding:28px 56px 40px}
+.ch{display:flex;gap:6px}.ch i{font-style:normal;font-size:12px;color:#0071CE;background:#eaf4fd;border-radius:999px;padding:1px 7px}
+.qr{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid #f0f3f7}
+@media (max-width:1300px){.win{height:320px}.mc{font-size:12.5px;padding:13px}.brand{padding:40px 44px 48px}}
+.side{display:flex;flex-direction:column;padding:28px 48px 40px}
 .sidetop{display:flex;justify-content:flex-end}
 .dl{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:500;color:#3d4650;text-decoration:none;border:1px solid #dce5ef;border-radius:8px;padding:7px 12px;transition:border-color .2s,color .2s,background .2s}
 .dl:hover{border-color:#0071CE;color:#0071CE;background:#f5f9fd}
-.form{margin:auto 0;width:100%;max-width:360px;animation:up .6s ease .15s both}
+.form{margin:auto;width:100%;max-width:360px;animation:up .6s ease .15s both}
 .form h2{font-size:24px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
 .form .lead{color:#5b6672;margin:0 0 26px}
 .ms{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:12px 16px;border:1px solid #c9d3de;border-radius:8px;
@@ -522,14 +522,14 @@ _TOOLS = (
      '<div class="mr"><b>#905112</b><span>Black screen after update</span><i class="pl" style="background:#3091ec">Pending</i></div>'
      '<div class="mr"><b>#905118</b><span>Mac permissions prompt</span><i class="pl" style="background:#e34f32">Open</i></div></div>'),
     ("SOS and SSO checks", "Brand reviews and DNS checks before you reply",
-     '<div class="mc"><div style="display:flex;align-items:center;gap:8px"><b style="font-size:12px">Custom SOS package</b>'
+     '<div class="mc"><div style="display:flex;align-items:center;gap:8px"><b style="font-size:15px">Custom SOS package</b>'
      '<span style="color:#8a96a3">Northwind IT</span><i class="pl" style="background:#00B74F;margin-left:auto">Verified</i></div>'
      '<div class="th"><i></i><i></i><i></i></div><div class="ln" style="width:92%"></div><div class="ln" style="width:70%"></div>'
      '<div style="display:flex;gap:8px;align-items:center;margin-top:auto;padding-top:6px;border-top:1px solid #f0f3f7">'
      '<span style="color:#0071CE;font-weight:600">SSO</span><span>northwind.com &middot; TXT record found</span>'
      '<i class="pl" style="background:#00B74F;margin-left:auto">Enabled</i></div></div>'),
     ("PriceBook and POs", "List prices, quotes and purchase orders",
-     '<div class="mc"><b style="font-size:12px">Option 1 &middot; Remote Support</b>'
+     '<div class="mc"><b style="font-size:15px">Option 1 &middot; Remote Support</b>'
      '<div class="qr"><span>Technician licences &times; 3</span><span class="ln" style="width:54px;margin-top:3px"></span></div>'
      '<div class="qr"><span>Volume price applied</span><span style="color:#00B74F;font-weight:600">4+ seats</span></div>'
      '<div class="qr"><b>Total per year</b><span class="ln" style="width:70px;margin-top:3px;background:#cfe1f5"></span></div>'
@@ -537,14 +537,14 @@ _TOOLS = (
      '<span style="color:#0071CE;font-weight:600">PO</span><span>Order received &middot; provisioning</span>'
      '<i class="pl" style="background:#3091ec;margin-left:auto">Open</i></div></div>'),
     ("AutoTag", "The language of every new ticket, read by Spark",
-     '<div class="mc"><div style="display:flex;align-items:center;gap:8px"><b style="font-size:12px">New tickets</b>'
+     '<div class="mc"><div style="display:flex;align-items:center;gap:8px"><b style="font-size:15px">New tickets</b>'
      '<i class="pl" style="background:#eaf4fd;color:#0071CE;margin-left:auto">Spark</i></div>'
      '<div class="mr"><b>#905140</b><span>リモート接続ができません</span><i class="pl" style="background:#7c5cd6">Japanese</i></div>'
      '<div class="mr"><b>#905141</b><span>Lizenz verl&auml;ngern f&uuml;r 12 Benutzer</span><i class="pl" style="background:#0f9d8a">German</i></div>'
      '<div class="mr"><b>#905142</b><span>&Eacute;cran noir apr&egrave;s la mise &agrave; jour</span><i class="pl" style="background:#d9822b">French</i></div>'
      '<div class="mr"><b>#905143</b><span>No puedo transferir archivos</span><i class="pl" style="background:#c2410c">Spanish</i></div></div>'),
     ("Jira", "Your CUS issues and the tickets linked to them",
-     '<div class="mc"><div style="display:flex;align-items:center;gap:8px"><b style="font-size:12px">My Jiras</b>'
+     '<div class="mc"><div style="display:flex;align-items:center;gap:8px"><b style="font-size:15px">My Jiras</b>'
      '<span style="color:#8a96a3">CUS</span><span style="margin-left:auto;color:#8a96a3">3 reported</span></div>'
      '<div class="mr"><b>CUS-2481</b><span>Black screen on macOS 15 after update</span><i class="pl" style="background:#3091ec">In progress</i></div>'
      '<div class="mr"><b>CUS-2466</b><span>File transfer stops at 99%</span><i class="pl" style="background:#87929d">To do</i></div>'
