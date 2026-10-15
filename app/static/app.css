@@ -623,11 +623,11 @@ main.page:not([hidden]) { animation: shcIn .28s cubic-bezier(.2, .7, .2, 1); }
 .tb-user > svg { color: #98a3ae; transition: transform .2s; }
 .tb-user.open > svg { transform: rotate(180deg); }
 .tb-av { width: 28px; height: 28px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #eef1f4; color: #55606b; }
-.is-admin .tb-av { background: #ddeefb; color: #0071ce; }
+.is-admin .tb-av { background: #f7e8f7; color: #942092; }      /* admin: the magenta rocket */
 .tb-id { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; text-align: left; }
 .tb-name { font-size: 12.5px; font-weight: 600; color: #1d242c; white-space: nowrap; }
 .tb-role { display: block; font-size: 11px; font-weight: 500; color: #78838f; }
-.is-admin .tb-role { color: #0071ce; font-weight: 600; }
+.is-admin .tb-role { color: #942092; font-weight: 600; }
 .tb-who .tb-role { margin: 1px 0 2px; }
 .tb-av-lg { width: 34px; height: 34px; }
 .tb-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 45; width: 252px; padding: 6px; background: #fff; border: 1px solid #e4e6ea;
