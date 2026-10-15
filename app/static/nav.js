@@ -84,6 +84,16 @@
   document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target)) open(false); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) { open(false); btn.focus(); } });
 
+  // The Admin group in the left menu: for admins (and everyone in a local preview). Shown at
+  // once from what this browser saw last, so the menu doesn't change when a page opens;
+  // the session check below corrects it.
+  function showAdmin(on) {
+    Array.prototype.forEach.call(document.querySelectorAll('.snav-adm, .snav-adm-h'), function (el) {
+      if (!el.classList.contains('active')) el.hidden = !on;
+    });
+  }
+  try { if (localStorage.getItem('shcNav.admin') === '1') showAdmin(true); } catch (e) {}
+
   // Who: the signed-in person; Admin when they hold the Admin role.
   fetch('/api/session', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (s) {
     var admin = !!(s.required && s.authed);
@@ -92,11 +102,9 @@
     ['userAv', 'userAv2'].forEach(function (id) { document.getElementById(id).innerHTML = SV(admin ? I.admin : I.user); });
     bar.classList.toggle('is-admin', admin);
     document.getElementById('userSub').textContent = s.required ? 'Logs and Settings are for admins' : 'Everyone on the team';
-    // The Admin group in the left menu: for admins (and everyone in a local preview).
-    Array.prototype.forEach.call(document.querySelectorAll('.snav-adm, .snav-adm-h'), function (el) {
-      if (!el.classList.contains('active')) el.hidden = !(admin || !s.required);
-    });
-    var h = document.querySelector('.snav-adm-h'); if (h) h.hidden = !(admin || !s.required);
+    var adm = admin || !s.required;
+    showAdmin(adm);
+    try { localStorage.setItem('shcNav.admin', adm ? '1' : '0'); } catch (e) {}
     document.getElementById('signOut').hidden = true;
 
     var sso = s.sso || {}, me = s.user;
@@ -450,6 +458,9 @@
     show(here || kept);
     btn.addEventListener('click', function () {
       var open = grp.hidden;
+      btn.classList.add('snav-click');                    // the caret turns and the group slides in only on a click,
+      grp.classList.remove('snav-anim');                  // never when a page opens with it already open
+      if (open) { void grp.offsetWidth; grp.classList.add('snav-anim'); }
       show(open);
       try { localStorage.setItem(KEY, open ? '1' : '0'); } catch (e) {}
     });

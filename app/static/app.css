@@ -1464,15 +1464,16 @@ tr.lg-day td { background: #f7f9fb; font-size: 12.5px; padding: 7px 12px; border
 .snav-h { font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #98a3ae; padding: 14px 18px 4px; }
 .nav-mini .snav-h { font-size: 0; padding: 6px 0; margin: 6px 14px 0; border-top: 1px solid #eef0f3; }
 .snav-grp { margin-top: 6px; }
-.snav-grp .snav-caret { margin-left: 6px; color: #8a96a3; transition: transform .2s ease; flex: none; }
+.snav-grp .snav-caret { margin-left: 6px; color: #8a96a3; flex: none; }
+.snav-grp.snav-click .snav-caret { transition: transform .2s ease; }
 .snav-grp .snav-beta { margin-left: auto; }
 .snav-grp.open .snav-caret { transform: rotate(180deg); }
 .snav-grp.here { color: #0071ce; }
-.snav-sub:not([hidden]) { animation: shcIn .2s ease both; }
+.snav-sub.snav-anim:not([hidden]) { animation: shcIn .2s ease both; }
 .snav-lab { padding-left: 38px; font-size: 13px; }
 .nav-mini .snav-grp .snav-caret { display: none; }
 .nav-mini .snav-lab { padding-left: 0; }
-@media (prefers-reduced-motion: reduce) { .snav-sub:not([hidden]) { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .snav-sub.snav-anim:not([hidden]) { animation: none; } }
 .snav-in { padding-left: 38px; font-size: 13px; }
 .nav-mini .snav-in { padding-left: 0; }
 .snav-grp[hidden] { display: none; }
