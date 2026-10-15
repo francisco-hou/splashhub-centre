@@ -100,7 +100,7 @@
   }
 
   // ---- sign-in ----------------------------------------------------------------
-  // Not an admin: Logs and Settings are for the Admin role (Settings > People); there is no password.
+  // Not an admin: Logs and Settings are for the Admin role (Settings > People); or the admin password on the sign-in page.
   function showLogin(msg) {
     $('page').hidden = true;
     $('login').hidden = false;

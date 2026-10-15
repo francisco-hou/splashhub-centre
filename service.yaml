@@ -33,9 +33,14 @@ deployment:
   instance_size: medium
 
 secrets:
+  # The admin password: the sign-in page's other way in (an Admin session), for when
+  # Microsoft sign-in isn't available. Not required: without it only Microsoft is offered.
+  ADMIN_PASSWORD:
+    name: ADMIN_PASSWORD
+    required: false
   # Company sign-in (app/entra.py): the Entra app registration's client secret, from IT.
-  # Not required: sign-in stays off until it is set AND an admin turns it on from the
-  # top bar's menu. The tenant and client ID are not secrets; they are in entra.py.
+  # Not required: sign-in is on once it is set (an admin can turn it off in Settings >
+  # People). The tenant and client ID are not secrets; they are in entra.py.
   ENTRA_CLIENT_SECRET:
     name: ENTRA_CLIENT_SECRET
     required: false

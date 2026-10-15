@@ -138,7 +138,7 @@ Export CSV.""",
 - Price feed: where the PriceBook reads its prices.""",
 
     "admin": """Admin: Logs, Settings, managing Downloads and the People list are for people with the Admin role. An admin
-sets roles in Settings > People (Member or Admin; it applies at once). There is no admin password. Everything else is
+sets roles in Settings > People (Member or Admin; it applies at once). The sign-in page also takes the admin password (an Admin session, for when Microsoft sign-in is down). Everything else is
 open to everyone signed in.""",
 }
 

@@ -7,7 +7,7 @@ Routes
   GET  /                                -> /scans
   GET  /logs                            the Logs page (admin)
   GET  /auth/login, /auth/callback, /auth/logout   company sign-in (entra.py)
-  POST /login                           retired (410): the admin password is gone
+  POST /login  {password}               the admin password: an Admin session (entra.password_sign_in)
   GET  /api/meta                        tools, agents, models, backend, sample flag
   GET  /api/summary?<filters>&tz=       totals, per-day, per-tool
   GET  /api/runs?<filters>&page=        one page of rows, newest first
@@ -40,6 +40,7 @@ import zendesk
 STATIC = os.path.join(APP, "static")
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", "8795"))
 HOST = os.environ.get("HOST", "127.0.0.1")      # the container sets 0.0.0.0
+_PW_FAILS = []             # when the admin password was wrong (10 in 10 minutes: a pause)
 COOKIE = "shcadmin"        # the retired admin password's cookie: only ever cleared now
 # What needs the admin session: the Logs page's data and the Settings page's.
 # Everything else (SOS Scans, SSO Requests, PriceBook, AI) is open to the team.
@@ -156,6 +157,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def admin_via(self):
         u = self.sso_user()
         try:
+            if u and u.get("via") == "password":       # signed in with the admin password
+                return "password"
             if u and entra.role_of(u["email"]) == "admin":
                 return "role"
         except Exception:
@@ -308,7 +311,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 # My Dashboard: the signed-in person's own queue (mydash.py).
                 import mydash
                 me = self.sso_user()
-                if not me:
+                if not me or me.get("via") == "password":     # the admin password is nobody's own queue
                     return self.json({"signin": True, "error": "Sign in with your Splashtop Microsoft account to see your dashboard."})
                 try:
                     return self.json(mydash.build(me["email"], fresh=(qs.get("fresh") or [""])[0] == "1"))
@@ -762,8 +765,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             sys.stderr.write("[sidebar] reply lab #%s %s ms\n" % (out.get("ticket_id"), out.get("ms")))
             return self.json(out, 200, cors)
         if u.path == "/login":
-            # The admin password is retired: admins are the Admin role (Settings > People).
-            return self.json({"ok": False, "error": "The admin password has been retired. Admins are set in Settings > People."}, 410)
+            # The admin password (the sign-in page's other way in): an Admin session, like a Microsoft one.
+            now = time.time()
+            _PW_FAILS[:] = [t for t in _PW_FAILS if now - t < 600]
+            if len(_PW_FAILS) >= 10:
+                return self.json({"ok": False, "error": "Too many wrong passwords -- wait a few minutes, or sign in with Microsoft."}, 429)
+            if not entra.admin_password():
+                return self.json({"ok": False, "error": "No admin password is set for SplashHub Centre."}, 404)
+            try:
+                given = str((json.loads(raw or b"{}") or {}).get("password") or "")
+            except ValueError:
+                given = ""
+            cks = entra.password_sign_in(given)
+            if not cks:
+                _PW_FAILS.append(now)
+                time.sleep(0.6)                      # blunt guessing a little
+                return self.json({"ok": False, "error": "Wrong password."}, 401)
+            sys.stderr.write("[sign-in] admin password\n")
+            return self.json({"ok": True}, 200, cks)
         if u.path == "/logout":
             return self.json({"ok": True}, 200, [("Set-Cookie", "%s=; Path=/; Max-Age=0" % COOKIE)])
         if (u.path in ADMIN_POST or u.path.startswith("/api/replylab")) and not self.authed():
@@ -790,7 +809,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if on and not entra.configured():
                 return self.json({"error": "Company sign-in isn't set up yet (missing: %s)." % ", ".join(entra.missing())}, 400)
             me = self.sso_user()
-            if on and not me:
+            if on and not (me and me.get("via") == "sso"):
                 return self.json({"error": "Sign in with Microsoft once first (Test company sign-in), so we know it works."}, 400)
             store.set_setting("sso_login", "on" if on else "off", (me or {}).get("email") or "Centre admin")
             sys.stderr.write("[sign-in] company sign-in switched %s by %s\n" % ("on" if on else "off", (me or {}).get("email") or "an admin"))

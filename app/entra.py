@@ -1,11 +1,15 @@
 """Company sign-in: Microsoft Entra ID over OIDC (authorization code flow with
 PKCE, confidential client), standard library only.
 
-OFF until two things are true: the app registration is configured (CLIENT_ID
-plus the sealed secret ENTRA_CLIENT_SECRET), and an admin turns it on from the
-top bar's menu (setting sso_login) -- which needs a test sign-in that worked
-first, so a broken registration can never lock the team out. While off, the
-pages behave exactly as before; /auth/login still works, for that test.
+ON once the app registration is configured (CLIENT_ID plus the sealed secret
+ENTRA_CLIENT_SECRET); an admin can turn it off in Settings > People (setting
+sso_login, "on" unless set). While off, the pages are open on the company
+network; /auth/login still works.
+
+The admin password (the sealed secret ADMIN_PASSWORD; locally app/admin_password.txt)
+is the other way in, on the same sign-in page: it gives an Admin session
+("Admin (password)") without Microsoft -- the way back in if Entra is ever down.
+It is offered only when the password is set.
 
 What stays outside sign-in (server.py, OPEN_PATHS): /health (Spluki's health
 check expects a plain 200), /auth/* (this flow), the two endpoints the Zendesk
@@ -69,7 +73,7 @@ def active():
     if not configured():
         return False
     try:
-        return store.get_setting("sso_login", "off") == "on"
+        return store.get_setting("sso_login", "on") == "on"
     except Exception:
         return False
 
@@ -128,10 +132,38 @@ def _cookie(name, value, max_age, path="/"):
 
 
 def user_from(cookie_jar):
-    """The signed-in person from the request's cookies: {email, name, oid} or None."""
+    """The signed-in person from the request's cookies: {email, name, oid, via} or None
+    (via "password": signed in with the admin password, an Admin)."""
     m = cookie_jar.get(USER_COOKIE)
     obj = unseal(m.value) if m else None
-    return {"email": obj["e"], "name": obj.get("n") or obj["e"], "oid": obj.get("o")} if obj and obj.get("e") else None
+    if not obj or not obj.get("e"):
+        return None
+    return {"email": obj["e"], "name": obj.get("n") or obj["e"], "oid": obj.get("o"), "via": "password" if obj.get("p") else "sso"}
+
+
+# ---- the admin password: the other way in --------------------------------------------------
+
+PW_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "admin_password.txt")
+PW_USER = "admin-password"          # who a password session is, in records
+
+
+def admin_password():
+    pw = (os.environ.get("ADMIN_PASSWORD") or "").strip()
+    if not pw and os.path.exists(PW_FILE):
+        with open(PW_FILE, encoding="utf-8") as f:
+            pw = f.read().strip()
+    return pw or None
+
+
+def password_sign_in(given):
+    """[cookie] for an Admin session, or None when the password is wrong (or none is set)."""
+    pw = admin_password()
+    if not pw or not hmac.compare_digest(str(given or "").encode("utf-8"), pw.encode("utf-8")):
+        activity(None, "sign_in", "failed", error="wrong admin password", detail="admin password")
+        return None
+    activity(PW_USER, "sign_in", "completed", detail="admin password")
+    tok = seal({"e": PW_USER, "n": "Admin (password)", "p": 1, "exp": int(time.time()) + SESSION_HOURS * 3600})
+    return [_cookie(USER_COOKIE, tok, SESSION_HOURS * 3600)]
 
 
 def safe_next(nxt):
@@ -273,7 +305,8 @@ def finish(params, cookie_jar):
 # Everyone who has signed in with Microsoft, with a role: member (every team page)
 # or admin (also Logs, Settings, managing Downloads, and this list). Roles are read
 # on each request (cached a few seconds), so a change applies at once -- no
-# signing out. There is no admin password: the last Admin can't be made a Member.
+# signing out. The last Admin can't be made a Member (the admin password, when set,
+# is a way in too -- it isn't a person in this list).
 
 ROLES = ("member", "admin")
 _ROLE_CACHE = {}
@@ -450,10 +483,20 @@ body{margin:0;font:14px/1.55 Poppins,system-ui,-apple-system,Segoe UI,sans-serif
 .alt a{color:#0071CE;text-decoration:none;font-weight:500;display:inline-flex;align-items:center;gap:6px}
 .alt a:hover{text-decoration:underline}
 .err{background:#fef3f2;border:1px solid #fecdca;color:#b42318;border-radius:8px;padding:10px 12px;font-size:13px;margin:0 0 20px}
-details{margin-top:18px;font-size:13px;color:#5b6672}summary{cursor:pointer}
-details input{width:100%;padding:9px 11px;border:1px solid #c9d3de;border-radius:8px;font:inherit;margin:10px 0 8px}
-details button{background:#0071CE;color:#fff;border:0;border-radius:8px;padding:9px 16px;font:500 13px Poppins,system-ui,sans-serif;cursor:pointer}
-.pwerr{color:#b42318;min-height:1.2em;font-size:12.5px}
+.or{display:flex;align-items:center;gap:12px;margin:26px 0 14px;color:#98a3ae;font-size:12px}
+.or::before,.or::after{content:"";flex:1;height:1px;background:#e6ecf2}
+details.pw{font-size:13px;color:#5b6672}
+details.pw summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;color:#3d4650;font-weight:500;padding:4px 0}
+details.pw summary::-webkit-details-marker{display:none}
+details.pw summary:hover{color:#0071CE}
+details.pw[open] summary{color:#1D242C}
+.pwrow{display:flex;gap:8px;margin-top:10px}
+.pwrow input{flex:1;min-width:0;padding:10px 12px;border:1px solid #c9d3de;border-radius:8px;font:inherit;font-size:14px}
+.pwrow input:focus{outline:none;border-color:#0071CE;box-shadow:0 0 0 3px rgba(0,113,206,.14)}
+.pwrow button{flex:none;background:#0071CE;color:#fff;border:0;border-radius:8px;padding:10px 18px;font:500 14px Poppins,system-ui,sans-serif;cursor:pointer}
+.pwrow button:hover{background:#005ba6}.pwrow button:disabled{opacity:.6;cursor:default}
+.pwerr{color:#b42318;min-height:1.2em;font-size:12.5px;margin-top:6px}
+.pwnote{font-size:12px;color:#8a96a3}
 .foot{display:flex;justify-content:space-between;font-size:12px;color:#8a96a3;margin-top:32px}
 @keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @media (max-width:820px){.wrap{grid-template-columns:1fr}.brand{padding:24px;min-height:auto}.stage{display:none}.pitch{margin-top:24px}.side{padding:32px 24px}.form{margin:0 auto}}
@@ -540,20 +583,41 @@ def _ms_button(label="Continue with Microsoft"):
             % (_MS, label, _LOCK_ICON, json.dumps(label)))
 
 
+def _pw_form():
+    """Sign in with the admin password: folded away under the Microsoft button, only when one is set.
+    After it, the page that was asked for (a sign-in page itself goes to the start page)."""
+    if not admin_password():
+        return ""
+    return ("<div class=\"or\"><span>or</span></div>"
+            "<details class=\"pw\" id=\"pwBox\"><summary>%sSign in with the admin password</summary>"
+            "<form id=\"pwf\" autocomplete=\"on\"><input type=\"text\" name=\"username\" value=\"admin\" autocomplete=\"username\" hidden>"
+            "<div class=\"pwrow\"><input type=\"password\" id=\"pw\" name=\"password\" autocomplete=\"current-password\" placeholder=\"Admin password\" aria-label=\"Admin password\" required>"
+            "<button type=\"submit\" id=\"pwb\">Sign in</button></div><div class=\"pwerr\" id=\"pwerr\" role=\"alert\"></div>"
+            "<div class=\"pwnote\">For admins, when Microsoft sign-in isn&rsquo;t available. You get the Admin pages.</div></form></details>"
+            "<script>(function(){var d=document.getElementById('pwBox'),f=document.getElementById('pwf'),i=document.getElementById('pw'),b=document.getElementById('pwb'),e=document.getElementById('pwerr');"
+            "d.addEventListener('toggle',function(){if(d.open)i.focus();});"
+            "f.addEventListener('submit',function(ev){ev.preventDefault();b.disabled=true;b.textContent='Signing in\\u2026';e.textContent='';"
+            "fetch('/login',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:i.value})})"
+            ".then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Could not sign in');"
+            "var p=location.pathname;location.replace(p.indexOf('/auth/')===0||p==='/login'?'/':p+location.search+location.hash);});})"
+            ".catch(function(x){e.textContent=x.message;b.disabled=false;b.textContent='Sign in';i.select();});});})();</script>"
+            % _LOCK_ICON)
+
+
 def bounce_page():
     """What a signed-out visitor sees instead of a page: the sign-in landing."""
     return page("Sign in", "<h2>Welcome back</h2><p class=\"lead\">Sign in with your Splashtop work account.</p>"
-                + _ms_button())
+                + _ms_button() + _pw_form())
 
 
 def error_page(msg):
     return page("Sign-in problem",
                 "<h2>Couldn&rsquo;t sign you in</h2><div class=\"err\">%s</div>" % _esc(msg)
-                + _ms_button("Try again with Microsoft")
+                + _ms_button("Try again with Microsoft") + _pw_form()
                 + "<p class=\"lead\" style=\"margin:18px 0 0;font-size:13px\">If it keeps happening, tell a SplashHub Centre admin.</p>"
                )
 
 
 def signed_out_page():
     return page("Signed out", "<h2>You&rsquo;re signed out</h2><p class=\"lead\">Your Microsoft account stays signed in for Outlook, "
-                "Teams and the rest.</p>" + _ms_button("Sign in again"))
+                "Teams and the rest.</p>" + _ms_button("Sign in again") + _pw_form())
