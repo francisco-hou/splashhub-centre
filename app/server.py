@@ -251,6 +251,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.static("statistics.html", "text/html; charset=utf-8")
             if u.path in ("/replylab", "/replylab.html"):
                 return self.static("replylab.html", "text/html; charset=utf-8")
+            if u.path in ("/prompts", "/prompts.html"):
+                return self.static("prompts.html", "text/html; charset=utf-8")
             if u.path in ("/me", "/me.html"):
                 return self.static("me.html", "text/html; charset=utf-8")
             if u.path in ("/overview", "/overview.html"):
@@ -287,7 +289,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 data, ctype, fname = got
                 return self._send(200, data, ctype, [("Content-Disposition", 'attachment; filename="%s"' % fname)])
             if u.path in ("/app.css", "/app.js", "/scans.js", "/sso.js", "/settings.js",
-                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/replylab.js", "/statistics.js", "/sparklog.js", "/wiki.js", "/downloads.js", "/me.js", "/splashtop-icon.png",
+                          "/prices.js", "/prices.css", "/pricebook.js", "/pbsettings.js", "/aichat.js", "/nav.js", "/kb.js", "/customers.js", "/po.js", "/overview.js", "/tags.js", "/autotag.js", "/adfilter.js", "/replylab.js", "/prompts.js", "/statistics.js", "/sparklog.js", "/wiki.js", "/downloads.js", "/me.js", "/splashtop-icon.png",
                           "/splashtop-logo-white.png", "/splashtop-icon-white.png"):
                 ctype = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8",
                          "png": "image/png"}[u.path.rsplit(".", 1)[1]]
@@ -302,6 +304,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path in ADMIN_GET and not self.authed():
                 return self.json({"error": "login required"}, 401)
             if u.path.startswith("/api/replylab") and not self.authed():     # Reply Lab reads any ticket: signed in only
+                return self.json({"error": "login required"}, 401)
+            if u.path.startswith("/api/prompts") and not self.authed():      # Prompts & Templates: admins
                 return self.json({"error": "login required"}, 401)
 
             if u.path == "/api/me/dashboard":
@@ -466,6 +470,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path == "/api/replylab":
                 import replylab
                 return self.json(replylab.info())
+            if u.path == "/api/prompts":
+                # Prompts & Templates (admin): every editable prompt with its history, and the team's templates
+                import aiprompts, replylab
+                out = aiprompts.overview()
+                out["templates"] = replylab.templates()
+                out["templates_edited"] = replylab.templates_edited()
+                out["trash"] = replylab.trash()
+                out["languages"] = replylab.LANGUAGES
+                return self.json(out)
             m = re.match(r"^/api/replylab/closest/(\d+)$", u.path)
             if m:                                      # the templates "Closest 3" would give this ticket
                 import replylab
@@ -765,7 +778,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.json({"ok": False, "error": "The admin password has been retired. Admins are set in Settings > People."}, 410)
         if u.path == "/logout":
             return self.json({"ok": True}, 200, [("Set-Cookie", "%s=; Path=/; Max-Age=0" % COOKIE)])
-        if (u.path in ADMIN_POST or u.path.startswith("/api/replylab")) and not self.authed():
+        if (u.path in ADMIN_POST or u.path.startswith("/api/replylab") or u.path.startswith("/api/prompts")) and not self.authed():
             return self.json({"error": "login required"}, 401)
         if u.path == "/api/people":
             # Admin: change someone's role.
@@ -854,7 +867,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         msg = str(e)[:240] if type(e).__name__ in ("SparkError", "ScanError", "ZendeskError") else type(e).__name__
                         return self.json({"error": msg}, 502)
                 if u.path == "/api/replylab/prompt":
-                    return self.json(replylab.save_prompt(data.get("prompt") or "", "team"))
+                    return self.json(replylab.save_prompt(data.get("prompt") or "", self.who()))
+            except (ValueError, TypeError) as e:
+                return self.json({"error": str(e) or "bad request"}, 400)
+            return self.json({"error": "not found"}, 404)
+        if u.path.startswith("/api/prompts/"):
+            # Prompts & Templates (admin): used from the next AI call on -- no release needed.
+            import aiprompts, replylab
+            try:
+                data = json.loads(raw or b"{}") or {}
+                by = self.who()
+                if u.path == "/api/prompts/save":
+                    return self.json(aiprompts.save(str(data.get("key") or ""), data.get("text") or "", by, data.get("note") or ""))
+                if u.path == "/api/prompts/reset":
+                    return self.json(aiprompts.save(str(data.get("key") or ""), "", by, "Back to the default"))
+                if u.path == "/api/prompts/sidebar-model":
+                    return self.json(replylab.set_sidebar_model(data.get("model"), by))
+                if u.path == "/api/prompts/template":
+                    return self.json(replylab.save_template(data, by))
+                if u.path == "/api/prompts/template/delete":
+                    return self.json(replylab.delete_template(str(data.get("id") or ""), by))
+                if u.path == "/api/prompts/template/restore":
+                    return self.json(replylab.restore_template(str(data.get("id") or ""), by))
+                if u.path == "/api/prompts/templates/reset":
+                    return self.json(replylab.reset_templates(by))
+                if u.path == "/api/prompts/match":
+                    return self.json({"matches": replylab.match(str(data.get("text") or "")[:6000], str(data.get("subject") or "")[:300])})
             except (ValueError, TypeError) as e:
                 return self.json({"error": str(e) or "bad request"}, 400)
             return self.json({"error": "not found"}, 404)

@@ -366,7 +366,9 @@ def summary(key, fresh=False):
     p = profile(key)
     if not p.get("found"):
         return {"error": "nothing about this customer yet"}
-    sig = hashlib.sha256(("%s|%s|%s|%s|%s|%s" % (p["key"], p["tickets"], p["open"], p["sos"], p["sso"], p["last_ms"])).encode()).hexdigest()[:16]
+    import aiprompts                    # a changed prompt writes the summary again
+    sig = hashlib.sha256(("%s|%s|%s|%s|%s|%s|%s" % (p["key"], p["tickets"], p["open"], p["sos"], p["sso"], p["last_ms"],
+                                                     aiprompts.text("customers", SUMMARY_PROMPT))).encode()).hexdigest()[:16]
     skey = "cust_sum:" + hashlib.sha256(p["key"].encode()).hexdigest()[:20]
     try:
         got = json.loads(store.get_setting(skey, "") or "null")
@@ -377,7 +379,8 @@ def summary(key, fresh=False):
 
     def run():
         try:
-            text = spark.chat(SUMMARY_PROMPT, _brief(p), max_tokens=500, log={"area": "customers"})
+            import aiprompts
+            text = spark.chat(aiprompts.text("customers", SUMMARY_PROMPT), _brief(p), max_tokens=500, log={"area": "customers"})
             pts = [l.strip()[2:].strip() for l in text.splitlines() if l.strip().startswith("- ")][:5] or [text.strip()]
             value = {"points": pts, "ms": _now()}
         except spark.SparkError as e:

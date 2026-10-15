@@ -230,17 +230,22 @@ def _customer_words(t):
 
 # ---- Spark ---------------------------------------------------------------------------------
 
+DEFAULT_PROMPT = ("You tell which language a support ticket's CUSTOMER wrote in. Allowed answers: {languages}; Other (a real language "
+                  "that is not in that list); or None (no real customer text: empty, only a signature, only an automatic "
+                  "message or attachment names). Judge the customer's own words; ignore English signatures, legal disclaimers, "
+                  "quoted replies, product names, error messages and automatic text. Chinese: Simplified if it uses simplified "
+                  "characters (这 们 说 么 发), Traditional if traditional ones (這 們 說 麼 發). Japanese if there is any kana. "
+                  "confidence is high, medium or low.")      # the Prompts & Templates page can change it (aiprompts)
+
+
 def _ask_spark(items):
     """{ticket id: (label or "Other", confidence, reason)} for [(id, subject, text)]."""
     import spark
     names = [l for l, _ in LANGS if l != "Other"]
-    system = ("You tell which language a support ticket's CUSTOMER wrote in. Allowed answers: %s; Other (a real language "
-              "that is not in that list); or None (no real customer text: empty, only a signature, only an automatic "
-              "message or attachment names). Judge the customer's own words; ignore English signatures, legal disclaimers, "
-              "quoted replies, product names, error messages and automatic text. Chinese: Simplified if it uses simplified "
-              "characters (这 们 说 么 发), Traditional if traditional ones (這 們 說 麼 發). Japanese if there is any kana. "
-              "confidence is high, medium or low. Answer with JSON only, one entry per ticket: "
-              '{"<ticket id>": {"lang": "<answer>", "confidence": "high|medium|low", "why": "<6 words at most>"}}') % ", ".join(names)
+    import aiprompts
+    system = (aiprompts.fill(aiprompts.text("autotag", DEFAULT_PROMPT).strip(), {"languages": ", ".join(names)}) +
+              " Answer with JSON only, one entry per ticket: "
+              '{"<ticket id>": {"lang": "<answer>", "confidence": "high|medium|low", "why": "<6 words at most>"}}')
     text = "\n\n".join("Ticket %s\nSubject: %s\nCustomer wrote: %s" % (i, s[:160], re.sub(r"\s+", " ", x)[:900]) for i, s, x in items)
     lg = {"area": "autotag", "tickets": [i for i, _, _ in items]}
     raw = spark.chat(system, text, max_tokens=900, log=lg)

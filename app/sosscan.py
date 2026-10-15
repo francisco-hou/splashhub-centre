@@ -377,7 +377,8 @@ def _translate_spark(texts):
     if not spark.available():
         raise ScanError("Spark isn't connected yet -- pick Claude in Settings, or wait for the next release.")
     try:
-        text = spark.chat(TRANSLATE_PROMPT + ' Answer with JSON only: {"items": [{"key": ..., "english": ...}]}.',
+        import aiprompts
+        text = spark.chat(aiprompts.text("translate", TRANSLATE_PROMPT).strip() + ' Answer with JSON only: {"items": [{"key": ..., "english": ...}]}.',
                           json.dumps([{"key": k, "text": v} for k, v in texts.items()], ensure_ascii=False), max_tokens=4000,
                           log={"area": "sos_translate"})
     except spark.SparkError as e:
@@ -422,7 +423,7 @@ def translate(scan_id):
                             "input_tokens": 0, "output_tokens": 0, "cost": 0, "source": "centre"}])
     else:
         _, _, model = ai_config()
-        body = {"model": model, "max_tokens": 4000, "system": TRANSLATE_PROMPT,
+        body = {"model": model, "max_tokens": 4000, "system": __import__("aiprompts").text("translate", TRANSLATE_PROMPT),
                 "output_config": {"effort": "low", "format": TRANSLATE_SCHEMA},
                 "messages": [{"role": "user", "content": [{"type": "text", "text": json.dumps(
                     [{"key": k, "text": v} for k, v in texts.items()], ensure_ascii=False)}]}]}

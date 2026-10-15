@@ -122,19 +122,23 @@ def save_settings(data, by=None):
 
 # ---- Spark ------------------------------------------------------------------------------------
 
+DEFAULT_PROMPT = ("You sort the tickets arriving at Splashtop's support desk (Splashtop makes remote access and remote support "
+                  "software). For each, decide if it is UNSOLICITED MARKETING / SPAM: someone selling a service TO Splashtop -- SEO, "
+                  "backlinks, guest posts, website traffic or ad space, web or app development, design, lead generation, data "
+                  "lists, outsourcing, crypto -- a cold sales pitch, or a newsletter. It is NOT spam when a customer or a prospect "
+                  "asks for help with Splashtop, asks to buy it or for a quote, a reseller or partner writes, it is about an "
+                  "invoice or an existing order, or someone reports a security problem. A chat where someone asks about "
+                  "Splashtop is never spam; neither is a message with no real text. A message that is only an email address -- "
+                  "even with the @ missing or replaced by a space (\"alan.jaques ghfip.com.au\"), as some SMS services send it -- "
+                  "is a customer verifying their account for 2FA and is never spam. When unsure, it is not spam.")      # the Prompts & Templates page can change it (aiprompts)
+
+
 def _ask(items, examples):
     """{ticket id: (spam?, confidence, why)} for [(id, subject, sender, text)]."""
     import spark, sparklog
     ex = "\n\n".join("Example %d:\n%s" % (i + 1, e[:900]) for i, e in enumerate(examples[:8]))
-    system = ("You sort the tickets arriving at Splashtop's support desk (Splashtop makes remote access and remote support "
-              "software). For each, decide if it is UNSOLICITED MARKETING / SPAM: someone selling a service TO Splashtop -- SEO, "
-              "backlinks, guest posts, website traffic or ad space, web or app development, design, lead generation, data "
-              "lists, outsourcing, crypto -- a cold sales pitch, or a newsletter. It is NOT spam when a customer or a prospect "
-              "asks for help with Splashtop, asks to buy it or for a quote, a reseller or partner writes, it is about an "
-              "invoice or an existing order, or someone reports a security problem. A chat where someone asks about "
-              "Splashtop is never spam; neither is a message with no real text. A message that is only an email address -- "
-              "even with the @ missing or replaced by a space (\"alan.jaques ghfip.com.au\"), as some SMS services send it -- "
-              "is a customer verifying their account for 2FA and is never spam. When unsure, it is not spam.\n\n"
+    import aiprompts
+    system = (aiprompts.text("adfilter", DEFAULT_PROMPT).strip() + "\n\n"
               "Examples of spam this desk has received:\n" + ex + "\n\n"
               'Answer with JSON only, one entry per ticket: {"<ticket id>": {"spam": true or false, "confidence": '
               '"high|medium|low", "why": "<at most 8 words>"}}')

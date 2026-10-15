@@ -12,12 +12,17 @@ Templates" page, customers' details taken out) are given to the model as the
 format to follow: the closest three by the words the customer used, one picked
 by hand, or none.
 
-The prompt in use is kept in settings (replylab_prompt), so it can be tuned
-over time; empty means DEFAULT_PROMPT. Spark's drafts are kept in Spark
-activity (area reply_lab), like every other Spark call.
+The prompt, the templates and the sidebar's model can all be changed on the
+Prompts & Templates page, without a new release: the prompt is kept in settings
+(replylab_prompt, with its history -- aiprompts.py), the templates too once
+one is edited (replylab_templates; replytemplates.json is the starting set and
+what "Put back the original templates" returns to), deleted ones in
+replylab_templates_trash for a while, and the sidebar's model in
+replylab_sidebar_model. Spark's drafts are kept in Spark activity (area
+reply_lab), like every other Spark call.
 
 The ticket sidebar (TestHub's Reply Lab tile) drafts through sidebar_draft():
-same prompt, templates and agent's notes, but always on SIDEBAR_MODEL, and on
+same prompt, templates and agent's notes, but always on sidebar_model(), and on
 the conversation the sidebar SENDS -- the agent's browser reads the ticket it
 has open, so this path never reads a ticket from Zendesk by number (Spark
 activity area reply_lab_sidebar). Still read only: the draft goes back to the
@@ -30,7 +35,11 @@ import store
 KEY = "replylab_prompt"
 MAX_TEXT = 14000                # the conversation given to the model, newest kept when longer
 CLAUDE_MODELS = ["claude-haiku-5-5"]     # Claude in Reply Lab, for now: Haiku 5.5 only
-SIDEBAR_MODEL = "qwen3.6-35b-a3b"        # the ticket sidebar's Reply Lab: this Spark model only, for now
+SIDEBAR_MODEL = "qwen3.6-35b-a3b"        # the ticket sidebar's Reply Lab: this Spark model, unless one is picked on Prompts & Templates
+SIDEBAR_KEY = "replylab_sidebar_model"
+TPL_KEY, TRASH_KEY = "replylab_templates", "replylab_templates_trash"
+LANGUAGES = ["English", "Japanese", "Chinese (Traditional)", "Chinese (Simplified)", "Korean", "German", "French", "Spanish",
+             "Italian", "Portuguese", "Dutch", "Other"]
 DEFAULT_PROMPT = """You are a Splashtop technical support agent writing the next PUBLIC reply on a Zendesk ticket.
 Splashtop makes remote access and remote support software (Splashtop Business Access, Remote Support, Enterprise, SOS, On-Prem).
 
@@ -81,21 +90,33 @@ def models():
 # ---- the prompt --------------------------------------------------------------------------------
 
 def prompt():
-    return store.get_setting(KEY, "") or DEFAULT_PROMPT
+    import aiprompts
+    return aiprompts.text("reply", DEFAULT_PROMPT)
 
 
 def save_prompt(text, by=None):
-    text = (text or "").strip()
-    if len(text) > 8000:
-        raise ValueError("the prompt is too long (8,000 characters at most)")
-    store.set_setting(KEY, "" if text == DEFAULT_PROMPT.strip() else text, by)
-    return {"prompt": prompt(), "is_default": not store.get_setting(KEY, "")}
+    import aiprompts
+    p = aiprompts.save("reply", text, by)
+    return {"prompt": p["text"], "is_default": p["is_default"]}
+
+
+def sidebar_model():
+    return (store.get_setting(SIDEBAR_KEY, "") or "").strip() or SIDEBAR_MODEL
+
+
+def set_sidebar_model(model, by=None):
+    import spark
+    model = str(model or "").strip()
+    if model and model != SIDEBAR_MODEL:
+        if not spark.available() or model not in spark.models():
+            raise ValueError("Spark doesn't offer %s" % (model or "that model"))
+    store.set_setting(SIDEBAR_KEY, "" if model == SIDEBAR_MODEL else model, by)
+    return {"sidebar_model": sidebar_model()}
 
 
 # ---- the team's templates ----------------------------------------------------------------------
 
-def templates():
-    """[{id, title, tag, language, text}], read once."""
+def _file_templates():
     if _TPL["list"] is None:
         try:
             with open(TEMPLATES_FILE, encoding="utf-8") as f:
@@ -103,6 +124,119 @@ def templates():
         except (OSError, ValueError):
             _TPL["list"] = []
     return _TPL["list"]
+
+
+def _saved(key):
+    try:
+        v = json.loads(store.get_setting(key, "") or "null")
+    except ValueError:
+        v = None
+    return v if isinstance(v, list) else None
+
+
+def templates():
+    """[{id, title, tag, language, text, updated_ms?, updated_by?}]: the set saved on
+    Prompts & Templates, else the starting set (replytemplates.json)."""
+    got = _saved(TPL_KEY)
+    return got if got is not None else _file_templates()
+
+
+def templates_edited():
+    return _saved(TPL_KEY) is not None
+
+
+def trash():
+    return _saved(TRASH_KEY) or []
+
+
+def _slug(title):
+    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60] or "template"
+
+
+def save_template(data, by=None):
+    """Add a template (no id) or change one. Returns the template."""
+    title = re.sub(r"\s+", " ", str(data.get("title") or "")).strip()
+    text = str(data.get("text") or "").replace("\r\n", "\n").strip()
+    tag = re.sub(r"\s+", " ", str(data.get("tag") or "")).strip() or "Other"
+    lang = str(data.get("language") or "English").strip() or "English"
+    if not title:
+        raise ValueError("give the template a title")
+    if not text:
+        raise ValueError("the template has no text")
+    if len(title) > 120 or len(tag) > 60 or len(text) > 8000:
+        raise ValueError("too long (title 120, tag 60, text 8,000 characters at most)")
+    lst = [dict(t) for t in templates()]
+    tid = str(data.get("id") or "").strip()
+    if any(t["title"].lower() == title.lower() and t["id"] != tid for t in lst):
+        raise ValueError("there is already a template called \"%s\"" % title)
+    now = _now()
+    if tid:
+        t = next((x for x in lst if x["id"] == tid), None)
+        if not t:
+            raise ValueError("that template isn't there any more -- reload the page")
+        t.update(title=title, tag=tag, language=lang, text=text, updated_ms=now, updated_by=by or "")
+    else:
+        base, n, ids = _slug(title), 2, {x["id"] for x in lst}
+        tid = base
+        while tid in ids:
+            tid, n = "%s-%d" % (base, n), n + 1
+        t = {"id": tid, "title": title, "tag": tag, "language": lang, "text": text, "updated_ms": now, "updated_by": by or ""}
+        lst.append(t)
+    store.set_setting(TPL_KEY, json.dumps(lst, ensure_ascii=False), by)
+    return t
+
+
+def delete_template(tid, by=None):
+    lst = [dict(t) for t in templates()]
+    t = next((x for x in lst if x["id"] == tid), None)
+    if not t:
+        raise ValueError("that template isn't there any more -- reload the page")
+    tr = [x for x in trash() if (x.get("template") or {}).get("id") != tid]
+    tr.insert(0, {"template": t, "deleted_ms": _now(), "deleted_by": by or ""})
+    store.set_setting(TRASH_KEY, json.dumps(tr[:40], ensure_ascii=False), by)
+    store.set_setting(TPL_KEY, json.dumps([x for x in lst if x["id"] != tid], ensure_ascii=False), by)
+    return {"ok": True}
+
+
+def restore_template(tid, by=None):
+    tr = trash()
+    got = next((x for x in tr if (x.get("template") or {}).get("id") == tid), None)
+    if not got:
+        raise ValueError("that template isn't in Recently deleted any more")
+    lst = [dict(t) for t in templates()]
+    t = dict(got["template"])
+    if any(x["id"] == t["id"] for x in lst):
+        t["id"] = t["id"] + "-restored"
+    if any(x["title"].lower() == t["title"].lower() for x in lst):
+        t["title"] += " (restored)"
+    lst.append(t)
+    store.set_setting(TPL_KEY, json.dumps(lst, ensure_ascii=False), by)
+    store.set_setting(TRASH_KEY, json.dumps([x for x in tr if x is not got], ensure_ascii=False), by)
+    return t
+
+
+def reset_templates(by=None):
+    """Back to the starting set; the edited set's templates that aren't in it go to Recently deleted."""
+    orig = {t["id"]: t for t in _file_templates()}
+    gone = [t for t in templates() if t["id"] not in orig or t["text"] != orig[t["id"]]["text"] or t["title"] != orig[t["id"]]["title"]]
+    if gone:
+        now = _now()
+        tr = [{"template": t, "deleted_ms": now, "deleted_by": by or ""} for t in gone] + trash()
+        store.set_setting(TRASH_KEY, json.dumps(tr[:40], ensure_ascii=False), by)
+    store.set_setting(TPL_KEY, "", by)
+    return {"ok": True, "moved": len(gone)}
+
+
+def match(text, subject=""):
+    """The templates Reply Lab would give the model for a customer who wrote this: [{id, title, score}]."""
+    tk = {"ticket": {"subject": subject or ""}, "conversation": [{"kind": "customer", "text": text or ""}]}
+    said = _words(" ".join([subject or "", text or ""]))
+    out = []
+    for t in closest(tk, n=5):
+        title, body = _words(t["title"] + " " + t["tag"]), _words(t["text"])
+        out.append({"id": t["id"], "title": t["title"], "tag": t["tag"],
+                    "words": sorted(said & (title | body))[:8]})
+    return out
 
 
 _STOP = set("the a an and or to of in on for with is are was it this that you your we our i my me be can could would please "
@@ -278,12 +412,13 @@ def sidebar_draft(data):
         raise ValueError("This ticket has no conversation to reply to yet.")
     if not spark.available():
         raise ValueError("Spark isn't connected to SplashHub Centre yet.")
-    if SIDEBAR_MODEL not in spark.models():
-        raise ValueError("Spark doesn't offer %s right now." % SIDEBAR_MODEL)
+    model = sidebar_model()
+    if model not in spark.models():
+        raise ValueError("Spark doesn't offer %s right now." % model)
     tk = {"ticket": {"id": tid, "subject": str(data.get("subject") or "")[:300], "status": str(data.get("status") or "")[:40],
                      "channel": "", "created_at": "", "tags": []},
           "conversation": convo}
-    out = _draft(tk, "spark:" + SIDEBAR_MODEL, None, data.get("notes"), data.get("include_notes", True) is not False,
+    out = _draft(tk, "spark:" + model, None, data.get("notes"), data.get("include_notes", True) is not False,
                  "auto", area="reply_lab_sidebar")
     return {k: out.get(k) for k in ("model", "provider", "text", "ms", "tokens_in", "tokens_out", "ticket_id",
                                     "templates", "template_used", "similarity")}
@@ -293,4 +428,4 @@ def info():
     have, notes = models()
     return {"models": have, "notes": notes, "prompt": prompt(), "default_prompt": DEFAULT_PROMPT,
             "templates": [{"id": t["id"], "title": t["title"], "tag": t["tag"], "language": t["language"], "text": t["text"]} for t in templates()],
-            "is_default": not store.get_setting(KEY, "")}
+            "is_default": not (store.get_setting(KEY, "") or "").strip()}
