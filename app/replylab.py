@@ -12,9 +12,10 @@ Templates" page, customers' details taken out) are given to the model as the
 format to follow: the closest three by the words the customer used, one picked
 by hand, or none.
 
-The prompt, the templates and the sidebar's model can all be changed on the
-Prompts & Templates page, without a new release: the prompt is kept in settings
-(replylab_prompt, with its history -- aiprompts.py), the templates too once
+The prompt, the templates and the sidebar's model can all be changed on Reply
+Lab's Prompt and Templates tabs, without a new release: the prompt is kept in
+settings (replylab_prompt; the versions a save replaced in
+replylab_prompt_hist), the templates too once
 one is edited (replylab_templates; replytemplates.json is the starting set and
 what "Put back the original templates" returns to), deleted ones in
 replylab_templates_trash for a while, and the sidebar's model in
@@ -38,6 +39,7 @@ CLAUDE_MODELS = ["claude-haiku-5-5"]     # Claude in Reply Lab, for now: Haiku 5
 SIDEBAR_MODEL = "qwen3.6-35b-a3b"        # the ticket sidebar's Reply Lab: this Spark model, unless one is picked on Prompts & Templates
 SIDEBAR_KEY = "replylab_sidebar_model"
 TPL_KEY, TRASH_KEY = "replylab_templates", "replylab_templates_trash"
+HIST_KEY, KEEP = "replylab_prompt_hist", 15      # the prompt versions a save replaced, newest first
 LANGUAGES = ["English", "Japanese", "Chinese (Traditional)", "Chinese (Simplified)", "Korean", "German", "French", "Spanish",
              "Italian", "Portuguese", "Dutch", "Other"]
 DEFAULT_PROMPT = """You are a Splashtop technical support agent writing the next PUBLIC reply on a Zendesk ticket.
@@ -90,14 +92,63 @@ def models():
 # ---- the prompt --------------------------------------------------------------------------------
 
 def prompt():
-    import aiprompts
-    return aiprompts.text("reply", DEFAULT_PROMPT)
+    try:
+        return (store.get_setting(KEY, "") or "").strip() or DEFAULT_PROMPT
+    except Exception:
+        return DEFAULT_PROMPT
 
 
-def save_prompt(text, by=None):
-    import aiprompts
-    p = aiprompts.save("reply", text, by)
-    return {"prompt": p["text"], "is_default": p["is_default"]}
+def _history():
+    try:
+        h = json.loads(store.get_setting(HIST_KEY, "") or "[]")
+        return h if isinstance(h, list) else []
+    except ValueError:
+        return []
+
+
+def _saved_meta():
+    """(updated_ms, updated_by) of the saved prompt, from its settings row."""
+    try:
+        c = store.connect()
+        try:
+            cur = c.cursor()
+            cur.execute(store._q("SELECT updated_ms, updated_by FROM settings WHERE key = %s"), [KEY])
+            row = cur.fetchone()
+            return (row[0], row[1]) if row else (None, None)
+        finally:
+            c.close()
+    except Exception:
+        return None, None
+
+
+def prompt_info():
+    """The prompt in use, the default, who saved it when, and the versions saves replaced."""
+    saved = (store.get_setting(KEY, "") or "").strip()
+    ms, by = _saved_meta()
+    hist = [{"text": v.get("text") or DEFAULT_PROMPT, "default": bool(v.get("default")), "ms": v.get("ms"), "by": v.get("by") or "",
+             "replaced_ms": v.get("replaced_ms"), "replaced_by": v.get("replaced_by") or "", "note": v.get("note") or ""}
+            for v in _history()]
+    return {"prompt": saved or DEFAULT_PROMPT, "default_prompt": DEFAULT_PROMPT, "is_default": not saved,
+            "updated_ms": ms if saved else None, "updated_by": (by or "") if saved else "", "history": hist}
+
+
+def save_prompt(text, by=None, note=""):
+    """Save the prompt (the default's own text, or empty, = back to the default). The text it
+    replaces goes into the history first, so it can be compared and put back."""
+    text = (text or "").replace("\r\n", "\n").strip()
+    if len(text) > 12000:
+        raise ValueError("the prompt is too long (12,000 characters at most)")
+    if text == DEFAULT_PROMPT.strip():
+        text = ""
+    old = (store.get_setting(KEY, "") or "").strip()
+    if old != text:
+        ms, who = _saved_meta()
+        h = _history()
+        h.insert(0, {"text": old, "default": not old, "ms": ms or _now(), "by": (who or "") if old else "",
+                     "replaced_ms": _now(), "replaced_by": by or "", "note": (note or "")[:200]})
+        store.set_setting(HIST_KEY, json.dumps(h[:KEEP], ensure_ascii=False), by)
+        store.set_setting(KEY, text, by)
+    return prompt_info()
 
 
 def sidebar_model():
@@ -426,6 +477,5 @@ def sidebar_draft(data):
 
 def info():
     have, notes = models()
-    return {"models": have, "notes": notes, "prompt": prompt(), "default_prompt": DEFAULT_PROMPT,
-            "templates": [{"id": t["id"], "title": t["title"], "tag": t["tag"], "language": t["language"], "text": t["text"]} for t in templates()],
-            "is_default": not (store.get_setting(KEY, "") or "").strip()}
+    return dict(prompt_info(), models=have, notes=notes, templates=templates(), templates_edited=templates_edited(),
+                trash=trash(), languages=LANGUAGES, sidebar_model=sidebar_model(), sidebar_default=SIDEBAR_MODEL)

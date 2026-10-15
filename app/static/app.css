@@ -1625,3 +1625,11 @@ tr.lg-day td { background: #f7f9fb; font-size: 12.5px; padding: 7px 12px; border
   .pt-tlist .pt-titems { max-height: 320px; }
   .pt-fields { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Reply Lab: the Prompt tab on its own, the prompt line on the Draft tab, a dot on a tab with unsaved changes */
+.pt-solo { max-width: 1100px; }
+.pt-side-solo { border-top: none; padding-top: 0; }
+.rl-psum { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 13px; padding: 9px 12px;
+  border: 1px solid #dce7f2; border-radius: 8px; background: #f8fbfe; }
+.pt-dot { width: 7px; height: 7px; border-radius: 50%; background: #e8930c; display: inline-block; }
+.pt-dot[hidden] { display: none; }
