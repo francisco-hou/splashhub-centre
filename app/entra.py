@@ -433,8 +433,8 @@ body{margin:0;font:14px/1.55 Poppins,system-ui,-apple-system,Segoe UI,sans-serif
 .logo{position:relative;display:flex;align-items:center;gap:14px;align-self:flex-start;font-size:24px;font-weight:600;letter-spacing:-.01em}
 .logo img{width:40px;height:40px;display:block}
 .logo .sub{font-weight:400;opacity:.82}
-.pitch{position:relative;max-width:560px;animation:up .7s ease both}
-.pitch p{margin:0;font-size:26px;font-weight:500;line-height:1.3;opacity:.94;max-width:460px;letter-spacing:-.01em}
+.pitch{position:relative;animation:up .7s ease both}
+.pitch p{margin:0;font-size:26px;font-weight:500;line-height:1.3;opacity:.94;letter-spacing:-.01em}
 .stage{position:relative;flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:28px 0;animation:up .8s ease .1s both}
 .win{position:relative;width:min(700px,100%);height:380px;border-radius:18px;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.26);
  box-shadow:0 30px 80px rgba(0,30,70,.28);padding:38px 18px 18px;animation:float 7s ease-in-out infinite}
