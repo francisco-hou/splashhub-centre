@@ -445,7 +445,7 @@ button.air-file:hover { color: #0071ce; }
 .set-txt { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .set-t { font-size: 14px; font-weight: 600; }
 .set-d { font-size: 12.5px; color: #55606b; line-height: 1.55; }
-.set-sub { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.set-sub { display: block; margin-top: 4px; line-height: 1.55; }      /* plain text: a flex row split it into columns at each <b> / <em> */
 .set-k { font-size: 12px; color: #55606b; }
 .set-form { gap: 10px; margin-top: 4px; }
 .set-row .aisw { flex: none; margin-top: 2px; }
@@ -1633,3 +1633,10 @@ tr.lg-day td { background: #f7f9fb; font-size: 12.5px; padding: 7px 12px; border
   border: 1px solid #dce7f2; border-radius: 8px; background: #f8fbfe; }
 .pt-dot { width: 7px; height: 7px; border-radius: 50%; background: #e8930c; display: inline-block; }
 .pt-dot[hidden] { display: none; }
+
+/* Settings > People: a short header over the table, the roles explained under it */
+.ppl-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-top: 16px; border-top: 1px solid #eaf1f9; }
+.ppl-count { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+.ppl-chip { font-size: 12px; font-weight: 500; color: #3a4550; background: #f0f4f8; border-radius: 999px; padding: 2px 10px; }
+.ppl-roles { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: #55606b; padding: 10px 0 8px; border-top: 1px solid #eaf1f9; margin-top: 4px; }
+.ppl-roles b { font-weight: 600; color: #1d242c; margin-right: 4px; }

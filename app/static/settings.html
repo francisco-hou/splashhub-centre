@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=1.20.2">
+  <link rel="stylesheet" href="app.css?v=1.20.3">
 </head>
 <body>
   <nav class="snav" id="snav" aria-label="Pages">
@@ -83,19 +83,20 @@
       <div class="set-body">
         <section class="card set-card set-sect" id="setSect-people" aria-labelledby="h-people">
           <h2 class="set-h" id="h-people">People</h2>
-          <div class="set-sub">Everyone who has signed in to SplashHub Centre with their Splashtop Microsoft account. <b>Member</b>: every team page. <b>Admin</b>: also Logs, Settings, managing Downloads and this list. A change applies at once. The last admin can't be made a Member.</div>
+          <div class="set-sub">Who can use SplashHub Centre, and who is an admin.</div>
       <div class="set-row">
         <div class="set-txt">
           <div class="set-t">Company sign-in</div>
-          <div class="set-d">Everyone signs in with their Splashtop Microsoft account to use SplashHub Centre. Off: Centre is open to anyone on the company network. The Zendesk sidebar (Scan SOS package, Reply Lab) and Downloads work either way.</div>
+          <div class="set-d">On: everyone signs in with their Splashtop Microsoft account. Off: open to anyone on the company network. The Zendesk sidebar and Downloads work either way.</div>
         </div>
         <label class="aisw" id="ssoSwitch">
           <span class="aisw-sw"><input type="checkbox" id="ssoSw" aria-label="Company sign-in"><span class="aisw-track"></span></span>
           <span class="aisw-state" id="ssoState">…</span>
         </label>
       </div>
-          <div class="set-d" id="pplState"></div>
+          <div class="ppl-head"><span class="set-t">Team</span><span class="ppl-count" id="pplState"></span></div>
           <div class="ppl-wrap"><table class="ppl" id="ppl"></table></div>
+          <div class="ppl-roles"><span><b>Member</b> every team page</span><span><b>Admin</b> also Logs, Settings, Downloads and this list</span><span class="muted">A change applies at once &middot; the last admin can&rsquo;t be made a Member</span></div>
           <div class="sc-msg" id="pplMsg" aria-live="polite"></div>
         </section>
         <section class="card set-card set-sect" id="setSect-review" aria-labelledby="h-review">
@@ -382,6 +383,6 @@
   <script src="prices.js?v=1.1.0"></script>
   <script src="pricebook.js?v=0.9.2"></script>
   <script src="pbsettings.js?v=1.7.0"></script>
-  <script src="settings.js?v=1.10.2"></script>
+  <script src="settings.js?v=1.10.3"></script>
 </body>
 </html>

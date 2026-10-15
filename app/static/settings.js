@@ -42,10 +42,10 @@
     var ppl = d.people || [];
     drawSwitch('ssoSwitch', 'ssoSw', 'ssoState', !!d.sso.on);
     $('ssoSw').disabled = !d.sso.configured;
-    $('pplState').innerHTML = !d.sso.configured ? 'Company sign-in isn&rsquo;t set up yet, so nobody has signed in with Microsoft.'
-      : (d.sso.on ? '<b>Company sign-in is on.</b> ' : 'Company sign-in is off; people listed here have signed in to test it. ') +
-        ppl.length + ' ' + (ppl.length === 1 ? 'person' : 'people') + ', ' +
-        ppl.filter(function (p) { return p.role === 'admin'; }).length + ' admin.';
+    var nAdm = ppl.filter(function (p) { return p.role === 'admin'; }).length;
+    $('pplState').innerHTML = !d.sso.configured ? 'Company sign-in isn&rsquo;t set up yet, so nobody has signed in.'
+      : '<span class="ppl-chip">' + ppl.length + ' ' + (ppl.length === 1 ? 'person' : 'people') + '</span><span class="ppl-chip">' + nAdm + ' admin' + (nAdm === 1 ? '' : 's') + '</span>' +
+        (d.sso.on ? '' : '<span class="muted">sign-in is off: these people signed in to test it</span>');
     if (!ppl.length) { $('ppl').innerHTML = ''; return; }
     $('ppl').innerHTML = '<thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Last sign-in</th><th>Sign-ins</th></tr></thead><tbody>' +
       ppl.map(function (p) {
@@ -53,7 +53,7 @@
           '<td>' + esc(p.email) + '</td>' +
           '<td><select data-email="' + esc(p.email) + '" aria-label="Role for ' + esc(p.email) + '">' +
             d.roles.map(function (r) { return '<option value="' + r + '"' + (r === p.role ? ' selected' : '') + '>' + (r === 'admin' ? 'Admin' : 'Member') + '</option>'; }).join('') +
-          '</select>' + (p.role_by ? '<small>by ' + esc(p.role_by) + '</small>' : '') + '</td>' +
+          '</select>' + (p.role_by && p.role_by !== p.email ? '<small>set by ' + esc(String(p.role_by).split('@')[0].replace(/[._]/g, ' ')) + '</small>' : '') + '</td>' +
           '<td>' + esc(ago(p.last_ms)) + '</td><td>' + (p.signins || 0) + '</td></tr>';
       }).join('') + '</tbody>';
   }
