@@ -483,13 +483,18 @@ body{margin:0;font:14px/1.55 Poppins,system-ui,-apple-system,Segoe UI,sans-serif
 .alt a{color:#0071CE;text-decoration:none;font-weight:500;display:inline-flex;align-items:center;gap:6px}
 .alt a:hover{text-decoration:underline}
 .err{background:#fef3f2;border:1px solid #fecdca;color:#b42318;border-radius:8px;padding:10px 12px;font-size:13px;margin:0 0 20px}
-.or{display:flex;align-items:center;gap:12px;margin:26px 0 14px;color:#98a3ae;font-size:12px}
+.or{display:flex;align-items:center;gap:12px;margin:22px 0 16px;color:#98a3ae;font-size:12px}
 .or::before,.or::after{content:"";flex:1;height:1px;background:#e6ecf2}
 details.pw{font-size:13px;color:#5b6672}
-details.pw summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:7px;color:#3d4650;font-weight:500;padding:4px 0}
+details.pw summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;box-sizing:border-box;
+  padding:12px 16px;border:1px solid #c9d3de;border-radius:8px;background:#fff;color:#1D242C;font:500 14px Poppins,system-ui,sans-serif;
+  transition:border-color .15s,background .15s,box-shadow .15s}
 details.pw summary::-webkit-details-marker{display:none}
-details.pw summary:hover{color:#0071CE}
-details.pw[open] summary{color:#1D242C}
+details.pw summary:hover{border-color:#9bb4ce;background:#f7fafd}
+details.pw summary:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(0,113,206,.18)}
+details.pw summary svg{width:16px;height:16px;color:#5b6672}
+details.pw[open] summary{border-color:#0071CE;background:#f2f8fe;color:#0071CE}
+details.pw[open] summary svg{color:#0071CE}
 .pwrow{display:flex;gap:8px;margin-top:10px}
 .pwrow input{flex:1;min-width:0;padding:10px 12px;border:1px solid #c9d3de;border-radius:8px;font:inherit;font-size:14px}
 .pwrow input:focus{outline:none;border-color:#0071CE;box-shadow:0 0 0 3px rgba(0,113,206,.14)}
